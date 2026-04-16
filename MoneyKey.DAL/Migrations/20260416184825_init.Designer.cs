@@ -12,7 +12,7 @@ using MoneyKey.DAL.Data;
 namespace MoneyKey.DAL.Migrations
 {
     [DbContext(typeof(BudgetDbContext))]
-    [Migration("20260416100247_init")]
+    [Migration("20260416184825_init")]
     partial class init
     {
         /// <inheritdoc />
