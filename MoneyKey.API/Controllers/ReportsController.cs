@@ -1,0 +1,66 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using MoneyKey.API.Services;
+using MoneyKey.Core.DTOs.Summary;
+using MoneyKey.DAL.Queries;
+using MoneyKey.DAL.Repositories.Interfaces;
+using MoneyKey.Domain.Enums;
+
+namespace MoneyKey.API.Controllers;
+
+[Authorize, Route("api/budgets/{budgetId:int}/reports")]
+public class ReportsController : BaseApiController
+{
+    private readonly ITransactionRepository     _txRepo;
+    private readonly BudgetAuthorizationService _auth;
+
+    public ReportsController(ITransactionRepository txRepo, BudgetAuthorizationService auth)
+    { _txRepo = txRepo; _auth = auth; }
+
+    [HttpGet("monthly-summary")]
+    public async Task<IActionResult> MonthlySummary(int budgetId, [FromQuery] int year = 0)
+    {
+        if (!await _auth.HasRoleAsync(budgetId, UserId, BudgetMemberRole.Viewer)) return Forbid();
+        if (year == 0) year = DateTime.Today.Year;
+        var q = new TransactionQuery
+        {
+            BudgetId = budgetId,
+            FilterByStartDate = true, StartDate = new DateTime(year, 1, 1),
+            FilterByEndDate   = true, EndDate   = new DateTime(year, 12, 31),
+            PageSize = int.MaxValue
+        };
+        var (txs, _) = await _txRepo.GetPagedAsync(q);
+        var rows = txs
+            .GroupBy(t => t.StartDate.Month)
+            .Select(g => new MonthlyRow
+            {
+                Year     = year,
+                Month    = g.Key,
+                Income   = g.Where(t => t.NetAmount > 0).Sum(t => t.NetAmount),
+                Expenses = g.Where(t => t.NetAmount < 0).Sum(t => t.NetAmount)
+            })
+            .OrderBy(r => r.Month)
+            .ToList();
+        return Ok(new MonthlySummary { Rows = rows });
+    }
+
+    [HttpGet("category-breakdown")]
+    public async Task<IActionResult> CategoryBreakdown(int budgetId, [FromQuery] DateTime? from, [FromQuery] DateTime? to)
+    {
+        if (!await _auth.HasRoleAsync(budgetId, UserId, BudgetMemberRole.Viewer)) return Forbid();
+        var q = new TransactionQuery
+        {
+            BudgetId = budgetId,
+            FilterByStartDate = from.HasValue, StartDate = from,
+            FilterByEndDate   = to.HasValue,   EndDate   = to,
+            PageSize = int.MaxValue
+        };
+        var (txs, _) = await _txRepo.GetPagedAsync(q);
+        var breakdown = txs
+            .Where(t => t.NetAmount < 0)
+            .GroupBy(t => t.Category?.Name ?? "Okänd")
+            .Select(g => new CategoryBreakdownItem { Category = g.Key, Total = Math.Abs(g.Sum(t => t.NetAmount)) })
+            .OrderByDescending(x => x.Total);
+        return Ok(breakdown);
+    }
+}

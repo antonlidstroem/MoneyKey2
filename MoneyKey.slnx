@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="MoneyKey.API/MoneyKey.API.csproj" />
+  <Project Path="MoneyKey.Blazor/MoneyKey.Blazor.csproj" />
+  <Project Path="MoneyKey.Core/MoneyKey.Core.csproj" />
+  <Project Path="MoneyKey.DAL/MoneyKey.DAL.csproj" />
+  <Project Path="MoneyKey.Domain/MoneyKey.Domain.csproj" />
+</Solution>
