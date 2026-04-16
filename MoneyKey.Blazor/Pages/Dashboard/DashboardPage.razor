@@ -98,6 +98,8 @@
             var summary   = await ReportsSvc.GetMonthlySummaryAsync(BudgetState.ActiveBudgetId, _year);
             var breakdown = await ReportsSvc.GetCategoryBreakdownAsync(BudgetState.ActiveBudgetId, new DateTime(_year, 1, 1), new DateTime(_year, 12, 31));
             _loading = false; StateHasChanged();
+            // Allow Blazor to commit the rendered DOM before JS chart calls
+            await Task.Yield();
 
             if (summary != null)
             {
