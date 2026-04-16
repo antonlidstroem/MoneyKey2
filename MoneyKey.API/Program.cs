@@ -125,7 +125,7 @@ svcs.AddScoped<ImportService>();
 svcs.AddScoped<ReceiptService>();
 svcs.AddScoped<JournalQueryService>();
 svcs.AddScoped<SignalRFeatureService>();
-svcs.AddScoped<Core.Services.Interfaces.IReceiptAttachmentService, Core.Services.NoOpReceiptAttachmentService>();
+svcs.AddScoped<MoneyKey.Core.Services.Interfaces.IReceiptAttachmentService, MoneyKey.Core.Services.NoOpReceiptAttachmentService>();
 
 // ── Email ─────────────────────────────────────────────────────────────────────
 var emailOpts = cfg.GetSection("Email").Get<EmailOptions>() ?? new EmailOptions();
