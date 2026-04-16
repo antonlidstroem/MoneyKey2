@@ -1,28 +1,24 @@
 name: Trigger auto deployment for moneykey-api
 
-# When this action will be executed
 on:
-  # Automatically trigger it when detected changes in repo
   push:
     branches: 
-      [ master ]
+      - master # Ändra till main om din branch heter det
     paths:
-    - '**'
-    - '.github/workflows/moneykey-api-AutoDeployTrigger-384b9de9-8155-40b1-be3c-13c35681ab22.yml'
+      - '**'
 
-  # Allow manual trigger 
   workflow_dispatch:      
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     permissions: 
-      id-token: write #This is required for requesting the OIDC JWT Token
-      contents: read #Required when GH token is used to authenticate with private repo
+      id-token: write 
+      contents: read 
 
     steps:
       - name: Checkout to the branch
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Azure Login
         uses: azure/login@v2
@@ -31,19 +27,15 @@ jobs:
           tenant-id: ${{ secrets.MONEYKEYAPI_AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.MONEYKEYAPI_AZURE_SUBSCRIPTION_ID }}
 
-      - name: Build and push container image to registry
-        uses: azure/container-apps-deploy-action@v2
+      - name: Build and deploy Container App
+        uses: azure/container-apps-deploy-action@v1
         with:
           appSourcePath: ${{ github.workspace }}
-          _dockerfilePathKey_: _dockerfilePath_
-          _targetLabelKey_: _targetLabel_
-          registryUrl: 
-          registryUsername: ${{ secrets.MONEYKEYAPI_REGISTRY_USERNAME }}
-          registryPassword: ${{ secrets.MONEYKEYAPI_REGISTRY_PASSWORD }}
+          dockerfilePath: ./Dockerfile 
           containerAppName: moneykey-api
           resourceGroup: moneykey-group
-          imageToBuild: default/[parameters('containerAppName')]:${{ github.sha }}
-          _buildArgumentsKey_: |
-            _buildArgumentsValues_
-
-
+          # Här kopplar vi ihop allt med ditt nya register
+          imageToBuild: ${{ secrets.MONEYKEYAPI_REGISTRY_SERVER }}/moneykey-api:${{ github.sha }}
+          registryUrl: ${{ secrets.MONEYKEYAPI_REGISTRY_SERVER }}
+          registryUsername: ${{ secrets.MONEYKEYAPI_REGISTRY_USERNAME }}
+          registryPassword: ${{ secrets.MONEYKEYAPI_REGISTRY_PASSWORD }}
