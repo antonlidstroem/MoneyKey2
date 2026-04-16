@@ -1,31 +1,27 @@
 ﻿# STAGE 1: THE BUILDER
-# We use the big "SDK" image because it has the compilers needed to build code.
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build-env
 WORKDIR /app
 
-# Copy the project file (.csproj) from your PC into the container's /app folder.
-# We do this first so Docker can "cache" your NuGet packages.
-COPY *.csproj ./
-RUN dotnet restore
+# 1. Kopiera projektfilen från undermappen till containern
+# Vi anger [källmapp/fil] [målmapp/]
+COPY ["MoneyKey.API/MoneyKey.API.csproj", "MoneyKey.API/"]
+RUN dotnet restore "MoneyKey.API/MoneyKey.API.csproj"
 
-# Now copy every other file from your API folder into the container.
-COPY . ./
+# 2. Kopiera ALLT (alla mappar och filer i MoneyKey2)
+COPY . .
 
-# Tell .NET to compile the app into a folder called 'out' in Release mode.
-RUN dotnet publish -c Release -o out
+# 3. Gå in i mappen där API-koden finns och bygg
+WORKDIR "/app/MoneyKey.API"
+RUN dotnet publish -c Release -o /app/out
 
 # STAGE 2: THE RUNNER
-# We don't need the huge compilers anymore. We switch to a tiny "Runtime" image.
-# This makes your final deployment much faster and smaller.
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 
-# Take the compiled 'out' folder from the Builder stage and bring it here.
+# Hämta den färdiga koden från 'out'-mappen
 COPY --from=build-env /app/out .
 
-# Tell the container which port to open (8080 is the standard for .NET 8).
 EXPOSE 8080
 
-# This is the "Start" button. When the container starts, it runs this command.
-# REPLACE "YourApiProjectName" with the actual name of your .dll file!
+# Starta API:et
 ENTRYPOINT ["dotnet", "MoneyKey.API.dll"]
