@@ -113,6 +113,7 @@ svcs.AddScoped<IReceiptRepository,       ReceiptRepository>();
 svcs.AddScoped<IAuditRepository,         AuditRepository>();
 svcs.AddScoped<IAppSettingRepository,    AppSettingRepository>();
 svcs.AddScoped<ISystemSettingRepository, SystemSettingRepository>();
+svcs.AddScoped<IListRepository,          ListRepository>();
 
 // ── Services ───────────────────────────────────────────────────────────────────
 svcs.AddScoped<TokenService>();

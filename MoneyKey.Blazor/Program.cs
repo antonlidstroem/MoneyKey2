@@ -42,6 +42,7 @@ builder.Services.AddScoped<ReportsApiService>();
 builder.Services.AddScoped<JournalApiService>();
 builder.Services.AddScoped<ReceiptApiService>();
 builder.Services.AddScoped<AdminApiService>();
+builder.Services.AddScoped<ListApiService>();
 builder.Services.AddSingleton<ToastService>();
 
 builder.Services.AddScoped<BudgetState>();

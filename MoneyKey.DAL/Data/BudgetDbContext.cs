@@ -25,6 +25,8 @@ public class BudgetDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<AuditLog>             AuditLogs              => Set<AuditLog>();
     public DbSet<AppSetting>           AppSettings            => Set<AppSetting>();
     public DbSet<SystemSetting>        SystemSettings         => Set<SystemSetting>();
+    public DbSet<UserList>             UserLists              => Set<UserList>();
+    public DbSet<ListItem>             ListItems              => Set<ListItem>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -168,7 +170,38 @@ public class BudgetDbContext : IdentityDbContext<ApplicationUser>
             new Category { Id = 12, Name = "Milersättning",      Type = TransactionType.Income,  IsSystemCategory = true }
         );
 
-        // ── Seed receipt batch categories ───────────────────────────────────
+        mb.Entity<UserList>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.HasMany(x => x.Items).WithOne(i => i.List).HasForeignKey(i => i.ListId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<ListItem>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Text).HasMaxLength(500).IsRequired();
+        });
+
+        mb.Entity<SystemSetting>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Key).HasMaxLength(200).IsRequired();
+            e.HasIndex(x => x.Key).IsUnique();
+        });
+
+        mb.Entity<UserList>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.HasMany(x => x.Items).WithOne(i => i.List).HasForeignKey(i => i.ListId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<ListItem>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Text).HasMaxLength(500).IsRequired();
+        });
         mb.Entity<ReceiptBatchCategory>().HasData(
             new ReceiptBatchCategory { Id = 1, Name = "Resor & Transport",      IconName = "directions_car", SortOrder = 1, Description = "Tåg, flyg, hotell, parkering, taxi" },
             new ReceiptBatchCategory { Id = 2, Name = "Representation",         IconName = "restaurant",     SortOrder = 2, Description = "Kundluncher, middag, presentkort" },
@@ -178,5 +211,18 @@ public class BudgetDbContext : IdentityDbContext<ApplicationUser>
             new ReceiptBatchCategory { Id = 6, Name = "Tjänster & Konsulting",  IconName = "handshake",      SortOrder = 6, Description = "Externa tjänster, prenumerationer" },
             new ReceiptBatchCategory { Id = 7, Name = "Övrigt",                 IconName = "more_horiz",     SortOrder = 7, Description = "Utlägg som inte passar annan kategori" }
         );
+
+        // ── UserList + ListItem ─────────────────────────────────────────────
+        mb.Entity<UserList>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.HasMany(x => x.Items).WithOne(i => i.List).HasForeignKey(i => i.ListId).OnDelete(DeleteBehavior.Cascade);
+        });
+        mb.Entity<ListItem>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Text).HasMaxLength(500).IsRequired();
+        });
     }
 }
