@@ -503,7 +503,7 @@
 }
 
 @* ═══ LIST DETAIL MODAL ═══ *@
-@if (_activeList != null)
+@if (_activeList is not null)
 {
     <div class="modal-overlay" @onclick='() => _activeList = null'>
         <div class="modal" style="max-width:500px;max-height:80vh;display:flex;flex-direction:column" @onclick:stopPropagation>
@@ -768,21 +768,21 @@
 
     private async Task ToggleActiveListItemAsync(int itemId)
     {
-        if (_activeList == null) return;
+        if (_activeList is null) return;
         try { var upd = await ListSvc.ToggleItemAsync(BudgetState.ActiveBudgetId, _activeList.Id, itemId); if (upd != null) { SyncListItem(_activeList.Id, itemId, upd); var i = _activeList.Items.FirstOrDefault(x => x.Id == itemId); if (i != null) { i.IsChecked = upd.IsChecked; i.CompletedAt = upd.CompletedAt; _activeList.CheckedItems = _activeList.Items.Count(x => x.IsChecked); } } }
         catch (Exception ex) { Toast.Error(ex.Message); }
     }
 
     private async Task DeleteActiveListItemAsync(int itemId)
     {
-        if (_activeList == null) return;
+        if (_activeList is null) return;
         try { await ListSvc.DeleteItemAsync(BudgetState.ActiveBudgetId, _activeList.Id, itemId); _activeList.Items.RemoveAll(x => x.Id == itemId); _activeList.TotalItems = _activeList.Items.Count; _activeList.CheckedItems = _activeList.Items.Count(x => x.IsChecked); var g = _lists.FirstOrDefault(x => x.Id == _activeList.Id); if (g != null) { g.Items.RemoveAll(x => x.Id == itemId); g.TotalItems = g.Items.Count; g.CheckedItems = g.Items.Count(x => x.IsChecked); } }
         catch (Exception ex) { Toast.Error(ex.Message); }
     }
 
     private async Task AddActiveListItemAsync()
     {
-        if (_activeList == null || string.IsNullOrWhiteSpace(_activeNewItemText)) return;
+        if (_activeList is null || string.IsNullOrWhiteSpace(_activeNewItemText)) return;
         try { var item = await ListSvc.AddItemAsync(BudgetState.ActiveBudgetId, _activeList.Id, new CreateListItemDto(_activeNewItemText.Trim())); if (item != null) { _activeList.Items.Add(item); _activeList.TotalItems++; var g = _lists.FirstOrDefault(x => x.Id == _activeList.Id); if (g != null) { g.Items.Add(item); g.TotalItems++; } _activeNewItemText = ""; } }
         catch (Exception ex) { Toast.Error(ex.Message); }
     }
@@ -792,7 +792,7 @@
 
     private async Task ClearCheckedAsync()
     {
-        if (_activeList == null) return;
+        if (_activeList is null) return;
         try { var upd = await ListSvc.ClearCheckedAsync(BudgetState.ActiveBudgetId, _activeList.Id); if (upd != null) { _activeList = upd; var g = _lists.FirstOrDefault(x => x.Id == upd.Id); if (g != null) { var idx = _lists.IndexOf(g); _lists[idx] = upd; } } }
         catch (Exception ex) { Toast.Error(ex.Message); }
     }

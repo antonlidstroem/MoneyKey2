@@ -12,8 +12,8 @@ using MoneyKey.DAL.Data;
 namespace MoneyKey.DAL.Migrations
 {
     [DbContext(typeof(BudgetDbContext))]
-    [Migration("20260416100247_init")]
-    partial class init
+    [Migration("20260417084051_addtables")]
+    partial class addtables
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -578,6 +578,41 @@ namespace MoneyKey.DAL.Migrations
                     b.ToTable("KonteringRows");
                 });
 
+            modelBuilder.Entity("MoneyKey.Domain.Models.ListItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsChecked")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("ListId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ListId");
+
+                    b.ToTable("ListItems");
+                });
+
             modelBuilder.Entity("MoneyKey.Domain.Models.MilersattningEntry", b =>
                 {
                     b.Property<int>("Id")
@@ -1034,6 +1069,47 @@ namespace MoneyKey.DAL.Migrations
                     b.ToTable("Transactions");
                 });
 
+            modelBuilder.Entity("MoneyKey.Domain.Models.UserList", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BudgetId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("ListType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BudgetId");
+
+                    b.ToTable("UserLists");
+                });
+
             modelBuilder.Entity("MoneyKey.Domain.Models.VabEntry", b =>
                 {
                     b.Property<int>("Id")
@@ -1174,6 +1250,17 @@ namespace MoneyKey.DAL.Migrations
                     b.Navigation("Transaction");
                 });
 
+            modelBuilder.Entity("MoneyKey.Domain.Models.ListItem", b =>
+                {
+                    b.HasOne("MoneyKey.Domain.Models.UserList", "List")
+                        .WithMany("Items")
+                        .HasForeignKey("ListId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("List");
+                });
+
             modelBuilder.Entity("MoneyKey.Domain.Models.MilersattningEntry", b =>
                 {
                     b.HasOne("MoneyKey.Domain.Models.Budget", "Budget")
@@ -1273,6 +1360,17 @@ namespace MoneyKey.DAL.Migrations
                     b.Navigation("Project");
                 });
 
+            modelBuilder.Entity("MoneyKey.Domain.Models.UserList", b =>
+                {
+                    b.HasOne("MoneyKey.Domain.Models.Budget", "Budget")
+                        .WithMany()
+                        .HasForeignKey("BudgetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Budget");
+                });
+
             modelBuilder.Entity("MoneyKey.Domain.Models.VabEntry", b =>
                 {
                     b.HasOne("MoneyKey.Domain.Models.Budget", "Budget")
@@ -1324,6 +1422,11 @@ namespace MoneyKey.DAL.Migrations
             modelBuilder.Entity("MoneyKey.Domain.Models.Transaction", b =>
                 {
                     b.Navigation("KonteringRows");
+                });
+
+            modelBuilder.Entity("MoneyKey.Domain.Models.UserList", b =>
+                {
+                    b.Navigation("Items");
                 });
 #pragma warning restore 612, 618
         }
