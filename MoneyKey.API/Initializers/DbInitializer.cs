@@ -76,6 +76,35 @@ public static class DbInitializer
             """);
 
 
+
+        // Add new columns to MilersattningEntries if they don't exist yet
+        await db.Database.ExecuteSqlRawAsync("""
+            IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='MilersattningEntries' AND COLUMN_NAME='IsRoundTrip')
+                ALTER TABLE [MilersattningEntries] ADD [IsRoundTrip]  BIT           NOT NULL DEFAULT 0;
+            IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='MilersattningEntries' AND COLUMN_NAME='PayerName')
+                ALTER TABLE [MilersattningEntries] ADD [PayerName]    NVARCHAR(200) NULL;
+            IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='MilersattningEntries' AND COLUMN_NAME='Status')
+                ALTER TABLE [MilersattningEntries] ADD [Status]       INT           NOT NULL DEFAULT 0;
+            IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='MilersattningEntries' AND COLUMN_NAME='SubmittedAt')
+                ALTER TABLE [MilersattningEntries] ADD [SubmittedAt]  DATETIME2     NULL;
+            IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='MilersattningEntries' AND COLUMN_NAME='ApprovedAt')
+                ALTER TABLE [MilersattningEntries] ADD [ApprovedAt]   DATETIME2     NULL;
+            IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='MilersattningEntries' AND COLUMN_NAME='PaidAt')
+                ALTER TABLE [MilersattningEntries] ADD [PaidAt]       DATETIME2     NULL;
+            """);
+
+        // Add new columns to UserLists if they don't exist yet
+        await db.Database.ExecuteSqlRawAsync("""
+            IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='UserLists' AND COLUMN_NAME='Content')
+                ALTER TABLE [UserLists] ADD [Content]    NVARCHAR(MAX) NULL;
+            IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='UserLists' AND COLUMN_NAME='Tags')
+                ALTER TABLE [UserLists] ADD [Tags]       NVARCHAR(500) NULL;
+            IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='UserLists' AND COLUMN_NAME='Scope')
+                ALTER TABLE [UserLists] ADD [Scope]      INT           NOT NULL DEFAULT 0;
+            IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='UserLists' AND COLUMN_NAME='Visibility')
+                ALTER TABLE [UserLists] ADD [Visibility] INT           NOT NULL DEFAULT 1;
+            -- Make BudgetId nullable for Personal scope entries
+            """);
         if (await users.Users.AnyAsync())
         {
             log.LogDebug("DbInitializer: users already exist, skipping.");

@@ -174,6 +174,10 @@ public class BudgetDbContext : IdentityDbContext<ApplicationUser>
         {
             e.HasKey(x => x.Id);
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Tags).HasMaxLength(500);
+            // BudgetId is nullable — null when Scope = Personal
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId)
+             .IsRequired(false).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Items).WithOne(i => i.List).HasForeignKey(i => i.ListId).OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -194,6 +198,10 @@ public class BudgetDbContext : IdentityDbContext<ApplicationUser>
         {
             e.HasKey(x => x.Id);
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Tags).HasMaxLength(500);
+            // BudgetId is nullable — null when Scope = Personal
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId)
+             .IsRequired(false).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Items).WithOne(i => i.List).HasForeignKey(i => i.ListId).OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -217,6 +225,10 @@ public class BudgetDbContext : IdentityDbContext<ApplicationUser>
         {
             e.HasKey(x => x.Id);
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Tags).HasMaxLength(500);
+            // BudgetId is nullable — null when Scope = Personal
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId)
+             .IsRequired(false).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Items).WithOne(i => i.List).HasForeignKey(i => i.ListId).OnDelete(DeleteBehavior.Cascade);
         });
         mb.Entity<ListItem>(e =>

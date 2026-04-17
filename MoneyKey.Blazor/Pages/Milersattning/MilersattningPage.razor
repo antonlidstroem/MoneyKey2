@@ -8,9 +8,10 @@
 <div class="desktop-page-wrapper">
     <div class="page-header">
         <span class="page-title">Milersättning</span>
-        @if (BudgetState.CanEdit) {
+        @if (BudgetState.CanEdit)
+        {
             <div class="header-actions">
-                <button class="btn btn-primary btn-sm" @onclick='() => _showForm = true'>
+                <button class="btn btn-primary btn-sm" @onclick='() => { ResetForm(); _showForm = true; }'>
                     <span class="material-icons" style="font-size:.9rem">add</span> Ny resa
                 </button>
             </div>
@@ -18,36 +19,88 @@
     </div>
     <div class="page-content">
         @if (_loading) { <div style="text-align:center;padding:40px"><div class="spinner"></div></div> }
-        else {
+        else
+        {
             <div class="grid-container">
                 <table style="width:100%;border-collapse:collapse" class="quickgrid">
-                    <thead><tr><th>Datum</th><th>Från</th><th>Till</th><th style="text-align:right">Km</th><th style="text-align:right">Taxa</th><th style="text-align:right">Ersättning</th><th>Syfte</th>@if (BudgetState.CanEdit) {<th style="width:40px"></th>}</tr></thead>
+                    <thead>
+                        <tr>
+                            <th>Datum</th><th>Från → Till</th>
+                            <th style="text-align:right">Km</th>
+                            <th style="text-align:right">Taxa</th>
+                            <th style="text-align:right">Ersättning</th>
+                            <th>Betalas av</th><th>Syfte</th><th>Status</th>
+                            @if (BudgetState.CanEdit) { <th style="width:60px"></th> }
+                        </tr>
+                    </thead>
                     <tbody>
-                        @if (!_items.Any()) { <tr><td colspan="8" style="text-align:center;padding:24px;color:var(--color-muted)">Inga resor registrerade.</td></tr> }
-                        @foreach (var m in _items) {
+                        @if (!_items.Any()) { <tr><td colspan="9" style="text-align:center;padding:24px;color:var(--color-muted)">Inga resor registrerade.</td></tr> }
+                        @foreach (var m in _items)
+                        {
                             var item = m;
                             <tr>
                                 <td style="font-size:.85rem">@m.TripDate.ToString("yyyy-MM-dd")</td>
-                                <td style="font-size:.85rem">@m.FromLocation</td>
-                                <td style="font-size:.85rem">@m.ToLocation</td>
-                                <td style="text-align:right;font-size:.85rem">@m.DistanceKm.ToString("N0")</td>
-                                <td style="text-align:right;font-size:.85rem">@m.RatePerKm.ToString("N2") kr</td>
+                                <td style="font-size:.85rem">
+                                    @m.FromLocation → @m.ToLocation
+                                    @if (m.IsRoundTrip) { <span class="badge badge-muted" style="font-size:.67rem;margin-left:4px">T/R</span> }
+                                </td>
+                                <td style="text-align:right;font-size:.85rem">
+                                    @if (m.IsRoundTrip)
+                                    { <span title="@m.DistanceKm.ToString("N0") km × 2">@m.EffectiveDistanceKm.ToString("N0")</span> }
+                                    else { @m.DistanceKm.ToString("N0") }
+                                </td>
+                                <td style="text-align:right;font-size:.85rem">
+                                    @m.RatePerKm.ToString("N2") kr
+                                    @if (m.RateAboveStandard) { <span class="badge badge-muted" title="Över Skatteverkets standardtaxa 0,25 kr/km" style="font-size:.65rem;margin-left:2px">!!</span> }
+                                </td>
                                 <td style="text-align:right;font-weight:600;font-size:.875rem;color:var(--color-income)">+@m.ReimbursementAmount.ToString("N2") kr</td>
+                                <td style="font-size:.85rem;color:var(--color-muted)">@(m.PayerName ?? "–")</td>
                                 <td style="font-size:.85rem;color:var(--color-muted)">@(m.Purpose ?? "–")</td>
-                                @if (BudgetState.CanEdit) { <td><button class="btn btn-ghost btn-icon btn-sm" @onclick="() => DeleteAsync(item.Id)"><span class="material-icons" style="font-size:.9rem;color:var(--color-expense)">delete</span></button></td> }
+                                <td>
+                                    @if (BudgetState.CanEdit && m.Status != MilersattningStatus.Paid)
+                                    {
+                                        <select class="form-control" style="padding:3px 6px;font-size:.78rem"
+                                                value="@m.Status"
+                                                @onchange="e => ChangeStatusAsync(item, Enum.Parse<MilersattningStatus>(e.Value!.ToString()!))">
+                                            <option value="@MilersattningStatus.Draft">Utkast</option>
+                                            <option value="@MilersattningStatus.Submitted">Inskickad</option>
+                                            <option value="@MilersattningStatus.Approved">Godkänd</option>
+                                            <option value="@MilersattningStatus.Paid">Utbetald</option>
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge @StatusBadge(m.Status)" style="font-size:.72rem">@m.StatusLabel</span>
+                                    }
+                                </td>
+                                @if (BudgetState.CanEdit)
+                                {
+                                    <td style="display:flex;gap:2px">
+                                        <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => DeleteAsync(item.Id)">
+                                            <span class="material-icons" style="font-size:.9rem;color:var(--color-expense)">delete</span>
+                                        </button>
+                                    </td>
+                                }
                             </tr>
                         }
                     </tbody>
                 </table>
+                @if (_items.Any(m => m.RateAboveStandard))
+                {
+                    <div style="padding:8px 14px;font-size:.78rem;color:var(--color-warning);background:var(--color-warning-bg)">
+                        ⚠ En eller flera resor har en taxa över Skatteverkets standardnivå (0,25 kr/km). Kontrollera att överskjutande del hanteras korrekt skattemässigt.
+                    </div>
+                }
             </div>
         }
     </div>
 </div>
 
+@* ═══ MOBILE VIEW ═══ *@
 <div class="mobile-page-shell">
     <div class="mobile-topbar">
         <span class="mobile-title">Milersättning</span>
-        @if (BudgetState.CanEdit) { <button class="mobile-icon-btn" @onclick='() => _showForm = true'><span class="material-icons">add</span></button> }
+        @if (BudgetState.CanEdit) { <button class="mobile-icon-btn" @onclick='() => { ResetForm(); _showForm = true; }'><span class="material-icons">add</span></button> }
     </div>
     <div class="mobile-page-scroll">
         @if (_loading) { <div style="text-align:center;padding:40px"><div class="spinner"></div></div> }
@@ -58,38 +111,94 @@
                 <div class="mobile-entry-card">
                     <div class="mobile-entry-card-header">
                         <div>
-                            <div class="mobile-entry-card-title">@m.FromLocation → @m.ToLocation</div>
-                            <div class="mobile-entry-card-meta">@m.TripDate.ToString("yyyy-MM-dd") · @m.DistanceKm.ToString("N0") km · @m.RatePerKm.ToString("N2") kr/km@if (m.Purpose != null){<span> · @m.Purpose</span>}</div>
+                            <div class="mobile-entry-card-title">@m.FromLocation → @m.ToLocation @if (m.IsRoundTrip) { <span class="badge badge-muted" style="font-size:.65rem">T/R</span> }</div>
+                            <div class="mobile-entry-card-meta">
+                                @m.TripDate.ToString("yyyy-MM-dd") · @m.EffectiveDistanceKm.ToString("N0") km · @m.RatePerKm.ToString("N2") kr/km
+                                @if (m.PayerName != null) { <span> · @m.PayerName</span> }
+                            </div>
+                            <span class="badge @StatusBadge(m.Status)" style="font-size:.67rem;margin-top:3px;display:inline-block">@m.StatusLabel</span>
                         </div>
                         <div style="text-align:right;flex-shrink:0">
                             <div class="mobile-entry-card-amount amount-pos">+@m.ReimbursementAmount.ToString("N0") kr</div>
-                            @if (BudgetState.CanEdit) { <button class="btn btn-ghost btn-icon btn-sm" style="margin-top:4px" @onclick="() => DeleteAsync(item.Id)"><span class="material-icons" style="font-size:.9rem;color:var(--color-expense)">delete</span></button> }
+                            @if (BudgetState.CanEdit)
+                            {
+                                <button class="btn btn-ghost btn-icon btn-sm" style="margin-top:4px" @onclick="() => DeleteAsync(item.Id)">
+                                    <span class="material-icons" style="font-size:.9rem;color:var(--color-expense)">delete</span>
+                                </button>
+                            }
                         </div>
                     </div>
                 </div>
             }
         }
     </div>
-    @if (BudgetState.CanEdit) { <button class="mobile-fab" @onclick='() => _showForm = true'><span class="material-icons">add</span></button> }
+    @if (BudgetState.CanEdit) { <button class="mobile-fab" @onclick='() => { ResetForm(); _showForm = true; }'><span class="material-icons">add</span></button> }
 </div>
 
+@* ═══ CREATE FORM ═══ *@
 @if (_showForm)
 {
     <div class="modal-overlay" @onclick='() => _showForm = false'>
-        <div class="modal" @onclick:stopPropagation>
-            <div class="modal-header"><span class="modal-title">Ny milersättning</span></div>
+        <div class="modal" style="max-width:560px" @onclick:stopPropagation>
+            <div class="modal-header">
+                <span class="modal-title">Ny milersättning</span>
+                <button class="btn btn-ghost btn-icon btn-sm" @onclick='() => _showForm = false'><span class="material-icons">close</span></button>
+            </div>
             <div class="modal-body">
                 <div class="form-row">
-                    <div class="form-group"><label class="form-label">Datum</label><input class="form-control" type="date" value="@_date.ToString("yyyy-MM-dd")" @onchange='e => _date = DateTime.Parse(e.Value!.ToString()!)' /></div>
-                    <div class="form-group"><label class="form-label">Distans (km)</label><input class="form-control" type="number" step="0.1" @bind="_km" /></div>
+                    <div class="form-group">
+                        <label class="form-label">Datum *</label>
+                        <input class="form-control" type="date" value="@_date.ToString("yyyy-MM-dd")"
+                               @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _date = d; }' />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Distans (km, enkel väg) *</label>
+                        <input class="form-control" type="number" step="0.1" min="0" @bind="_km" />
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom:6px">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.875rem">
+                        <input type="checkbox" @bind="_roundTrip" />
+                        Tur-retur (dubblerar km automatiskt · @((_km * (_roundTrip ? 2 : 1)).ToString("N0")) km effektiv sträcka)
+                    </label>
                 </div>
                 <div class="form-row">
-                    <div class="form-group"><label class="form-label">Från</label><input class="form-control" @bind="_from" /></div>
-                    <div class="form-group"><label class="form-label">Till</label><input class="form-control" @bind="_to" /></div>
+                    <div class="form-group">
+                        <label class="form-label">Från *</label>
+                        <input class="form-control" @bind="_from" placeholder="Kontoret, Hemma..." />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Till *</label>
+                        <input class="form-control" @bind="_to" placeholder="Kund, Konferens..." />
+                    </div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group"><label class="form-label">Taxa (kr/km)</label><input class="form-control" type="number" step="0.01" @bind="_rate" /></div>
-                    <div class="form-group"><label class="form-label">Syfte</label><input class="form-control" @bind="_purpose" /></div>
+                    <div class="form-group">
+                        <label class="form-label">
+                            Taxa (kr/km)
+                            <span style="font-size:.72rem;color:var(--color-muted);margin-left:4px">Skatteverket std: 0,25 kr/km</span>
+                        </label>
+                        <input class="form-control" type="number" step="0.01" min="0" @bind="_rate" />
+                        @if (_rate > 0.25m)
+                        {
+                            <div style="font-size:.75rem;color:var(--color-warning);margin-top:3px">
+                                ⚠ Överstiger Skatteverkets standardtaxa (0,25 kr/km). Säkerställ skattemässig hantering.
+                            </div>
+                        }
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Betalas av (valfritt)</label>
+                        <input class="form-control" @bind="_payer" placeholder="Arbetsgivare, Kund..." />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Syfte (valfritt)</label>
+                    <input class="form-control" @bind="_purpose" placeholder="Kundbesök, möte..." />
+                </div>
+                <div style="background:var(--color-bg);border-radius:8px;padding:10px 14px;font-size:.875rem;color:var(--color-mid)">
+                    Beräknad ersättning: <strong style="color:var(--color-income)">
+                        +@((_km * (_roundTrip ? 2 : 1) * _rate).ToString("N2")) kr
+                    </strong>
                 </div>
             </div>
             <div class="modal-footer">
@@ -108,16 +217,12 @@
     private bool     _loading = true, _showForm, _saving;
     private DateTime _date    = DateTime.Today;
     private decimal  _km, _rate = 0.25m;
-    private string   _from = "", _to = "", _purpose = "";
+    private bool     _roundTrip;
+    private string   _from = "", _to = "", _purpose = "", _payer = "";
 
     protected override async Task OnInitializedAsync() { BudgetState.StateChanged += OnStateChanged; await ReloadAsync(); }
     public void Dispose() => BudgetState.StateChanged -= OnStateChanged;
-
-    private void OnStateChanged() => InvokeAsync(async () =>
-    {
-        try { await ReloadAsync(); } catch (Exception ex) { Toast.Error($"Laddningsfel: {ex.Message}"); }
-        StateHasChanged();
-    });
+    private void OnStateChanged() => InvokeAsync(async () => { try { await ReloadAsync(); } catch (Exception ex) { Toast.Error($"Laddningsfel: {ex.Message}"); } StateHasChanged(); });
 
     private async Task ReloadAsync()
     {
@@ -127,19 +232,38 @@
         _loading = false;
     }
 
+    private void ResetForm() { _km = 0; _roundTrip = false; _from = ""; _to = ""; _purpose = ""; _payer = ""; _date = DateTime.Today; _rate = 0.25m; }
+
     private async Task CreateAsync()
     {
-        if (_km <= 0) return;
+        if (_km <= 0 || string.IsNullOrWhiteSpace(_from) || string.IsNullOrWhiteSpace(_to))
+        { Toast.Error("Fyll i från, till och distans."); return; }
         _saving = true;
         try
         {
-            await MiSvc.CreateAsync(BudgetState.ActiveBudgetId, new CreateMilersattningDto(_date, _from, _to, _km, _rate, _purpose));
+            await MiSvc.CreateAsync(BudgetState.ActiveBudgetId,
+                new CreateMilersattningDto(_date, _from, _to, _km, _roundTrip, _rate, _purpose, _payer));
             Toast.Success("Milersättning sparad.");
-            _showForm = false; _km = 0; _from = ""; _to = ""; _purpose = "";
-            await ReloadAsync();
+            _showForm = false; ResetForm(); await ReloadAsync();
         }
         catch (Exception ex) { Toast.Error(ex.Message); }
         finally { _saving = false; }
+    }
+
+    private async Task ChangeStatusAsync(MilersattningDto item, MilersattningStatus newStatus)
+    {
+        try
+        {
+            var updated = await MiSvc.UpdateStatusAsync(BudgetState.ActiveBudgetId, item.Id, newStatus);
+            if (updated != null)
+            {
+                var idx = _items.FindIndex(m => m.Id == item.Id);
+                if (idx >= 0) _items[idx] = updated;
+                Toast.Success($"Status ändrad till {updated.StatusLabel}.");
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
     }
 
     private async Task DeleteAsync(int id)
@@ -147,4 +271,12 @@
         try { await MiSvc.DeleteAsync(BudgetState.ActiveBudgetId, id); Toast.Success("Borttagen."); await ReloadAsync(); }
         catch (Exception ex) { Toast.Error(ex.Message); }
     }
+
+    private static string StatusBadge(MilersattningStatus s) => s switch
+    {
+        MilersattningStatus.Submitted => "badge",
+        MilersattningStatus.Approved  => "badge-income",
+        MilersattningStatus.Paid      => "badge-primary",
+        _                             => "badge-muted"
+    };
 }

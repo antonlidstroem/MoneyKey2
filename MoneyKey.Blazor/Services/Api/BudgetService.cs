@@ -8,9 +8,19 @@ public class BudgetService : ApiServiceBase
 {
     public BudgetService(HttpClient http) : base(http) { }
 
-    public Task<List<BudgetDto>?>  GetMyBudgetsAsync()           => GetAsync<List<BudgetDto>>("api/budgets");
-    public Task<BudgetDto?>        CreateAsync(CreateBudgetDto dto) => PostAsync<BudgetDto>("api/budgets", dto);
-    public Task<List<Category>?>   GetCategoriesAsync(int budgetId) => GetAsync<List<Category>>($"api/budgets/{budgetId}/categories");
+    public Task<List<BudgetDto>?>  GetMyBudgetsAsync()              => GetAsync<List<BudgetDto>>("api/budgets");
+    public Task<BudgetDto?>        CreateAsync(CreateBudgetDto dto)  => PostAsync<BudgetDto>("api/budgets", dto);
+    public Task<List<Category>?>   GetCategoriesAsync(int budgetId)  => GetAsync<List<Category>>($"api/budgets/{budgetId}/categories");
+
+    /// <summary>Returns keys of DISABLED features for this budget.</summary>
+    public Task<List<string>?> GetDisabledFeaturesAsync(int budgetId) =>
+        GetAsync<List<string>>($"api/budgets/{budgetId}/features/disabled");
+
+    public async Task SetFeatureAsync(int budgetId, string feature, bool enabled)
+    {
+        var r = await Http.PatchAsJsonAsync($"api/budgets/{budgetId}/features/{feature}", new { Enabled = enabled });
+        r.EnsureSuccessStatusCode();
+    }
 
     public async Task InviteAsync(int budgetId, InviteMemberDto dto) =>
         await PostAsync<object>($"api/budgets/{budgetId}/invite", dto);

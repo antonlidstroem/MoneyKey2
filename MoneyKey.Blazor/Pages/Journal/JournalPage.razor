@@ -741,14 +741,38 @@
     private void OpenNewList() { _newListName = ""; _newListDescription = null; _newListType = ListType.Custom; _showListForm = true; }
     private void OpenListDetail(UserListDto list) { _activeList = list; _activeNewItemText = ""; }
 
+    // Ändra detta:
     private async Task CreateListAsync()
     {
         if (string.IsNullOrWhiteSpace(_newListName)) return;
         _listSaving = true;
-        try { var c = await ListSvc.CreateAsync(BudgetState.ActiveBudgetId, new CreateListDto(_newListName.Trim(), _newListType, _newListDescription)); if (c != null) { _lists.Insert(0, c); Toast.Success("Lista skapad."); } _showListForm = false; }
+        try
+        {
+            // HÄR ÄR ÄNDRINGEN:
+            // Vi lägger till null för 'Content' och 'Tags'
+            var dto = new MoneyKey.Core.DTOs.Lists.CreateListDto(
+                _newListName.Trim(),
+                _newListType,
+                _newListDescription,
+                null, // Content
+                null  // Tags
+            );
+
+            var c = await ListSvc.CreateAsync(BudgetState.ActiveBudgetId, dto);
+        
+            if (c != null)
+            {
+                _lists.Insert(0, c);
+                Toast.Success("Lista skapad.");
+            }
+            _showListForm = false;
+        }
         catch (Exception ex) { Toast.Error(ex.Message); }
         finally { _listSaving = false; }
     }
+
+
+  
 
     private async Task ToggleListItemAsync(int listId, int itemId)
     {
