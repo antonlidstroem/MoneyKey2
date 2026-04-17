@@ -355,6 +355,32 @@ namespace MoneyKey.DAL.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "UserLists",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    BudgetId = table.Column<int>(type: "int", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    ListType = table.Column<int>(type: "int", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatedByUserId = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    IsArchived = table.Column<bool>(type: "bit", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_UserLists", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_UserLists_Budgets_BudgetId",
+                        column: x => x.BudgetId,
+                        principalTable: "Budgets",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "ReceiptBatches",
                 columns: table => new
                 {
@@ -448,6 +474,30 @@ namespace MoneyKey.DAL.Migrations
                         principalTable: "Projects",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ListItems",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    ListId = table.Column<int>(type: "int", nullable: false),
+                    Text = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    IsChecked = table.Column<bool>(type: "bit", nullable: false),
+                    SortOrder = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CompletedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ListItems", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ListItems_UserLists_ListId",
+                        column: x => x.ListId,
+                        principalTable: "UserLists",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -683,6 +733,11 @@ namespace MoneyKey.DAL.Migrations
                 column: "TransactionId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_ListItems_ListId",
+                table: "ListItems",
+                column: "ListId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_MilersattningEntries_BudgetId",
                 table: "MilersattningEntries",
                 column: "BudgetId");
@@ -750,6 +805,11 @@ namespace MoneyKey.DAL.Migrations
                 column: "ProjectId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_UserLists_BudgetId",
+                table: "UserLists",
+                column: "BudgetId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_VabEntries_BudgetId",
                 table: "VabEntries",
                 column: "BudgetId");
@@ -791,6 +851,9 @@ namespace MoneyKey.DAL.Migrations
                 name: "KonteringRows");
 
             migrationBuilder.DropTable(
+                name: "ListItems");
+
+            migrationBuilder.DropTable(
                 name: "MilersattningEntries");
 
             migrationBuilder.DropTable(
@@ -810,6 +873,9 @@ namespace MoneyKey.DAL.Migrations
 
             migrationBuilder.DropTable(
                 name: "AspNetUsers");
+
+            migrationBuilder.DropTable(
+                name: "UserLists");
 
             migrationBuilder.DropTable(
                 name: "ReceiptBatches");
