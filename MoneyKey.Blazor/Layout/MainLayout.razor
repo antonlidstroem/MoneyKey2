@@ -37,15 +37,24 @@
             <NavLink class="nav-item" href="/projects">
                 <span class="material-icons">folder</span> Projekt
             </NavLink>
-            <NavLink class="nav-item" href="/milersattning">
-                <span class="material-icons">directions_car</span> Milersättning
-            </NavLink>
-            <NavLink class="nav-item" href="/vab">
-                <span class="material-icons">child_care</span> VAB
-            </NavLink>
-            <NavLink class="nav-item" href="/receipts">
-                <span class="material-icons">receipt_long</span> Kvittounderlag
-            </NavLink>
+            @if (BudgetState.IsFeatureEnabled("Milersattning"))
+            {
+                <NavLink class="nav-item" href="/milersattning">
+                    <span class="material-icons">directions_car</span> Milersättning
+                </NavLink>
+            }
+            @if (BudgetState.IsFeatureEnabled("Vab"))
+            {
+                <NavLink class="nav-item" href="/vab">
+                    <span class="material-icons">child_care</span> VAB
+                </NavLink>
+            }
+            @if (BudgetState.IsFeatureEnabled("Receipts"))
+            {
+                <NavLink class="nav-item" href="/receipts">
+                    <span class="material-icons">receipt_long</span> Kvittounderlag
+                </NavLink>
+            }
         </nav>
 
         <nav class="nav-section">
@@ -164,7 +173,11 @@
                     var token = JwtAuthenticationStateProvider.AccessToken;
                     if (!string.IsNullOrEmpty(token))
                     {
-                        var apiBase = Config["ApiBaseUrl"] ?? "https://localhost:7000";
+                        // Load feature flags for the active budget
+                    var disabled = await BudgetSvc.GetDisabledFeaturesAsync(BudgetState.ActiveBudgetId) ?? new();
+                    BudgetState.SetFeatures(disabled);
+
+                    var apiBase = Config["ApiBaseUrl"] ?? "https://localhost:7000";
                         await SignalR.ConnectAsync(apiBase, token, BudgetState.ActiveBudgetId, Http, AuthProvider);
                     }
                 }

@@ -28,13 +28,7 @@ public class MilersattningController : BaseApiController
     {
         if (!await _auth.HasRoleAsync(budgetId, UserId, BudgetMemberRole.Viewer)) return Forbid();
         var items = await _repo.GetForBudgetAsync(budgetId);
-        return Ok(items.Select(m => new MilersattningDto
-        {
-            Id = m.Id, BudgetId = m.BudgetId, UserId = m.UserId, TripDate = m.TripDate,
-            FromLocation = m.FromLocation, ToLocation = m.ToLocation,
-            DistanceKm = m.DistanceKm, RatePerKm = m.RatePerKm, Purpose = m.Purpose,
-            ReimbursementAmount = m.ReimbursementAmount, LinkedTransactionId = m.LinkedTransactionId
-        }));
+        return Ok(items.Select(m => MilersattningService.ToDto(m, MilersattningService.SwedishStatus(m.Status))));
     }
 
     [HttpPost]
@@ -43,7 +37,17 @@ public class MilersattningController : BaseApiController
         if (!await _auth.HasRoleAsync(budgetId, UserId, BudgetMemberRole.Editor)) return Forbid();
         var entry = await _svc.CreateAsync(budgetId, UserId, dto);
         await BroadcastAsync(_hub, _signalRFeature, budgetId, "MilersattningCreated", entry.Id);
-        return Ok(entry);
+        return Ok(MilersattningService.ToDto(entry, MilersattningService.SwedishStatus(entry.Status)));
+    }
+
+    [HttpPatch("{entryId:int}/status")]
+    public async Task<IActionResult> UpdateStatus(int budgetId, int entryId, [FromBody] UpdateMilersattningStatusDto dto)
+    {
+        if (!await _auth.HasRoleAsync(budgetId, UserId, BudgetMemberRole.Editor)) return Forbid();
+        var entry = await _svc.UpdateStatusAsync(entryId, budgetId, dto.Status);
+        if (entry == null) return NotFound();
+        await BroadcastAsync(_hub, _signalRFeature, budgetId, "MilersattningUpdated", entryId);
+        return Ok(MilersattningService.ToDto(entry, MilersattningService.SwedishStatus(entry.Status)));
     }
 
     [HttpDelete("{entryId:int}")]
@@ -59,6 +63,6 @@ public class MilersattningController : BaseApiController
     public async Task<IActionResult> GetRate(int budgetId)
     {
         if (!await _auth.HasRoleAsync(budgetId, UserId, BudgetMemberRole.Viewer)) return Forbid();
-        return Ok(new { Rate = await _svc.GetRateAsync(budgetId) });
+        return Ok(new { Rate = await _svc.GetRateAsync(budgetId), Standard = MilersattningService.SkatteverketStandardRate });
     }
 }

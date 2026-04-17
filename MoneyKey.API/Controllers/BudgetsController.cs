@@ -120,4 +120,26 @@ public class BudgetsController : BaseApiController
         if (!await _auth.HasRoleAsync(budgetId, UserId, BudgetMemberRole.Viewer)) return Forbid();
         return Ok(await _cats.GetForBudgetAsync(budgetId));
     }
+
+    // ── Feature flags ─────────────────────────────────────────────────────────
+
+    /// <summary>Returns the list of feature keys that are DISABLED for this budget.</summary>
+    [HttpGet("{budgetId:int}/features/disabled")]
+    public async Task<IActionResult> GetDisabledFeatures(int budgetId)
+    {
+        if (!await _auth.HasRoleAsync(budgetId, UserId, BudgetMemberRole.Viewer)) return Forbid();
+        var keys = await _repo.GetDisabledFeaturesAsync(budgetId);
+        return Ok(keys);
+    }
+
+    [HttpPatch("{budgetId:int}/features/{feature}")]
+    public async Task<IActionResult> SetFeature(int budgetId, string feature, [FromBody] SetFeatureDto dto)
+    {
+        if (!await _auth.HasRoleAsync(budgetId, UserId, BudgetMemberRole.Owner)) return Forbid();
+        if (dto.Enabled)
+            await _repo.EnableFeatureAsync(budgetId, feature);
+        else
+            await _repo.DisableFeatureAsync(budgetId, feature);
+        return Ok();
+    }
 }

@@ -1,4 +1,6 @@
+using System.Net.Http.Json;
 using MoneyKey.Core.DTOs.Milersattning;
+using MoneyKey.Domain.Enums;
 
 namespace MoneyKey.Blazor.Services.Api;
 
@@ -6,8 +8,19 @@ public class MilersattningApiService : ApiServiceBase
 {
     public MilersattningApiService(HttpClient http) : base(http) { }
 
-    public Task<List<MilersattningDto>?> GetAllAsync(int budgetId)    => GetAsync<List<MilersattningDto>>($"api/budgets/{budgetId}/milersattning");
-    public Task<MilersattningDto?>       CreateAsync(int budgetId, CreateMilersattningDto dto) => PostAsync<MilersattningDto>($"api/budgets/{budgetId}/milersattning", dto);
+    public Task<List<MilersattningDto>?> GetAllAsync(int budgetId) =>
+        GetAsync<List<MilersattningDto>>($"api/budgets/{budgetId}/milersattning");
+
+    public Task<MilersattningDto?> CreateAsync(int budgetId, CreateMilersattningDto dto) =>
+        PostAsync<MilersattningDto>($"api/budgets/{budgetId}/milersattning", dto);
+
+    public async Task<MilersattningDto?> UpdateStatusAsync(int budgetId, int id, MilersattningStatus status)
+    {
+        var r = await Http.PatchAsJsonAsync(
+            $"api/budgets/{budgetId}/milersattning/{id}/status",
+            new UpdateMilersattningStatusDto(status));
+        return r.IsSuccessStatusCode ? await r.Content.ReadFromJsonAsync<MilersattningDto>() : null;
+    }
 
     public async Task DeleteAsync(int budgetId, int id) =>
         await DeleteAsync($"api/budgets/{budgetId}/milersattning/{id}");

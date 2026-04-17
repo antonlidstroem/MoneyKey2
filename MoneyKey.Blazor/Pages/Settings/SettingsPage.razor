@@ -9,34 +9,76 @@
 
 <div class="desktop-page-wrapper">
     <div class="page-header"><span class="page-title">Inställningar</span></div>
-    <div class="page-content" style="max-width:600px;display:flex;flex-direction:column;gap:16px">
-        @SettingsBody()
+    <div class="page-content" style="max-width:640px;display:flex;flex-direction:column;gap:16px">
+        @Body()
     </div>
 </div>
-
 <div class="mobile-page-shell">
     <div class="mobile-topbar"><span class="mobile-title">Inställningar</span></div>
-    <div class="mobile-page-scroll">@SettingsBody()</div>
+    <div class="mobile-page-scroll">@Body()</div>
 </div>
 
 @code {
     private string _budgetName = "", _budgetDescription = "", _inviteEmail = "", _saveError = "";
+    private string _newBudgetName = "", _newBudgetDescription = "", _newBudgetError = "";
     private BudgetMemberRole _inviteRole = BudgetMemberRole.Editor;
     private bool _saving, _inviting, _signalREnabled = true, _signalRLoading, _signalRSaving;
+    private bool _creatingBudget;
+    private HashSet<string> _disabledFeatures = new(StringComparer.OrdinalIgnoreCase);
+    private bool _featuresLoading;
+
+    // All configurable feature flags
+    private static readonly (string Key, string Label, string Icon)[] AllFeatures =
+    {
+        ("Milersattning", "Milersättning",    "directions_car"),
+        ("Vab",           "VAB",              "child_care"),
+        ("Receipts",      "Kvittounderlag",   "receipt_long"),
+        ("Lists",         "Listor & anteckn.","checklist"),
+        ("Kontering",     "Kontering",        "account_tree"),
+        ("Export",        "Export (PDF/XLS)", "download")
+    };
 
     private bool IsSuperAdmin =>
         !string.IsNullOrEmpty(Config["AdminSetup:Email"]) &&
-        string.Equals(JwtAuthenticationStateProvider.CurrentUser?.Email, Config["AdminSetup:Email"], StringComparison.OrdinalIgnoreCase);
+        string.Equals(JwtAuthenticationStateProvider.CurrentUser?.Email,
+            Config["AdminSetup:Email"], StringComparison.OrdinalIgnoreCase);
 
     protected override async Task OnInitializedAsync()
     {
         _budgetName = BudgetState.ActiveBudgetName;
+        await LoadFeaturesAsync();
         if (IsSuperAdmin)
         {
             _signalRLoading = true;
             try { _signalREnabled = await AdminSvc.GetSignalRStatusAsync(); }
             finally { _signalRLoading = false; }
         }
+    }
+
+    private async Task LoadFeaturesAsync()
+    {
+        if (BudgetState.ActiveBudgetId <= 0) return;
+        _featuresLoading = true;
+        try
+        {
+            var disabled = await BudgetSvc.GetDisabledFeaturesAsync(BudgetState.ActiveBudgetId) ?? new();
+            _disabledFeatures = new HashSet<string>(disabled, StringComparer.OrdinalIgnoreCase);
+            BudgetState.SetFeatures(_disabledFeatures);
+        }
+        finally { _featuresLoading = false; }
+    }
+
+    private async Task ToggleFeatureAsync(string key, bool nowEnabled)
+    {
+        try
+        {
+            await BudgetSvc.SetFeatureAsync(BudgetState.ActiveBudgetId, key, nowEnabled);
+            if (nowEnabled) _disabledFeatures.Remove(key);
+            else            _disabledFeatures.Add(key);
+            BudgetState.SetFeatures(_disabledFeatures);
+            Toast.Success($"{key} {(nowEnabled ? "aktiverat" : "inaktiverat")}.");
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
     }
 
     private async Task SaveBudgetAsync()
@@ -53,6 +95,26 @@
         finally { _saving = false; }
     }
 
+    private async Task CreateBudgetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newBudgetName)) { _newBudgetError = "Ange ett budgetnamn."; return; }
+        _newBudgetError = ""; _creatingBudget = true;
+        try
+        {
+            var created = await BudgetSvc.CreateAsync(new CreateBudgetDto(_newBudgetName.Trim(), _newBudgetDescription));
+            if (created != null)
+            {
+                Toast.Success($"Budget \"{created.Name}\" skapad.");
+                _newBudgetName = ""; _newBudgetDescription = "";
+                // Reload budgets list
+                var budgets = await BudgetSvc.GetMyBudgetsAsync();
+                if (budgets != null) BudgetState.SetBudgets(budgets);
+            }
+        }
+        catch (Exception ex) { _newBudgetError = ex.Message; }
+        finally { _creatingBudget = false; }
+    }
+
     private async Task InviteAsync()
     {
         if (string.IsNullOrWhiteSpace(_inviteEmail)) return;
@@ -65,19 +127,17 @@
     private async Task ToggleSignalRAsync()
     {
         _signalRSaving = true;
-        try
-        {
-            _signalREnabled = await AdminSvc.ToggleSignalRAsync(!_signalREnabled);
-            Toast.Success(_signalREnabled ? "SignalR aktiverat." : "SignalR inaktiverat.");
-        }
+        try { _signalREnabled = await AdminSvc.ToggleSignalRAsync(!_signalREnabled); Toast.Success(_signalREnabled ? "SignalR aktiverat." : "SignalR inaktiverat."); }
         catch (Exception ex) { Toast.Error(ex.Message); }
         finally { _signalRSaving = false; }
     }
 
-    private RenderFragment SettingsBody() =>
+    private RenderFragment Body() =>
         @<div style="display:flex;flex-direction:column;gap:16px">
+
+            @* ── Budget name ────────────────────────────────────────────────── *@
             <div class="card">
-                <div class="card-title"><span class="material-icons">manage_accounts</span> Budget</div>
+                <div class="card-title"><span class="material-icons">manage_accounts</span> Budget — @BudgetState.ActiveBudgetName</div>
                 <div class="form-group"><label class="form-label">Budgetnamn</label><input class="form-control" @bind="_budgetName" /></div>
                 <div class="form-group"><label class="form-label">Beskrivning</label><input class="form-control" @bind="_budgetDescription" placeholder="Valfri beskrivning..." /></div>
                 @if (!string.IsNullOrEmpty(_saveError)) { <div style="color:var(--color-expense);font-size:.85rem;margin-bottom:8px">@_saveError</div> }
@@ -87,6 +147,38 @@
                 </button>
             </div>
 
+            @* ── Feature flags ──────────────────────────────────────────────── *@
+            @if (BudgetState.IsOwner)
+            {
+                <div class="card">
+                    <div class="card-title"><span class="material-icons">toggle_on</span> Funktioner i denna budget</div>
+                    <p style="font-size:.85rem;color:var(--color-muted);margin-bottom:14px">
+                        Inaktivera funktioner du inte behöver för att hålla gränssnittet rent.
+                        Datan bevaras och kan aktiveras igen när som helst.
+                    </p>
+                    @if (_featuresLoading)
+                    {
+                        <div class="spinner" style="width:20px;height:20px;border-width:2px"></div>
+                    }
+                    else
+                    {
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                            @foreach (var (key, label, icon) in AllFeatures)
+                            {
+                                var k = key; var enabled = !_disabledFeatures.Contains(k);
+                                <label style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--color-border);border-radius:8px;cursor:pointer;background:@(enabled ? "var(--color-surface)" : "var(--color-bg)")">
+                                    <input type="checkbox" checked="@enabled"
+                                           @onchange="e => ToggleFeatureAsync(k, e.Value is true)" />
+                                    <span class="material-icons" style="font-size:1.1rem;color:@(enabled ? "var(--color-primary)" : "var(--color-muted)")">@icon</span>
+                                    <span style="font-size:.875rem;@(enabled ? "" : "color:var(--color-muted)")">@label</span>
+                                </label>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+
+            @* ── Invite member ──────────────────────────────────────────────── *@
             @if (BudgetState.IsOwner)
             {
                 <div class="card">
@@ -108,18 +200,27 @@
                 </div>
             }
 
+            @* ── Create new budget ──────────────────────────────────────────── *@
+            <div class="card">
+                <div class="card-title"><span class="material-icons">add_circle_outline</span> Skapa ny budget</div>
+                <p style="font-size:.85rem;color:var(--color-muted);margin-bottom:14px">
+                    Skapa en separat budget för t.ex. ett projekt, ett hushåll eller ett företag.
+                </p>
+                <div class="form-group"><label class="form-label">Budgetnamn *</label><input class="form-control" @bind="_newBudgetName" placeholder="T.ex. Privatbudget 2025, Firma AB..." /></div>
+                <div class="form-group"><label class="form-label">Beskrivning</label><input class="form-control" @bind="_newBudgetDescription" /></div>
+                @if (!string.IsNullOrEmpty(_newBudgetError)) { <div style="color:var(--color-expense);font-size:.85rem;margin-bottom:8px">@_newBudgetError</div> }
+                <button class="btn btn-primary btn-sm" @onclick="CreateBudgetAsync" disabled="@_creatingBudget">
+                    @if (_creatingBudget) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
+                    Skapa budget
+                </button>
+            </div>
+
+            @* ── SignalR superadmin ─────────────────────────────────────────── *@
             @if (IsSuperAdmin)
             {
                 <div class="card">
                     <div class="card-title"><span class="material-icons">hub</span> SignalR (Superadmin)</div>
-                    <p style="font-size:.85rem;color:var(--color-muted);margin-bottom:14px">
-                        Inaktivera SignalR för att minska CPU-förbrukning när realtidsuppdateringar inte behövs.
-                        Applikationen fungerar normalt utan SignalR.
-                    </p>
-                    @if (_signalRLoading)
-                    {
-                        <div class="spinner" style="width:20px;height:20px;border-width:2px"></div>
-                    }
+                    @if (_signalRLoading) { <div class="spinner" style="width:20px;height:20px;border-width:2px"></div> }
                     else
                     {
                         <div style="display:flex;align-items:center;gap:12px">

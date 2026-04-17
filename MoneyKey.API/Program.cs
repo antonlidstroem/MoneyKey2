@@ -153,12 +153,12 @@ svcs.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-//// ── Migrate + seed ─────────────────────────────────────────────────────────────
-//if (app.Environment.IsDevelopment())
-//{
-//    using var scope = app.Services.CreateScope();
-//    scope.ServiceProvider.GetRequiredService<BudgetDbContext>().Database.Migrate();
-//}
+// ── Migrate + seed ─────────────────────────────────────────────────────────────
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    scope.ServiceProvider.GetRequiredService<BudgetDbContext>().Database.Migrate();
+}
 
 await DbInitializer.InitializeAsync(app.Services);
 

@@ -1,17 +1,55 @@
 @if (Summary != null)
 {
-    <div class="card-grid">
-        <div class="kpi-card"><div class="kpi-label">Inkomster</div><div class="kpi-value income">@Summary.FilteredIncome.ToString("N0") kr</div></div>
-        <div class="kpi-card"><div class="kpi-label">Utgifter</div><div class="kpi-value expense">@Summary.FilteredExpenses.ToString("N0") kr</div></div>
-        <div class="kpi-card"><div class="kpi-label">Netto</div><div class="kpi-value @(Summary.FilteredTotal >= 0 ? "income" : "expense")">@Summary.FilteredTotal.ToString("N0") kr</div></div>
-        <div class="kpi-card"><div class="kpi-label">Prognos inkomst</div><div class="kpi-value income">@Summary.MonthlyIncome.ToString("N0") kr</div></div>
-        <div class="kpi-card"><div class="kpi-label">Prognos utgift</div><div class="kpi-value expense">@Summary.MonthlyExpenses.ToString("N0") kr</div></div>
-        <div class="kpi-card"><div class="kpi-label">Prognos netto</div><div class="kpi-value @(Summary.MonthlyTotal >= 0 ? "income" : "expense")">@Summary.MonthlyTotal.ToString("N0") kr</div></div>
+    <div class="card-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+        <div class="kpi-card">
+            <div class="kpi-label">Inkomster</div>
+            <div class="kpi-value income">@Summary.FilteredIncome.ToString("N0") kr</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Utgifter</div>
+            <div class="kpi-value expense">@Summary.FilteredExpenses.ToString("N0") kr</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Netto</div>
+            <div class="kpi-value @(Summary.FilteredTotal >= 0 ? "income" : "expense")">
+                @Summary.FilteredTotal.ToString("N0") kr
+            </div>
+        </div>
+        @if (Summary.MilersattningIncome > 0)
+        {
+            <div class="kpi-card" title="Milersättning ingår i inkomster ovan, visas separat för tydlighet">
+                <div class="kpi-label">Milersättning</div>
+                <div class="kpi-value income">@Summary.MilersattningIncome.ToString("N0") kr</div>
+            </div>
+        }
+        @if (Summary.VabLostIncome > 0)
+        {
+            <div class="kpi-card" title="Utebliven inkomst pga VAB — räknas INTE som utgift">
+                <div class="kpi-label" style="color:var(--color-warning)">Utebliven ink. (VAB)</div>
+                <div class="kpi-value" style="color:var(--color-warning)">−@Summary.VabLostIncome.ToString("N0") kr</div>
+            </div>
+        }
+        <div class="kpi-card" title="(Inkomst − |Utgifter|) / Inkomst · positiv = sparande">
+            <div class="kpi-label">Sparkvot</div>
+            <div class="kpi-value @(Summary.SavingsRate >= 0 ? "income" : "expense")">@Summary.SavingsRate.ToString("N1") %</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Prognos inkomst</div>
+            <div class="kpi-value income">@Summary.MonthlyIncome.ToString("N0") kr</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Prognos utgift</div>
+            <div class="kpi-value expense">@Summary.MonthlyExpenses.ToString("N0") kr</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Prognos netto</div>
+            <div class="kpi-value @(Summary.MonthlyTotal >= 0 ? "income" : "expense")">@Summary.MonthlyTotal.ToString("N0") kr</div>
+        </div>
     </div>
 }
 else
 {
-    <div class="card-grid">
+    <div class="card-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
         @for (var i = 0; i < 6; i++) {
             <div class="kpi-card">
                 <div class="skeleton" style="height:11px;width:55%;margin-bottom:8px;border-radius:4px"></div>

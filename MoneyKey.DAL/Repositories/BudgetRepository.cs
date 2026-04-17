@@ -71,4 +71,34 @@ public class BudgetRepository : IBudgetRepository
     public async Task<BudgetMembership?> GetByInviteTokenAsync(string token) =>
         await _db.BudgetMemberships.Include(m => m.Budget)
             .FirstOrDefaultAsync(m => m.InviteToken == token && m.AcceptedAt == null);
+
+    // ── Feature flags ─────────────────────────────────────────────────────────
+    // Stored in AppSettings with Key = "Feature_<feature>" and Value = "disabled".
+
+    public async Task<List<string>> GetDisabledFeaturesAsync(int budgetId)
+    {
+        var prefix  = "Feature_";
+        var settings = await _db.AppSettings
+            .Where(s => s.BudgetId == budgetId && s.Key.StartsWith(prefix) && s.Value == "disabled")
+            .ToListAsync();
+        return settings.Select(s => s.Key[prefix.Length..]).ToList();
+    }
+
+    public async Task DisableFeatureAsync(int budgetId, string feature)
+    {
+        var key     = $"Feature_{feature}";
+        var setting = await _db.AppSettings.FirstOrDefaultAsync(s => s.BudgetId == budgetId && s.Key == key);
+        if (setting == null)
+            _db.AppSettings.Add(new AppSetting { BudgetId = budgetId, Key = key, Value = "disabled" });
+        else
+            setting.Value = "disabled";
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task EnableFeatureAsync(int budgetId, string feature)
+    {
+        var key     = $"Feature_{feature}";
+        var setting = await _db.AppSettings.FirstOrDefaultAsync(s => s.BudgetId == budgetId && s.Key == key);
+        if (setting != null) { _db.AppSettings.Remove(setting); await _db.SaveChangesAsync(); }
+    }
 }

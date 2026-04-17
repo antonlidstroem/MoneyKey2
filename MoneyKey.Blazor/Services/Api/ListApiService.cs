@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using MoneyKey.Core.DTOs.Lists;
+using MoneyKey.Domain.Enums;
 
 namespace MoneyKey.Blazor.Services.Api;
 
@@ -15,6 +16,12 @@ public class ListApiService : ApiServiceBase
 
     public Task<UserListDto?> CreateAsync(int budgetId, CreateListDto dto) =>
         PostAsync<UserListDto>($"api/budgets/{budgetId}/lists", dto);
+
+    public async Task<UserListDto?> UpdateAsync(int budgetId, int listId, CreateListDto dto)
+    {
+        var r = await Http.PutAsJsonAsync($"api/budgets/{budgetId}/lists/{listId}", dto);
+        return r.IsSuccessStatusCode ? await r.Content.ReadFromJsonAsync<UserListDto>() : null;
+    }
 
     public async Task<UserListDto?> ArchiveAsync(int budgetId, int listId)
     {
