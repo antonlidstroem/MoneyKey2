@@ -6,6 +6,8 @@
 @inject ProjectService ProjectSvc
 @inject TransactionService TxSvc
 @inject BudgetService BudgetSvc
+@inject MilersattningApiService MiSvc
+@inject VabApiService VabSvc
 @inject ListApiService ListSvc
 @inject ToastService Toast
 @inject BudgetState BudgetState
@@ -41,11 +43,8 @@
             </button>
             @if (BudgetState.CanEdit)
             {
-                <button class="btn btn-secondary btn-sm" @onclick="OpenNewList">
-                    <span class="material-icons" style="font-size:.9rem">checklist</span> Ny lista
-                </button>
-                <button class="btn btn-primary btn-sm" @onclick="OpenNewTxForm">
-                    <span class="material-icons" style="font-size:.9rem">add</span> Ny transaktion
+                <button class="btn btn-primary btn-sm" @onclick="OpenNewEntryForm">
+                    <span class="material-icons" style="font-size:.9rem">add</span> Ny post
                 </button>
             }
         </div>
@@ -61,66 +60,43 @@
                     <span style="font-weight:600;font-size:.9rem">Filter @(Filter.HasActiveFilters ? "●" : "")</span>
                     <div style="display:flex;gap:8px">
                         <button class="btn btn-ghost btn-sm" @onclick="Filter.ResetFilters">Rensa</button>
-                        <button class="btn btn-ghost btn-icon btn-sm" @onclick="ToggleFilter">
-                            <span class="material-icons" style="font-size:.9rem">close</span>
-                        </button>
+                        <button class="btn btn-ghost btn-icon btn-sm" @onclick="ToggleFilter"><span class="material-icons" style="font-size:.9rem">close</span></button>
                     </div>
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px 20px">
                     <div class="form-group" style="margin:0">
-                        <label class="form-label" style="display:flex;align-items:center;gap:6px">
-                            <input type="checkbox" @bind="Filter.Query.FilterByStartDate" @bind:after="NotifyFilter" /> Från
-                        </label>
-                        <input type="date" class="form-control" disabled="@(!Filter.Query.FilterByStartDate)"
-                               value="@Filter.Query.StartDate?.ToString("yyyy-MM-dd")"
-                               @onchange="e => SetFilterDate(e, d => Filter.Query.StartDate = d)" />
+                        <label class="form-label" style="display:flex;align-items:center;gap:6px"><input type="checkbox" @bind="Filter.Query.FilterByStartDate" @bind:after="NotifyFilter" /> Från</label>
+                        <input type="date" class="form-control" disabled="@(!Filter.Query.FilterByStartDate)" value='@Filter.Query.StartDate?.ToString("yyyy-MM-dd")' @onchange="e => SetFilterDate(e, d => Filter.Query.StartDate = d)" />
                     </div>
                     <div class="form-group" style="margin:0">
-                        <label class="form-label" style="display:flex;align-items:center;gap:6px">
-                            <input type="checkbox" @bind="Filter.Query.FilterByEndDate" @bind:after="NotifyFilter" /> Till
-                        </label>
-                        <input type="date" class="form-control" disabled="@(!Filter.Query.FilterByEndDate)"
-                               value="@Filter.Query.EndDate?.ToString("yyyy-MM-dd")"
-                               @onchange="e => SetFilterDate(e, d => Filter.Query.EndDate = d)" />
+                        <label class="form-label" style="display:flex;align-items:center;gap:6px"><input type="checkbox" @bind="Filter.Query.FilterByEndDate" @bind:after="NotifyFilter" /> Till</label>
+                        <input type="date" class="form-control" disabled="@(!Filter.Query.FilterByEndDate)" value='@Filter.Query.EndDate?.ToString("yyyy-MM-dd")' @onchange="e => SetFilterDate(e, d => Filter.Query.EndDate = d)" />
                     </div>
                     <div class="form-group" style="margin:0">
-                        <label class="form-label" style="display:flex;align-items:center;gap:6px">
-                            <input type="checkbox" @bind="Filter.Query.FilterByDescription" @bind:after="NotifyFilter" /> Fritext
-                        </label>
-                        <input class="form-control" @bind="Filter.Query.Description" @bind:after="NotifyFilter"
-                               placeholder="Sök..." disabled="@(!Filter.Query.FilterByDescription)" />
+                        <label class="form-label" style="display:flex;align-items:center;gap:6px"><input type="checkbox" @bind="Filter.Query.FilterByDescription" @bind:after="NotifyFilter" /> Fritext</label>
+                        <input class="form-control" @bind="Filter.Query.Description" @bind:after="NotifyFilter" placeholder="Sök..." disabled="@(!Filter.Query.FilterByDescription)" />
                     </div>
                     <div class="form-group" style="margin:0">
-                        <label class="form-label" style="display:flex;align-items:center;gap:6px">
-                            <input type="checkbox" @bind="Filter.Query.FilterByCategory" @bind:after="NotifyFilter" /> Kategori
-                        </label>
-                        <select class="form-control" disabled="@(!Filter.Query.FilterByCategory)"
-                                value="@(Filter.Query.CategoryId ?? 0)"
+                        <label class="form-label" style="display:flex;align-items:center;gap:6px"><input type="checkbox" @bind="Filter.Query.FilterByCategory" @bind:after="NotifyFilter" /> Kategori</label>
+                        <select class="form-control" disabled="@(!Filter.Query.FilterByCategory)" value="@(Filter.Query.CategoryId ?? 0)"
                                 @onchange="e => { Filter.Query.CategoryId = int.TryParse(e.Value?.ToString(), out var v) ? v : 0; NotifyFilter(); }">
                             <option value="0">-- Välj --</option>
                             @foreach (var cat in _categories) { <option value="@cat.Id">@cat.Name</option> }
                         </select>
                     </div>
                     <div class="form-group" style="margin:0">
-                        <label class="form-label" style="display:flex;align-items:center;gap:6px">
-                            <input type="checkbox" @bind="Filter.Query.FilterByProject" @bind:after="NotifyFilter" /> Projekt
-                        </label>
-                        <select class="form-control" disabled="@(!Filter.Query.FilterByProject)"
-                                value="@(Filter.Query.ProjectId ?? 0)"
+                        <label class="form-label" style="display:flex;align-items:center;gap:6px"><input type="checkbox" @bind="Filter.Query.FilterByProject" @bind:after="NotifyFilter" /> Projekt</label>
+                        <select class="form-control" disabled="@(!Filter.Query.FilterByProject)" value="@(Filter.Query.ProjectId ?? 0)"
                                 @onchange="e => { Filter.Query.ProjectId = int.TryParse(e.Value?.ToString(), out var v) ? v : 0; NotifyFilter(); }">
                             <option value="0">-- Välj --</option>
                             @foreach (var p in _projects) { <option value="@p.Id">@p.Name</option> }
                         </select>
                     </div>
                     <div class="form-group" style="margin:0">
-                        <label class="form-label" style="display:flex;align-items:center;gap:6px">
-                            <input type="checkbox" @bind="Filter.Query.FilterByAmount" @bind:after="NotifyFilter" /> Belopp min–max
-                        </label>
+                        <label class="form-label" style="display:flex;align-items:center;gap:6px"><input type="checkbox" @bind="Filter.Query.FilterByAmount" @bind:after="NotifyFilter" /> Belopp min–max</label>
                         <div style="display:flex;gap:4px">
-                            <input type="number" class="form-control" placeholder="Min" disabled="@(!Filter.Query.FilterByAmount)"
-                                   @bind="Filter.Query.AmountMin" @bind:after="NotifyFilter" />
-                            <input type="number" class="form-control" placeholder="Max" disabled="@(!Filter.Query.FilterByAmount)"
-                                   @bind="Filter.Query.AmountMax" @bind:after="NotifyFilter" />
+                            <input type="number" class="form-control" placeholder="Min" disabled="@(!Filter.Query.FilterByAmount)" @bind="Filter.Query.AmountMin" @bind:after="NotifyFilter" />
+                            <input type="number" class="form-control" placeholder="Max" disabled="@(!Filter.Query.FilterByAmount)" @bind="Filter.Query.AmountMax" @bind:after="NotifyFilter" />
                         </div>
                     </div>
                 </div>
@@ -137,198 +113,30 @@
                     <input placeholder="Snabbsök..." value="@_qs" @oninput="OnQuickSearch" />
                 </div>
                 <div style="display:flex;gap:4px;flex-wrap:wrap">
-                    <button class="btn btn-sm @(!Filter.Query.IncludeTypes.Any() ? "btn-primary" : "btn-secondary")"
-                            style="font-size:.72rem;padding:3px 8px" @onclick="ShowAllTypes">Alla</button>
+                    <button class="btn btn-sm @(!Filter.Query.IncludeTypes.Any() ? "btn-primary" : "btn-secondary")" style="font-size:.72rem;padding:3px 8px" @onclick="ShowAllTypes">Alla</button>
                     @foreach (var t in Enum.GetValues<JournalEntryType>())
                     {
-                        var type   = t;
-                        var isSolo = Filter.Query.IncludeTypes.Count == 1 && Filter.Query.IncludeTypes.Contains(type);
-                        <button class="btn btn-sm @(isSolo ? "btn-primary" : "btn-secondary")"
-                                style="font-size:.72rem;padding:3px 8px" @onclick="() => SetOnlyType(type)">@TypeLabel(type)</button>
+                        var type = t; var isSolo = Filter.Query.IncludeTypes.Count == 1 && Filter.Query.IncludeTypes.Contains(type);
+                        <button class="btn btn-sm @(isSolo ? "btn-primary" : "btn-secondary")" style="font-size:.72rem;padding:3px 8px" @onclick="() => SetOnlyType(type)">@TypeLabel(type)</button>
                     }
                 </div>
                 <div class="grid-toolbar-spacer"></div>
                 <span style="font-size:.8rem;color:var(--color-muted)">@_totalCount poster</span>
-                <select class="form-control" style="width:auto;padding:4px 8px;font-size:.8rem"
-                        value="@Filter.Query.PageSize" @onchange="OnPageSizeChanged">
-                    <option value="25">25/sida</option>
-                    <option value="50">50/sida</option>
-                    <option value="100">100/sida</option>
+                <select class="form-control" style="width:auto;padding:4px 8px;font-size:.8rem" value="@Filter.Query.PageSize" @onchange="OnPageSizeChanged">
+                    <option value="25">25/sida</option><option value="50">50/sida</option><option value="100">100/sida</option>
                 </select>
             </div>
 
             <div style="overflow:auto;flex:1">
-                @if (_loading)
-                {
-                    <div style="padding:40px;text-align:center"><div class="spinner"></div></div>
-                }
+                @if (_loading) { <div style="padding:40px;text-align:center"><div class="spinner"></div></div> }
                 else if (_loadError != null)
                 {
                     <div style="padding:40px;text-align:center;color:var(--color-expense)">
-                        <span class="material-icons" style="display:block;font-size:2rem;margin-bottom:8px">error_outline</span>
-                        @_loadError
-                        <br /><button class="btn btn-secondary btn-sm" style="margin-top:12px" @onclick="RetryLoad">Försök igen</button>
+                        <span class="material-icons" style="display:block;font-size:2rem;margin-bottom:8px">error_outline</span>@_loadError
+                        <br /><button class="btn btn-secondary btn-sm" style="margin-top:12px" @onclick="LoadAsync">Försök igen</button>
                     </div>
                 }
-                else
-                {
-                    <table style="width:100%;border-collapse:collapse" class="quickgrid">
-                        <thead>
-                            <tr>
-                                <th style="width:32px">
-                                    @if (BudgetState.CanEdit)
-                                    { <input type="checkbox" checked="@_selectAll" @onchange="ToggleAll" title="Markera alla transaktioner" /> }
-                                </th>
-                                <th style="cursor:pointer;width:100px" @onclick='() => SetSort("Date")'>Datum @SortIndicator("Date")</th>
-                                <th style="width:92px">Typ</th>
-                                <th style="cursor:pointer" @onclick='() => SetSort("Description")'>Beskrivning @SortIndicator("Description")</th>
-                                <th style="width:150px">Kategori</th>
-                                <th style="width:110px">Projekt</th>
-                                <th style="width:90px">Status</th>
-                                <th style="cursor:pointer;text-align:right;width:105px" @onclick='() => SetSort("Amount")'>Belopp @SortIndicator("Amount")</th>
-                                <th style="width:80px"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (!_entries.Any() && !ShowLists)
-                            {
-                                <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--color-muted)">
-                                    <span class="material-icons" style="display:block;font-size:2rem;margin-bottom:8px;opacity:.4">inbox</span>
-                                    Inga poster hittades.
-                                </td></tr>
-                            }
-
-                            @if (ShowLists)
-                            {
-                                @foreach (var list in _lists)
-                                {
-                                    var ul = list;
-                                    var isExp = _expandedLists.Contains(ul.Id);
-                                    <tr style="background:var(--color-bg)">
-                                        <td></td>
-                                        <td style="font-size:.8rem;color:var(--color-muted)">@ul.UpdatedAt.ToString("yyyy-MM-dd")</td>
-                                        <td><span class="badge badge-muted" style="font-size:.7rem">@ListTypeLabel(ul.ListType)</span></td>
-                                        <td>
-                                            <span style="font-size:.875rem;font-weight:500">@ul.Name</span>
-                                            <span style="font-size:.75rem;color:var(--color-muted);margin-left:6px">@ul.CheckedItems/@ul.TotalItems klara</span>
-                                            @if (ul.Description != null) { <div style="font-size:.75rem;color:var(--color-muted)">@ul.Description</div> }
-                                        </td>
-                                        <td style="font-size:.8rem;color:var(--color-muted)">Lista</td>
-                                        <td colspan="2"></td>
-                                        <td style="text-align:right">
-                                            @if (ul.TotalItems > 0)
-                                            {
-                                                var pct = (int)(100.0 * ul.CheckedItems / ul.TotalItems);
-                                                <div style="width:60px;height:6px;background:var(--color-border);border-radius:3px;display:inline-block;vertical-align:middle;overflow:hidden">
-                                                    <div style="height:100%;width:@pct%;background:var(--color-income);border-radius:3px"></div>
-                                                </div>
-                                            }
-                                        </td>
-                                        <td @onclick:stopPropagation style="display:flex;gap:2px;align-items:center">
-                                            <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => ToggleListExpand(ul.Id)">
-                                                <span class="material-icons" style="font-size:.9rem">@(isExp ? "expand_less" : "expand_more")</span>
-                                            </button>
-                                            <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => OpenListDetail(ul)">
-                                                <span class="material-icons" style="font-size:.9rem">open_in_new</span>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    @if (isExp)
-                                    {
-                                        @foreach (var item in ul.Items)
-                                        {
-                                            var li = item;
-                                            <tr style="background:#fafafa">
-                                                <td></td><td></td><td></td>
-                                                <td style="padding-left:24px">
-                                                    <div style="display:flex;align-items:center;gap:8px">
-                                                        <input type="checkbox" checked="@li.IsChecked"
-                                                               @onchange="() => ToggleListItemAsync(ul.Id, li.Id)" />
-                                                        <span style="font-size:.85rem;@(li.IsChecked ? "text-decoration:line-through;color:var(--color-muted)" : "")">@li.Text</span>
-                                                    </div>
-                                                </td>
-                                                <td colspan="5"></td>
-                                            </tr>
-                                        }
-                                        @if (BudgetState.CanEdit)
-                                        {
-                                            <tr style="background:#fafafa">
-                                                <td></td><td></td><td></td>
-                                                <td style="padding:4px 12px 8px 24px">
-                                                    <div style="display:flex;gap:6px">
-                                                        <input class="form-control" style="max-width:260px;padding:4px 8px;font-size:.8rem"
-                                                               placeholder="Lägg till rad..."
-                                                               value="@(_newItemText.GetValueOrDefault(ul.Id, ""))"
-                                                               @onchange="e => _newItemText[ul.Id] = e.Value?.ToString() ?? string.Empty"
-                                                               @onkeydown="e => OnListItemKeyDown(e, ul.Id)" />
-                                                        <button class="btn btn-primary btn-sm" @onclick="() => AddListItemAsync(ul.Id)">
-                                                            <span class="material-icons" style="font-size:.85rem">add</span>
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                                <td colspan="5"></td>
-                                            </tr>
-                                        }
-                                    }
-                                }
-                            }
-
-                            @foreach (var entry in _entries)
-                            {
-                                var e         = entry;
-                                var isSel     = _selectedIds.Contains(e.SourceId);
-                                var expandKey = $"{e.EntryType}-{e.SourceId}";
-                                var isExpanded = _expanded.Contains(expandKey);
-                                <tr class="@(isSel ? "selected" : "")">
-                                    <td @onclick:stopPropagation>
-                                        @if (BudgetState.CanEdit && e.EntryType == JournalEntryType.Transaction)
-                                        { <input type="checkbox" checked="@isSel" @onchange="() => ToggleRow(e.SourceId)" /> }
-                                    </td>
-                                    <td style="font-size:.8rem;color:var(--color-muted)">@e.Date.ToString("yyyy-MM-dd")</td>
-                                    <td><span class="badge @TypeBadge(e.EntryType)" style="font-size:.7rem">@e.TypeLabel</span></td>
-                                    <td>
-                                        <span style="font-size:.875rem">@e.Description</span>
-                                        @if (e.HasDetail && e.EntryType == JournalEntryType.Transaction) { <span class="badge badge-muted" style="margin-left:4px;font-size:.67rem">K</span> }
-                                        @if (e.ReceiptLineCount > 0) { <span class="badge badge-muted" style="margin-left:4px;font-size:.67rem">@e.ReceiptLineCount kv.</span> }
-                                        @if (e.MetaLine != null) { <div style="font-size:.75rem;color:var(--color-muted)">@e.MetaLine</div> }
-                                    </td>
-                                    <td style="font-size:.8rem;color:var(--color-muted)">@(e.CategoryName ?? "–")</td>
-                                    <td style="font-size:.8rem;color:var(--color-muted)">@(e.ProjectName ?? "–")</td>
-                                    <td>@if (e.Status != null) { <span class="badge @StatusBadge(e.Status)" style="font-size:.7rem">@e.Status</span> }</td>
-                                    <td style="text-align:right">
-                                        <span class="@(e.Amount >= 0 ? "amount-income" : "amount-expense")" style="font-size:.875rem;font-weight:600">@AmountStr(e)</span>
-                                    </td>
-                                    <td @onclick:stopPropagation style="display:flex;gap:2px;align-items:center">
-                                        @if (e.HasDetail)
-                                        { <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => ToggleExpand(expandKey)"><span class="material-icons" style="font-size:.9rem">@(isExpanded ? "expand_less" : "expand_more")</span></button> }
-                                        @if (e.EntryType == JournalEntryType.ReceiptBatch)
-                                        { var rid = e.SourceId; <button class="btn btn-ghost btn-icon btn-sm" @onclick='() => Nav.NavigateTo($"/receipts/{rid}")'><span class="material-icons" style="font-size:.9rem">open_in_new</span></button> }
-                                        @if (BudgetState.CanEdit && e.EntryType == JournalEntryType.Transaction)
-                                        {
-                                            @if (_editingId == e.SourceId) { <span class="spinner" style="width:14px;height:14px;border-width:2px;margin:7px 4px"></span> }
-                                            else { <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => EditEntryAsync(e)"><span class="material-icons" style="font-size:.9rem">edit</span></button> }
-                                        }
-                                    </td>
-                                </tr>
-                                @if (isExpanded && e.EntryType == JournalEntryType.Transaction && e.KonteringRows.Any())
-                                {
-                                    @foreach (var k in e.KonteringRows)
-                                    {
-                                        <tr style="background:var(--color-bg)">
-                                            <td></td><td></td>
-                                            <td style="font-size:.75rem;color:var(--color-muted);padding-left:8px">↳ @k.KontoNr</td>
-                                            <td style="font-size:.75rem;color:var(--color-muted)">@(k.Description ?? "")</td>
-                                            <td style="font-size:.75rem;color:var(--color-muted)">@(k.CostCenter ?? "")</td>
-                                            <td colspan="2"></td>
-                                            <td style="text-align:right;font-size:.8rem;color:var(--color-muted)">@k.Amount.ToString("N2") kr</td>
-                                            <td></td>
-                                        </tr>
-                                    }
-                                }
-                            }
-                        </tbody>
-                    </table>
-                }
+                else { @JournalTable() }
             </div>
 
             <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-top:1px solid var(--color-border);flex-shrink:0">
@@ -344,204 +152,349 @@
     </div>
 </div>
 
-@* ═══ TRANSACTION FORM MODAL ═══ *@
-@if (_showTxForm)
+<div class="mobile-page-shell">
+    <div class="mobile-topbar">
+        <span class="mobile-title">Journal</span>
+        @if (BudgetState.CanEdit) { <button class="mobile-icon-btn" @onclick="OpenNewEntryForm"><span class="material-icons">add</span></button> }
+    </div>
+    <div class="mobile-chips">
+        <button class="mobile-chip @(!Filter.Query.IncludeTypes.Any() ? "active" : "")" @onclick="ShowAllTypes">Alla</button>
+        @foreach (var t in Enum.GetValues<JournalEntryType>())
+        { var type = t; <button class="mobile-chip @(Filter.Query.IncludeTypes.Count == 1 && Filter.Query.IncludeTypes.Contains(type) ? "active" : "")" @onclick="() => SetOnlyType(type)">@TypeLabel(type)</button> }
+    </div>
+    <div class="mobile-page-scroll">
+        @if (_loading) { <div style="text-align:center;padding:40px"><div class="spinner"></div></div> }
+        else if (_loadError != null) { <div style="text-align:center;padding:32px;color:var(--color-expense);font-size:.85rem">@_loadError</div> }
+        else
+        {
+            @if (ShowLists)
+            {
+                @foreach (var list in _lists)
+                {
+                    var ul = list;
+                    <div class="mobile-entry-card" @onclick="() => OpenListDetail(ul)">
+                        <div class="mobile-entry-card-header">
+                            <div style="flex:1;min-width:0">
+                                <div class="mobile-entry-card-title">
+                                    @ul.Name
+                                    @if (ul.IsNote) { <span class="badge badge-muted" style="font-size:.65rem;margin-left:4px">Anteckning</span> }
+                                    else { <span class="badge badge-muted" style="font-size:.65rem;margin-left:4px">@ListTypeLabel(ul.ListType)</span> }
+                                </div>
+                                @if (ul.IsNote && ul.Content != null)
+                                { <div class="mobile-entry-card-meta" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">@ul.Content[..Math.Min(60, ul.Content.Length)]</div> }
+                                else if (!ul.IsNote)
+                                { <div class="mobile-entry-card-meta">@ul.CheckedItems/@ul.TotalItems klara</div> }
+                                @if (ul.Tags != null) { <div class="mobile-entry-card-meta" style="color:var(--color-primary)">@ul.Tags</div> }
+                            </div>
+                            <div style="text-align:right;flex-shrink:0">
+                                <div style="font-size:.75rem;color:var(--color-muted)">@ul.UpdatedAt.ToString("MM-dd")</div>
+                                <span class="material-icons" style="font-size:.9rem;color:var(--color-muted);margin-top:4px">chevron_right</span>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+            @if (!_entries.Any() && (!ShowLists || !_lists.Any()))
+            { <div style="text-align:center;padding:48px 24px;color:var(--color-muted)"><span class="material-icons" style="font-size:2.5rem;display:block;margin-bottom:8px;opacity:.4">inbox</span>Inga poster</div> }
+            @foreach (var entry in _entries)
+            {
+                var e = entry;
+                <div class="mobile-entry-card">
+                    <div class="mobile-entry-card-header">
+                        <div style="flex:1;min-width:0">
+                            <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+                                <span class="badge @TypeBadge(e.EntryType)" style="font-size:.65rem">@e.TypeLabel</span>
+                                @if (e.Status != null) { <span class="badge @StatusBadge(e.Status)" style="font-size:.65rem">@e.Status</span> }
+                            </div>
+                            <div class="mobile-entry-card-title">@e.Description</div>
+                            <div class="mobile-entry-card-meta">
+                                @e.Date.ToString("yyyy-MM-dd")
+                                @if (e.CategoryName != null) { <span> · @e.CategoryName</span> }
+                                @if (e.MetaLine != null) { <span> · @e.MetaLine</span> }
+                            </div>
+                        </div>
+                        <div style="text-align:right;flex-shrink:0">
+                            <div class='@(e.Amount >= 0 ? "amount-pos" : "amount-neg")' style="font-size:.9rem;font-weight:700">
+                                @AmountStr(e)
+                            </div>
+                            @if (BudgetState.CanEdit && e.EntryType == JournalEntryType.Transaction)
+                            { <button class="btn btn-ghost btn-icon btn-sm" style="margin-top:4px" @onclick="() => EditEntryAsync(e)"><span class="material-icons" style="font-size:.9rem">edit</span></button> }
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+    @if (BudgetState.CanEdit) { <button class="mobile-fab" @onclick="OpenNewEntryForm"><span class="material-icons">add</span></button> }
+</div>
+
+@if (_showEntryForm)
 {
-    <div class="modal-overlay" @onclick="CloseTxForm">
-        <div class="modal" style="max-width:640px" @onclick:stopPropagation>
+    <div class="modal-overlay" @onclick="CloseEntryForm">
+        <div class="modal" style="max-width:640px;max-height:90vh;overflow-y:auto" @onclick:stopPropagation>
             <div class="modal-header">
-                <span class="modal-title">@(_editTx == null ? "Ny transaktion" : "Redigera transaktion")</span>
-                <button class="btn btn-ghost btn-icon btn-sm" @onclick="CloseTxForm"><span class="material-icons">close</span></button>
+                <span class="modal-title">@(_editTx != null ? "Redigera transaktion" : "Ny post")</span>
+                <button class="btn btn-ghost btn-icon btn-sm" @onclick="CloseEntryForm"><span class="material-icons">close</span></button>
             </div>
             <div class="modal-body">
-                @if (!string.IsNullOrEmpty(_txError))
-                { <div style="background:var(--color-expense-bg);color:var(--color-expense);padding:8px 12px;border-radius:8px;font-size:.85rem;margin-bottom:12px">@_txError</div> }
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Datum *</label>
-                        <input type="date" class="form-control" value="@_txDate.ToString("yyyy-MM-dd")"
-                               @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _txDate = d; }' />
+                @if (_editTx == null)
+                {
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--color-border)">
+                        @foreach (var kind in AllEntryKinds)
+                        {
+                            var k = kind;
+                            <button class="btn btn-sm @(_entryKind == k ? "btn-primary" : "btn-secondary")" @onclick="() => SetKind(k)">
+                                <span class="material-icons" style="font-size:.85rem;vertical-align:middle;margin-right:3px">@KindIcon(k)</span>@KindLabel(k)
+                            </button>
+                        }
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Typ *</label>
-                        <select class="form-control" @bind="_txType">
-                            <option value="@TransactionType.Expense">Utgift</option>
-                            <option value="@TransactionType.Income">Inkomst</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Beskrivning</label>
-                    <input class="form-control" @bind="_txDescription" placeholder="T.ex. ICA Maxi, Hyra..." />
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Nettobelopp (kr) *</label>
-                        <input type="number" step="0.01" class="form-control" @bind="_txAmount" placeholder="0.00" />
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Kategori *</label>
-                        <select class="form-control" @bind="_txCategoryId">
-                            <option value="0">-- Välj kategori --</option>
-                            @foreach (var cat in _categories) { <option value="@cat.Id">@cat.Name</option> }
-                        </select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Återkommande</label>
-                        <select class="form-control" @bind="_txRecurrence">
-                            <option value="@Recurrence.OneTime">Engång</option>
-                            <option value="@Recurrence.Monthly">Månadsvis</option>
-                            <option value="@Recurrence.Yearly">Årsvis</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Projekt</label>
-                        <select class="form-control" @bind="_txProjectId">
-                            <option value="0">Inget projekt</option>
-                            @foreach (var proj in _projects) { <option value="@proj.Id">@proj.Name</option> }
-                        </select>
-                    </div>
-                </div>
-                @if (_txRecurrence != Recurrence.OneTime)
+                }
+
+                @if (!string.IsNullOrEmpty(_formError))
+                { <div style="background:var(--color-expense-bg);color:var(--color-expense);padding:8px 12px;border-radius:8px;font-size:.85rem;margin-bottom:12px">@_formError</div> }
+
+                @if (_entryKind == EntryKind.Transaction)
                 {
                     <div class="form-row">
                         <div class="form-group">
-                            <label class="form-label">Månad (periodisering)</label>
-                            <select class="form-control" value="@(_txMonth.HasValue ? (int)_txMonth.Value : 0)"
-                                    @onchange='e => { _txMonth = int.TryParse(e.Value?.ToString(), out var mv) && mv > 0 ? (BudgetMonth)mv : null; }'>
-                                <option value="0">Ingen specifik</option>
-                                @foreach (var m in Enum.GetValues<BudgetMonth>()) { <option value="@((int)m)">@m</option> }
+                            <label class="form-label">Datum *</label>
+                            <input type="date" class="form-control" value='@_txDate.ToString("yyyy-MM-dd")'
+                                   @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _txDate = d; }' />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Typ *</label>
+                            <select class="form-control" @bind="_txType">
+                                <option value="@TransactionType.Expense">Utgift</option>
+                                <option value="@TransactionType.Income">Inkomst</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group"><label class="form-label">Beskrivning</label><input class="form-control" @bind="_txDescription" placeholder="T.ex. ICA Maxi, Hyra..." /></div>
+                    <div class="form-row">
+                        <div class="form-group"><label class="form-label">Nettobelopp (kr) *</label><input type="number" step="0.01" class="form-control" @bind="_txAmount" /></div>
+                        <div class="form-group">
+                            <label class="form-label">Kategori *</label>
+                            <select class="form-control" @bind="_txCategoryId">
+                                <option value="0">-- Välj --</option>
+                                @foreach (var cat in _categories) { <option value="@cat.Id">@cat.Name</option> }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Återkommande</label>
+                            <select class="form-control" @bind="_txRecurrence">
+                                <option value="@Recurrence.OneTime">Engång</option>
+                                <option value="@Recurrence.Monthly">Månadsvis</option>
+                                <option value="@Recurrence.Yearly">Årsvis</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Slutdatum</label>
-                            <input type="date" class="form-control"
-                                   value="@(_txEndDate?.ToString("yyyy-MM-dd") ?? "")"
-                                   @onchange='e => { var s = e.Value?.ToString(); _txEndDate = string.IsNullOrEmpty(s) ? null : DateTime.TryParse(s, out var ed) ? ed : _txEndDate; }' />
+                            <label class="form-label">Projekt</label>
+                            <select class="form-control" @bind="_txProjectId">
+                                <option value="0">Inget projekt</option>
+                                @foreach (var proj in _projects) { <option value="@proj.Id">@proj.Name</option> }
+                            </select>
                         </div>
                     </div>
+                    @if (_txRecurrence != Recurrence.OneTime)
+                    {
+                        <div class="form-group">
+                            <label class="form-label">Slutdatum</label>
+                            <input type="date" class="form-control" value='@(_txEndDate?.ToString("yyyy-MM-dd") ?? "")'
+                                   @onchange='e => { var s = e.Value?.ToString(); _txEndDate = string.IsNullOrEmpty(s) ? null : DateTime.TryParse(s, out var ed) ? ed : _txEndDate; }' />
+                        </div>
+                    }
+                    <div style="margin-top:14px">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                            <span style="font-weight:500;font-size:.875rem">Kontering (valfritt)</span>
+                            <button class="btn btn-ghost btn-sm" @onclick="() => _txKonteringRows.Add(new KonteringRowDto())"><span class="material-icons" style="font-size:.85rem">add</span> Rad</button>
+                        </div>
+                        @foreach (var (row, idx) in _txKonteringRows.Select((r, i) => (r, i)))
+                        {
+                            var i2 = idx;
+                            <div style="display:grid;grid-template-columns:100px 90px 1fr auto;gap:6px;margin-bottom:6px;align-items:center">
+                                <input class="form-control" placeholder="Kontonr" @bind="row.KontoNr" />
+                                <input type="number" step="0.01" class="form-control" placeholder="Belopp" @bind="row.Amount" />
+                                <input class="form-control" placeholder="Beskrivning" @bind="row.Description" />
+                                <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => _txKonteringRows.RemoveAt(i2)"><span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span></button>
+                            </div>
+                        }
+                    </div>
                 }
-                @if (_categoriesById.TryGetValue(_txCategoryId, out var selCat) && selCat.ToggleGrossNet)
+
+                @if (_entryKind == EntryKind.Milersattning)
                 {
                     <div class="form-row">
                         <div class="form-group">
-                            <label class="form-label">Bruttobelopp (kr)</label>
-                            <input type="number" step="0.01" class="form-control" @bind="_txGrossAmount" />
+                            <label class="form-label">Datum *</label>
+                            <input type="date" class="form-control" value='@_miDate.ToString("yyyy-MM-dd")' @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _miDate = d; }' />
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Skattesats (%)</label>
-                            <input type="number" step="1" class="form-control" @bind="_txRate" />
+                            <label class="form-label">Distans km (enkel väg) *</label>
+                            <input type="number" step="0.1" class="form-control" @bind="_miKm" />
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom:8px">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.875rem">
+                            <input type="checkbox" @bind="_miRoundTrip" />
+                            Tur-retur · @((_miKm * (_miRoundTrip ? 2 : 1)).ToString("N0")) km effektiv sträcka
+                        </label>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label class="form-label">Från *</label><input class="form-control" @bind="_miFrom" placeholder="Hemma, Kontoret..." /></div>
+                        <div class="form-group"><label class="form-label">Till *</label><input class="form-control" @bind="_miTo" placeholder="Kund, Leverantör..." /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Taxa kr/km <span style="font-size:.72rem;color:var(--color-muted)">(std: 0,25)</span></label>
+                            <input type="number" step="0.01" class="form-control" @bind="_miRate" />
+                            @if (_miRate > 0.25m) { <div style="font-size:.74rem;color:var(--color-warning);margin-top:3px">⚠ Över Skatteverkets standard</div> }
+                        </div>
+                        <div class="form-group"><label class="form-label">Betalas av</label><input class="form-control" @bind="_miPayer" placeholder="Arbetsgivare, Kund..." /></div>
+                    </div>
+                    <div class="form-group"><label class="form-label">Syfte</label><input class="form-control" @bind="_miPurpose" /></div>
+                    <div style="background:var(--color-bg);border-radius:8px;padding:10px 14px;font-size:.875rem">
+                        Ersättning: <strong style="color:var(--color-income)">+@((_miKm * (_miRoundTrip ? 2 : 1) * _miRate).ToString("N2")) kr</strong>
+                    </div>
+                }
+
+                @if (_entryKind == EntryKind.Vab)
+                {
+                    <div class="form-group"><label class="form-label">Barnets namn (valfritt)</label><input class="form-control" @bind="_vabChild" placeholder="Lämna tomt om det gäller dig" /></div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Startdatum *</label>
+                            <input type="date" class="form-control" value='@_vabStart.ToString("yyyy-MM-dd")' @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _vabStart = d; }' />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Slutdatum *</label>
+                            <input type="date" class="form-control" value='@_vabEnd.ToString("yyyy-MM-dd")' @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _vabEnd = d; }' />
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">SGI (årsinkomst kr) <span style="font-size:.72rem;color:var(--color-muted)">→ räknar ut dagersättning</span></label>
+                            <input type="number" step="1000" class="form-control" @bind="_vabSgi" placeholder="T.ex. 480000" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Dagersättning (kr)</label>
+                            <input type="number" step="0.01" class="form-control" value="@_vabDailyBenefit.ToString("N2")"
+                                   @onchange='e => { if (decimal.TryParse(e.Value?.ToString(), out var v)) _vabDailyBenefit = v; }' />
+                        </div>
+                    </div>
+                    
+                        var vabDays = Math.Max(1, (int)(_vabEnd - _vabStart).TotalDays + 1);
+                        var vabTotal = vabDays * _vabDailyBenefit * 0.8m;
+                    
+                    <div style="background:var(--color-bg);border-radius:8px;padding:10px 14px;font-size:.85rem;line-height:1.6">
+                        <div>Dagar: <strong>@vabDays</strong> (@_vabStart.ToString("d")–@_vabEnd.ToString("d"))</div>
+                        <div>Utebliven inkomst: <strong style="color:var(--color-warning)">@vabTotal.ToString("N2") kr</strong> <span style="font-size:.75rem;color:var(--color-muted)">(@vabDays dag × @_vabDailyBenefit.ToString("N2") kr × 80%)</span></div>
+                        <div style="font-size:.75rem;color:var(--color-muted);margin-top:3px">ℹ Karensdag = dag 1 täcks ej av FK. Visas som utebliven inkomst, ej utgift.</div>
+                    </div>
+                }
+
+                @if (_entryKind == EntryKind.Lista)
+                {
+                    <div class="form-group"><label class="form-label">Namn *</label><input class="form-control" @bind="_listName" placeholder="T.ex. Inköpslista, Veckoplanering..." /></div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Typ</label>
+                            <select class="form-control" @bind="_listType">
+                                <option value="@ListType.CheckList">Checklista</option>
+                                <option value="@ListType.ToDo">Att-göra</option>
+                                <option value="@ListType.Shopping">Inköpslista</option>
+                                <option value="@ListType.Custom">Anpassad</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Synlighet</label>
+                            <select class="form-control" @bind="_listVisibility">
+                                <option value="@EntryVisibility.BudgetShared">Delad med budget</option>
+                                <option value="@EntryVisibility.Private">Privat (bara jag)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group"><label class="form-label">Beskrivning (valfritt)</label><input class="form-control" @bind="_listDescription" /></div>
+                    <div class="form-group"><label class="form-label">Taggar (valfritt, komma-separerade)</label><input class="form-control" @bind="_listTags" placeholder="arbete, privat, q1..." /></div>
+                }
+
+                @if (_entryKind == EntryKind.Anteckning)
+                {
+                    <div class="form-group"><label class="form-label">Titel *</label><input class="form-control" @bind="_listName" placeholder="T.ex. Mötesanteckningar, Idé..." /></div>
+                    <div class="form-group">
+                        <label class="form-label">Innehåll</label>
+                        <textarea class="form-control" rows="6" @bind="_listContent" placeholder="Skriv din anteckning här..."></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label class="form-label">Taggar (komma-separerade)</label><input class="form-control" @bind="_listTags" placeholder="möte, projekt-x..." /></div>
+                        <div class="form-group">
+                            <label class="form-label">Synlighet</label>
+                            <select class="form-control" @bind="_listVisibility">
+                                <option value="@EntryVisibility.BudgetShared">Delad med budget</option>
+                                <option value="@EntryVisibility.Private">Privat (bara jag)</option>
+                            </select>
                         </div>
                     </div>
                 }
-                <div style="margin-top:14px">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-                        <span style="font-weight:500;font-size:.875rem">Kontering (valfritt)</span>
-                        <button class="btn btn-ghost btn-sm" @onclick="AddKonteringRow">
-                            <span class="material-icons" style="font-size:.85rem">add</span> Rad
-                        </button>
-                    </div>
-                    @foreach (var (row, idx) in _txKonteringRows.Select((r, i) => (r, i)))
-                    {
-                        var i2 = idx;
-                        <div style="display:grid;grid-template-columns:100px 90px 1fr auto;gap:6px;margin-bottom:6px;align-items:center">
-                            <input class="form-control" placeholder="Kontonr" @bind="row.KontoNr" />
-                            <input type="number" step="0.01" class="form-control" placeholder="Belopp" @bind="row.Amount" />
-                            <input class="form-control" placeholder="Beskrivning / kostnadsst." @bind="row.Description" />
-                            <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => _txKonteringRows.RemoveAt(i2)">
-                                <span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span>
-                            </button>
-                        </div>
-                    }
-                </div>
             </div>
             <div class="modal-footer">
                 @if (_editTx != null)
                 { <button class="btn btn-ghost btn-sm" style="color:var(--color-expense);margin-right:auto" @onclick="DeleteTxAsync">Ta bort</button> }
-                <button class="btn btn-secondary" @onclick="CloseTxForm">Avbryt</button>
-                <button class="btn btn-primary" @onclick="SaveTxAsync" disabled="@_txSaving">
-                    @if (_txSaving) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
-                    @(_editTx == null ? "Spara" : "Uppdatera")
+                <button class="btn btn-secondary" @onclick="CloseEntryForm">Avbryt</button>
+                <button class="btn btn-primary" @onclick="SaveEntryAsync" disabled="@_formSaving">
+                    @if (_formSaving) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
+                    @(_editTx != null ? "Uppdatera" : "Spara")
                 </button>
             </div>
         </div>
     </div>
 }
 
-@* ═══ NEW LIST MODAL ═══ *@
-@if (_showListForm)
-{
-    <div class="modal-overlay" @onclick='() => _showListForm = false'>
-        <div class="modal" style="max-width:440px" @onclick:stopPropagation>
-            <div class="modal-header">
-                <span class="modal-title">Ny lista</span>
-                <button class="btn btn-ghost btn-icon btn-sm" @onclick='() => _showListForm = false'><span class="material-icons">close</span></button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group"><label class="form-label">Namn *</label>
-                    <input class="form-control" @bind="_newListName" placeholder="T.ex. Inköpslista, Att göra..." /></div>
-                <div class="form-group"><label class="form-label">Typ</label>
-                    <select class="form-control" @bind="_newListType">
-                        <option value="@ListType.ToDo">Att-göra-lista</option>
-                        <option value="@ListType.Shopping">Inköpslista</option>
-                        <option value="@ListType.Custom">Anpassad lista</option>
-                    </select></div>
-                <div class="form-group"><label class="form-label">Beskrivning (valfritt)</label>
-                    <input class="form-control" @bind="_newListDescription" /></div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" @onclick='() => _showListForm = false'>Avbryt</button>
-                <button class="btn btn-primary" @onclick="CreateListAsync" disabled="@_listSaving">
-                    @if (_listSaving) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
-                    Skapa
-                </button>
-            </div>
-        </div>
-    </div>
-}
-
-@* ═══ LIST DETAIL MODAL ═══ *@
 @if (_activeList is not null)
 {
     <div class="modal-overlay" @onclick='() => _activeList = null'>
-        <div class="modal" style="max-width:500px;max-height:80vh;display:flex;flex-direction:column" @onclick:stopPropagation>
+        <div class="modal" style="max-width:500px;max-height:82vh;display:flex;flex-direction:column" @onclick:stopPropagation>
             <div class="modal-header">
-                <div style="display:flex;align-items:center;gap:8px">
-                    <span class="modal-title">@_activeList.Name</span>
-                    <span class="badge badge-muted" style="font-size:.7rem">@ListTypeLabel(_activeList.ListType)</span>
+                <div style="display:flex;align-items:center;gap:8px;min-width:0">
+                    <span class="modal-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">@_activeList.Name</span>
+                    @if (_activeList.IsNote) { <span class="badge badge-muted" style="font-size:.7rem;flex-shrink:0">Anteckning</span> }
+                    else { <span class="badge badge-muted" style="font-size:.7rem;flex-shrink:0">@ListTypeLabel(_activeList.ListType)</span> }
                 </div>
-                <div style="display:flex;gap:6px;align-items:center">
-                    @if (_activeList.CheckedItems > 0)
+                <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+                    @if (!_activeList.IsNote && _activeList.CheckedItems > 0)
                     { <button class="btn btn-ghost btn-sm" style="font-size:.78rem" @onclick="ClearCheckedAsync">Rensa klara (@_activeList.CheckedItems)</button> }
                     <button class="btn btn-ghost btn-icon btn-sm" @onclick='() => _activeList = null'><span class="material-icons">close</span></button>
                 </div>
             </div>
+            @if (_activeList.Tags != null)
+            { <div style="padding:6px 24px 0;font-size:.78rem;color:var(--color-primary)">@_activeList.Tags</div> }
             <div class="modal-body" style="overflow-y:auto;flex:1">
-                @if (!_activeList.Items.Any())
-                { <p style="text-align:center;padding:24px;color:var(--color-muted);font-size:.875rem">Inga poster ännu.</p> }
-                @foreach (var item in _activeList.Items)
+                @if (_activeList.IsNote)
                 {
-                    var li = item;
-                    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:.5px solid var(--color-border)">
-                        <input type="checkbox" checked="@li.IsChecked" @onchange="() => ToggleActiveListItemAsync(li.Id)" />
-                        <span style="flex:1;font-size:.9rem;@(li.IsChecked ? "text-decoration:line-through;color:var(--color-muted)" : "")">@li.Text</span>
-                        @if (BudgetState.CanEdit)
-                        { <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => DeleteActiveListItemAsync(li.Id)">
-                            <span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span></button> }
-                    </div>
+                    <div style="font-size:.9rem;line-height:1.7;white-space:pre-wrap">@(_activeList.Content ?? "(Tom anteckning)")</div>
+                }
+                else
+                {
+                    @if (!_activeList.Items.Any())
+                    { <p style="text-align:center;padding:24px;color:var(--color-muted);font-size:.875rem">Inga poster ännu.</p> }
+                    @foreach (var item in _activeList.Items)
+                    {
+                        var li = item;
+                        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:.5px solid var(--color-border)">
+                            <input type="checkbox" checked="@li.IsChecked" @onchange="() => ToggleActiveListItemAsync(li.Id)" />
+                            <span style='flex:1;font-size:.9rem;@(li.IsChecked ? "text-decoration:line-through;color:var(--color-muted)" : "")'>@li.Text</span>
+                            @if (BudgetState.CanEdit) { <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => DeleteActiveListItemAsync(li.Id)"><span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span></button> }
+                        </div>
+                    }
                 }
             </div>
-            @if (BudgetState.CanEdit)
+            @if (BudgetState.CanEdit && !_activeList.IsNote)
             {
                 <div style="padding:14px 24px;border-top:1px solid var(--color-border)">
                     <div style="display:flex;gap:8px">
-                        <input class="form-control" placeholder="Ny rad..." @bind="_activeNewItemText"
-                               @onkeydown="OnActiveListItemKeyDown" />
-                        <button class="btn btn-primary btn-sm" @onclick="AddActiveListItemAsync">
-                            <span class="material-icons" style="font-size:.9rem">add</span>
-                        </button>
+                        <input class="form-control" placeholder="Ny rad..." @bind="_activeNewItemText" @onkeydown="OnActiveListItemKeyDown" />
+                        <button class="btn btn-primary btn-sm" @onclick="AddActiveListItemAsync"><span class="material-icons" style="font-size:.9rem">add</span></button>
                     </div>
                 </div>
             }
@@ -552,50 +505,67 @@
 <ConfirmDialog @ref="_confirmDialog" Title="Bekräfta" Message="Är du säker? Borttagna transaktioner kan inte återställas." />
 
 @code {
-    private List<JournalEntryDto>     _entries         = new();
-    private List<ProjectDto>          _projects        = new();
-    private List<Category>            _categories      = new();
-    private Dictionary<int, Category> _categoriesById  = new();
-    private List<UserListDto>         _lists           = new();
+    // ── Entry kind for morphing form ──────────────────────────────────────────
+    enum EntryKind { Transaction, Milersattning, Vab, Lista, Anteckning }
+    static readonly EntryKind[] AllEntryKinds = Enum.GetValues<EntryKind>();
+
+    // ── Data ──────────────────────────────────────────────────────────────────
+    private List<JournalEntryDto>     _entries        = new();
+    private List<ProjectDto>          _projects       = new();
+    private List<Category>            _categories     = new();
+    private List<UserListDto>         _lists          = new();
     private SummaryDto?               _summary;
-    private HashSet<int>              _selectedIds     = new();
+    private HashSet<int>              _selectedIds    = new();
     private HashSet<string>           _expanded        = new();
-    private HashSet<int>              _expandedLists   = new();
     private ConfirmDialog?            _confirmDialog;
-    private string                    _qs              = "";
+    private string                    _qs             = "";
     private string?                   _loadError;
-    private bool                      _loading         = true;
+    private bool                      _loading        = true;
     private bool                      _selectAll, _exporting;
     private int                       _totalCount, _totalPages, _editingId = -1;
 
-    // Tx form
-    private bool             _showTxForm;
-    private bool             _txSaving;
-    private string           _txError     = "";
-    private TransactionDto?  _editTx;
-    private DateTime         _txDate      = DateTime.Today;
+    // ── Universal form state ──────────────────────────────────────────────────
+    private bool         _showEntryForm;
+    private bool         _formSaving;
+    private string       _formError   = "";
+    private EntryKind    _entryKind   = EntryKind.Transaction;
+    private TransactionDto? _editTx;
+
+    // Tx fields
+    private DateTime         _txDate        = DateTime.Today;
     private DateTime?        _txEndDate;
     private decimal          _txAmount;
-    private decimal?         _txGrossAmount, _txRate;
     private string?          _txDescription;
     private int              _txCategoryId, _txProjectId;
-    private TransactionType  _txType      = TransactionType.Expense;
-    private Recurrence       _txRecurrence = Recurrence.OneTime;
-    private BudgetMonth?     _txMonth;
+    private TransactionType  _txType        = TransactionType.Expense;
+    private Recurrence       _txRecurrence  = Recurrence.OneTime;
     private List<KonteringRowDto> _txKonteringRows = new();
 
-    // List form
-    private bool         _showListForm;
-    private bool         _listSaving;
-    private string       _newListName        = "";
-    private string?      _newListDescription;
-    private ListType     _newListType        = ListType.Custom;
+    // Milersättning fields
+    private DateTime _miDate      = DateTime.Today;
+    private decimal  _miKm, _miRate = 0.25m;
+    private bool     _miRoundTrip;
+    private string   _miFrom = "", _miTo = "", _miPurpose = "", _miPayer = "";
+
+    // VAB fields
+    private DateTime _vabStart = DateTime.Today, _vabEnd = DateTime.Today;
+    private string?  _vabChild;
+    private decimal  _vabSgi, _vabDailyBenefit;
+
+    // List / Note fields
+    private string          _listName        = "";
+    private string?         _listDescription, _listContent, _listTags;
+    private ListType        _listType        = ListType.CheckList;
+    private EntryVisibility _listVisibility  = EntryVisibility.BudgetShared;
+
+    // Active list modal
     private UserListDto? _activeList;
-    private string       _activeNewItemText  = "";
+    private string       _activeNewItemText = "";
     private Dictionary<int, string> _newItemText = new();
 
     private bool ShowLists => !Filter.Query.IncludeTypes.Any() || Filter.Query.IncludeTypes.Contains(JournalEntryType.List);
 
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
     protected override async Task OnInitializedAsync()
     {
         Filter.FilterChanged     += OnFilterChanged;
@@ -622,19 +592,16 @@
     private async Task OnSignalREvent(BudgetHubEvent e)
     { if (e.BudgetId != BudgetState.ActiveBudgetId) return; try { await LoadAsync(); } catch { } await InvokeAsync(StateHasChanged); }
 
+    // ── Load ──────────────────────────────────────────────────────────────────
     private async Task LoadMetaAsync()
     {
         if (BudgetState.ActiveBudgetId <= 0) return;
         try
         {
-            var p  = ProjectSvc.GetAllAsync(BudgetState.ActiveBudgetId);
-            var c  = BudgetSvc.GetCategoriesAsync(BudgetState.ActiveBudgetId);
-            await Task.WhenAll(p, c);
-            _projects       = await p ?? new();
-            _categories     = await c ?? new();
-            _categoriesById = _categories.ToDictionary(x => x.Id);
+            _projects   = await ProjectSvc.GetAllAsync(BudgetState.ActiveBudgetId) ?? new();
+            _categories = await BudgetSvc.GetCategoriesAsync(BudgetState.ActiveBudgetId) ?? new();
         }
-        catch { _projects = new(); _categories = new(); }
+        catch { }
     }
 
     private async Task LoadListsAsync()
@@ -658,7 +625,7 @@
         finally { _loading = false; }
     }
 
-    private async Task RetryLoad() => await LoadAsync();
+    // ── Filter ────────────────────────────────────────────────────────────────
     private void NotifyFilter() => Filter.Update(_ => { });
     private void ToggleFilter() => Filter.IsFilterPanelOpen = !Filter.IsFilterPanelOpen;
     private void ShowAllTypes() => Filter.ShowAllTypes();
@@ -666,40 +633,46 @@
     private void SetSort(string col) => Filter.SetSort(col);
     private void SetFilterDate(Microsoft.AspNetCore.Components.ChangeEventArgs e, Action<DateTime?> setter)
     { setter(DateTime.TryParse(e.Value?.ToString(), out var d) ? d : null); NotifyFilter(); }
-
     private void OnQuickSearch(ChangeEventArgs e)
     { _qs = e.Value?.ToString() ?? ""; Filter.Update(q => { q.FilterByDescription = !string.IsNullOrWhiteSpace(_qs); q.Description = _qs; }); }
-
     private async Task OnPageSizeChanged(ChangeEventArgs e)
     { if (int.TryParse(e.Value?.ToString(), out var s)) { Filter.Query.PageSize = s; Filter.SetPage(1); await LoadAsync(); } }
-
     private async Task PrevPage() { Filter.SetPage(Filter.Query.Page - 1); await LoadAsync(); }
     private async Task NextPage() { Filter.SetPage(Filter.Query.Page + 1); await LoadAsync(); }
     private async Task GoPage(int p) { Filter.SetPage(p); await LoadAsync(); }
 
+    // ── Export ────────────────────────────────────────────────────────────────
     private async Task ExportPdfAsync()
     { _exporting = true; try { var r = await Http.GetAsync(JournalSvc.GetPdfUrl(BudgetState.ActiveBudgetId, Filter.Query)); if (r.IsSuccessStatusCode) { var b64 = Convert.ToBase64String(await r.Content.ReadAsByteArrayAsync()); await JS.InvokeVoidAsync("downloadFile", $"transaktioner_{DateTime.Today:yyyyMMdd}.pdf", "application/pdf", b64); } else Toast.Error($"Export misslyckades ({(int)r.StatusCode})."); } catch (Exception ex) { Toast.Error($"Export: {ex.Message}"); } finally { _exporting = false; } }
-
     private async Task ExportExcelAsync()
     { _exporting = true; try { var r = await Http.GetAsync(JournalSvc.GetExcelUrl(BudgetState.ActiveBudgetId, Filter.Query)); if (r.IsSuccessStatusCode) { var b64 = Convert.ToBase64String(await r.Content.ReadAsByteArrayAsync()); await JS.InvokeVoidAsync("downloadFile", $"transaktioner_{DateTime.Today:yyyyMMdd}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", b64); } else Toast.Error("Export misslyckades."); } catch (Exception ex) { Toast.Error($"Export: {ex.Message}"); } finally { _exporting = false; } }
 
+    // ── Selection ─────────────────────────────────────────────────────────────
     private void ToggleRow(int id) { if (!_selectedIds.Remove(id)) _selectedIds.Add(id); var tc = _entries.Count(e => e.EntryType == JournalEntryType.Transaction); _selectAll = tc > 0 && _selectedIds.Count == tc; }
     private void ToggleAll(ChangeEventArgs e) { _selectAll = e.Value is true; _selectedIds.Clear(); if (_selectAll) foreach (var en in _entries.Where(x => x.EntryType == JournalEntryType.Transaction)) _selectedIds.Add(en.SourceId); }
     private void ToggleExpand(string key) { if (!_expanded.Remove(key)) _expanded.Add(key); }
-    private void ToggleListExpand(int id) { if (!_expandedLists.Remove(id)) _expandedLists.Add(id); }
 
     private async Task BatchDeleteAsync()
+    { if (_confirmDialog == null || !await _confirmDialog.ShowAsync()) return; var ids = _entries.Where(e => e.EntryType == JournalEntryType.Transaction && _selectedIds.Contains(e.SourceId)).Select(e => e.SourceId).ToList(); if (!ids.Any()) return; try { await TxSvc.BatchDeleteAsync(BudgetState.ActiveBudgetId, ids); _selectedIds.Clear(); _selectAll = false; Toast.Success($"{ids.Count} borttagna."); await LoadAsync(); } catch (Exception ex) { Toast.Error($"Borttagning: {ex.Message}"); } }
+
+    // ── Universal form ────────────────────────────────────────────────────────
+    private void SetKind(EntryKind k) { _entryKind = k; _formError = ""; }
+
+    private void OpenNewEntryForm()
     {
-        if (_confirmDialog == null || !await _confirmDialog.ShowAsync()) return;
-        var ids = _entries.Where(e => e.EntryType == JournalEntryType.Transaction && _selectedIds.Contains(e.SourceId)).Select(e => e.SourceId).ToList();
-        if (!ids.Any()) return;
-        try { await TxSvc.BatchDeleteAsync(BudgetState.ActiveBudgetId, ids); _selectedIds.Clear(); _selectAll = false; Toast.Success($"{ids.Count} borttagna."); await LoadAsync(); }
-        catch (Exception ex) { Toast.Error($"Borttagning: {ex.Message}"); }
+        _editTx = null; _formError = ""; _entryKind = EntryKind.Transaction;
+        _txDate = DateTime.Today; _txEndDate = null; _txAmount = 0; _txDescription = null;
+        _txCategoryId = 0; _txType = TransactionType.Expense; _txRecurrence = Recurrence.OneTime;
+        _txProjectId = 0; _txKonteringRows = new();
+        _miDate = DateTime.Today; _miKm = 0; _miRate = 0.25m; _miRoundTrip = false;
+        _miFrom = ""; _miTo = ""; _miPurpose = ""; _miPayer = "";
+        _vabStart = _vabEnd = DateTime.Today; _vabChild = null; _vabSgi = 0; _vabDailyBenefit = 0;
+        _listName = ""; _listDescription = null; _listContent = null; _listTags = null;
+        _listType = ListType.CheckList; _listVisibility = EntryVisibility.BudgetShared;
+        _showEntryForm = true;
     }
 
-    private void OpenNewTxForm() { _editTx = null; _txError = ""; _txDate = DateTime.Today; _txEndDate = null; _txAmount = 0; _txGrossAmount = null; _txRate = null; _txDescription = null; _txCategoryId = 0; _txType = TransactionType.Expense; _txRecurrence = Recurrence.OneTime; _txProjectId = 0; _txMonth = null; _txKonteringRows = new(); _showTxForm = true; }
-    private void CloseTxForm() => _showTxForm = false;
-    private void AddKonteringRow() => _txKonteringRows.Add(new KonteringRowDto());
+    private void CloseEntryForm() => _showEntryForm = false;
 
     private async Task EditEntryAsync(JournalEntryDto entry)
     {
@@ -708,126 +681,202 @@
         {
             var full = await Http.GetFromJsonAsync<TransactionDto>($"api/budgets/{BudgetState.ActiveBudgetId}/transactions/{entry.SourceId}");
             if (full == null) { Toast.Error("Kunde inte hämta transaktionen."); return; }
-            _editTx = full; _txDate = full.StartDate; _txEndDate = full.EndDate; _txAmount = full.NetAmount; _txGrossAmount = full.GrossAmount; _txRate = full.Rate; _txDescription = full.Description; _txCategoryId = full.CategoryId; _txType = full.Type; _txRecurrence = full.Recurrence; _txProjectId = full.ProjectId ?? 0; _txMonth = full.Month; _txKonteringRows = full.KonteringRows.ToList(); _txError = ""; _showTxForm = true;
+            _editTx = full; _entryKind = EntryKind.Transaction;
+            _txDate = full.StartDate; _txEndDate = full.EndDate; _txAmount = full.NetAmount;
+            _txDescription = full.Description; _txCategoryId = full.CategoryId; _txType = full.Type;
+            _txRecurrence = full.Recurrence; _txProjectId = full.ProjectId ?? 0;
+            _txKonteringRows = full.KonteringRows.ToList(); _formError = ""; _showEntryForm = true;
         }
         catch (Exception ex) { Toast.Error($"Fel: {ex.Message}"); }
         finally { _editingId = -1; StateHasChanged(); }
     }
 
-    private async Task SaveTxAsync()
+    private async Task SaveEntryAsync()
     {
-        if (_txCategoryId == 0) { _txError = "Välj en kategori."; return; }
-        _txSaving = true; _txError = "";
+        _formSaving = true; _formError = "";
         try
         {
-            var dto = new CreateTransactionDto { StartDate = _txDate, EndDate = _txEndDate, NetAmount = _txAmount, GrossAmount = _txGrossAmount, Rate = _txRate, Description = _txDescription, CategoryId = _txCategoryId, Type = _txType, Recurrence = _txRecurrence, IsActive = true, Month = _txMonth, ProjectId = _txProjectId > 0 ? _txProjectId : null, KonteringRows = _txKonteringRows };
-            if (_editTx == null)
-            { await TxSvc.CreateAsync(BudgetState.ActiveBudgetId, dto); Toast.Success("Transaktion sparad."); }
-            else
-            { var upd = new UpdateTransactionDto { Id = _editTx.Id, StartDate = dto.StartDate, EndDate = dto.EndDate, NetAmount = dto.NetAmount, GrossAmount = dto.GrossAmount, Rate = dto.Rate, Description = dto.Description, CategoryId = dto.CategoryId, Type = dto.Type, Recurrence = dto.Recurrence, IsActive = true, Month = dto.Month, ProjectId = dto.ProjectId, KonteringRows = dto.KonteringRows }; await TxSvc.UpdateAsync(BudgetState.ActiveBudgetId, upd); Toast.Success("Uppdaterad."); }
-            _showTxForm = false; await LoadAsync();
+            switch (_entryKind)
+            {
+                case EntryKind.Transaction:
+                    if (_txCategoryId == 0) { _formError = "Välj en kategori."; return; }
+                    var dto = new CreateTransactionDto { StartDate = _txDate, EndDate = _txEndDate, NetAmount = _txAmount, Description = _txDescription, CategoryId = _txCategoryId, Type = _txType, Recurrence = _txRecurrence, IsActive = true, ProjectId = _txProjectId > 0 ? _txProjectId : null, KonteringRows = _txKonteringRows };
+                    if (_editTx == null)
+                    { await TxSvc.CreateAsync(BudgetState.ActiveBudgetId, dto); Toast.Success("Transaktion sparad."); }
+                    else
+                    { var upd = new UpdateTransactionDto { Id = _editTx.Id, StartDate = dto.StartDate, EndDate = dto.EndDate, NetAmount = dto.NetAmount, Description = dto.Description, CategoryId = dto.CategoryId, Type = dto.Type, Recurrence = dto.Recurrence, IsActive = true, ProjectId = dto.ProjectId, KonteringRows = dto.KonteringRows }; await TxSvc.UpdateAsync(BudgetState.ActiveBudgetId, upd); Toast.Success("Uppdaterad."); }
+                    break;
+                case EntryKind.Milersattning:
+                    if (_miKm <= 0 || string.IsNullOrWhiteSpace(_miFrom) || string.IsNullOrWhiteSpace(_miTo)) { _formError = "Fyll i från, till och distans."; return; }
+                    await MiSvc.CreateAsync(BudgetState.ActiveBudgetId, new CreateMilersattningDto(_miDate, _miFrom, _miTo, _miKm, _miRoundTrip, _miRate, _miPurpose, _miPayer));
+                    Toast.Success("Milersättning sparad."); break;
+                case EntryKind.Vab:
+                    if (_vabDailyBenefit <= 0 && _vabSgi <= 0) { _formError = "Ange dagersättning eller SGI."; return; }
+                    var dailyBenefit = _vabDailyBenefit > 0 ? _vabDailyBenefit : VabService.CalculateDailyBenefit(_vabSgi);
+                    await VabSvc.CreateAsync(BudgetState.ActiveBudgetId, new CreateVabDto(_vabChild, _vabStart, _vabEnd, dailyBenefit, 0.8m));
+                    Toast.Success("VAB registrerat."); break;
+                case EntryKind.Lista:
+                    if (string.IsNullOrWhiteSpace(_listName)) { _formError = "Ange ett namn."; return; }
+                    await ListSvc.CreateAsync(BudgetState.ActiveBudgetId, new CreateListDto(_listName.Trim(), _listType, _listDescription, null, _listTags, EntryScope.BudgetSpecific, _listVisibility));
+                    await LoadListsAsync(); Toast.Success("Lista skapad."); break;
+                case EntryKind.Anteckning:
+                    if (string.IsNullOrWhiteSpace(_listName)) { _formError = "Ange en titel."; return; }
+                    await ListSvc.CreateAsync(BudgetState.ActiveBudgetId, new CreateListDto(_listName.Trim(), ListType.Note, null, _listContent, _listTags, EntryScope.BudgetSpecific, _listVisibility));
+                    await LoadListsAsync(); Toast.Success("Anteckning sparad."); break;
+            }
+            _showEntryForm = false;
+            await LoadAsync();
         }
-        catch (Exception ex) { _txError = ex.Message; }
-        finally { _txSaving = false; }
+        catch (Exception ex) { _formError = ex.Message; }
+        finally { _formSaving = false; }
     }
 
     private async Task DeleteTxAsync()
-    {
-        if (_editTx == null || _confirmDialog == null || !await _confirmDialog.ShowAsync()) return;
-        try { await TxSvc.DeleteAsync(BudgetState.ActiveBudgetId, _editTx.Id); Toast.Success("Borttagen."); _showTxForm = false; await LoadAsync(); }
-        catch (Exception ex) { _txError = ex.Message; }
-    }
+    { if (_editTx == null || _confirmDialog == null || !await _confirmDialog.ShowAsync()) return; try { await TxSvc.DeleteAsync(BudgetState.ActiveBudgetId, _editTx.Id); Toast.Success("Borttagen."); _showEntryForm = false; await LoadAsync(); } catch (Exception ex) { _formError = ex.Message; } }
 
-    private void OpenNewList() { _newListName = ""; _newListDescription = null; _newListType = ListType.Custom; _showListForm = true; }
+    private void OnSgiChanged(ChangeEventArgs e)
+    { if (decimal.TryParse(e.Value?.ToString(), out var v)) { _vabSgi = v; if (v > 0) _vabDailyBenefit = VabService.CalculateDailyBenefit(v); } }
+
     private void OpenListDetail(UserListDto list) { _activeList = list; _activeNewItemText = ""; }
 
-    // Ändra detta:
-    private async Task CreateListAsync()
-    {
-        if (string.IsNullOrWhiteSpace(_newListName)) return;
-        _listSaving = true;
-        try
-        {
-            // HÄR ÄR ÄNDRINGEN:
-            // Vi lägger till null för 'Content' och 'Tags'
-            var dto = new MoneyKey.Core.DTOs.Lists.CreateListDto(
-                _newListName.Trim(),
-                _newListType,
-                _newListDescription,
-                null, // Content
-                null  // Tags
-            );
-
-            var c = await ListSvc.CreateAsync(BudgetState.ActiveBudgetId, dto);
-        
-            if (c != null)
-            {
-                _lists.Insert(0, c);
-                Toast.Success("Lista skapad.");
-            }
-            _showListForm = false;
-        }
-        catch (Exception ex) { Toast.Error(ex.Message); }
-        finally { _listSaving = false; }
-    }
-
-
-  
-
-    private async Task ToggleListItemAsync(int listId, int itemId)
-    {
-        try { var updated = await ListSvc.ToggleItemAsync(BudgetState.ActiveBudgetId, listId, itemId); if (updated != null) SyncListItem(listId, itemId, updated); }
-        catch (Exception ex) { Toast.Error(ex.Message); }
-    }
-
-    private async Task AddListItemAsync(int listId)
-    {
-        if (!_newItemText.TryGetValue(listId, out var txt) || string.IsNullOrWhiteSpace(txt)) return;
-        try { var item = await ListSvc.AddItemAsync(BudgetState.ActiveBudgetId, listId, new CreateListItemDto(txt.Trim())); if (item != null) { var l = _lists.FirstOrDefault(x => x.Id == listId); if (l != null) { l.Items.Add(item); l.TotalItems++; } _newItemText[listId] = ""; StateHasChanged(); } }
-        catch (Exception ex) { Toast.Error(ex.Message); }
-    }
-
-    private async Task OnListItemKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e, int listId)
-    { if (e.Key == "Enter") await AddListItemAsync(listId); }
-
     private async Task ToggleActiveListItemAsync(int itemId)
-    {
-        if (_activeList is null) return;
-        try { var upd = await ListSvc.ToggleItemAsync(BudgetState.ActiveBudgetId, _activeList.Id, itemId); if (upd != null) { SyncListItem(_activeList.Id, itemId, upd); var i = _activeList.Items.FirstOrDefault(x => x.Id == itemId); if (i != null) { i.IsChecked = upd.IsChecked; i.CompletedAt = upd.CompletedAt; _activeList.CheckedItems = _activeList.Items.Count(x => x.IsChecked); } } }
-        catch (Exception ex) { Toast.Error(ex.Message); }
-    }
-
+    { if (_activeList is null) return; try { var upd = await ListSvc.ToggleItemAsync(BudgetState.ActiveBudgetId, _activeList.Id, itemId); if (upd != null) { SyncListItem(_activeList.Id, itemId, upd); var i = _activeList.Items.FirstOrDefault(x => x.Id == itemId); if (i != null) { i.IsChecked = upd.IsChecked; i.CompletedAt = upd.CompletedAt; _activeList.CheckedItems = _activeList.Items.Count(x => x.IsChecked); } } } catch (Exception ex) { Toast.Error(ex.Message); } }
     private async Task DeleteActiveListItemAsync(int itemId)
-    {
-        if (_activeList is null) return;
-        try { await ListSvc.DeleteItemAsync(BudgetState.ActiveBudgetId, _activeList.Id, itemId); _activeList.Items.RemoveAll(x => x.Id == itemId); _activeList.TotalItems = _activeList.Items.Count; _activeList.CheckedItems = _activeList.Items.Count(x => x.IsChecked); var g = _lists.FirstOrDefault(x => x.Id == _activeList.Id); if (g != null) { g.Items.RemoveAll(x => x.Id == itemId); g.TotalItems = g.Items.Count; g.CheckedItems = g.Items.Count(x => x.IsChecked); } }
-        catch (Exception ex) { Toast.Error(ex.Message); }
-    }
-
+    { if (_activeList is null) return; try { await ListSvc.DeleteItemAsync(BudgetState.ActiveBudgetId, _activeList.Id, itemId); _activeList.Items.RemoveAll(x => x.Id == itemId); _activeList.TotalItems = _activeList.Items.Count; _activeList.CheckedItems = _activeList.Items.Count(x => x.IsChecked); var g = _lists.FirstOrDefault(x => x.Id == _activeList.Id); if (g != null) { g.Items.RemoveAll(x => x.Id == itemId); g.TotalItems = g.Items.Count; g.CheckedItems = g.Items.Count(x => x.IsChecked); } } catch (Exception ex) { Toast.Error(ex.Message); } }
     private async Task AddActiveListItemAsync()
-    {
-        if (_activeList is null || string.IsNullOrWhiteSpace(_activeNewItemText)) return;
-        try { var item = await ListSvc.AddItemAsync(BudgetState.ActiveBudgetId, _activeList.Id, new CreateListItemDto(_activeNewItemText.Trim())); if (item != null) { _activeList.Items.Add(item); _activeList.TotalItems++; var g = _lists.FirstOrDefault(x => x.Id == _activeList.Id); if (g != null) { g.Items.Add(item); g.TotalItems++; } _activeNewItemText = ""; } }
-        catch (Exception ex) { Toast.Error(ex.Message); }
-    }
-
-    private async Task OnActiveListItemKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
-    { if (e.Key == "Enter") await AddActiveListItemAsync(); }
-
+    { if (_activeList is null || string.IsNullOrWhiteSpace(_activeNewItemText)) return; try { var item = await ListSvc.AddItemAsync(BudgetState.ActiveBudgetId, _activeList.Id, new CreateListItemDto(_activeNewItemText.Trim())); if (item != null) { _activeList.Items.Add(item); _activeList.TotalItems++; var g = _lists.FirstOrDefault(x => x.Id == _activeList.Id); if (g != null) { g.Items.Add(item); g.TotalItems++; } _activeNewItemText = ""; } } catch (Exception ex) { Toast.Error(ex.Message); } }
+    private async Task OnActiveListItemKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e) { if (e.Key == "Enter") await AddActiveListItemAsync(); }
     private async Task ClearCheckedAsync()
-    {
-        if (_activeList is null) return;
-        try { var upd = await ListSvc.ClearCheckedAsync(BudgetState.ActiveBudgetId, _activeList.Id); if (upd != null) { _activeList = upd; var g = _lists.FirstOrDefault(x => x.Id == upd.Id); if (g != null) { var idx = _lists.IndexOf(g); _lists[idx] = upd; } } }
-        catch (Exception ex) { Toast.Error(ex.Message); }
-    }
+    { if (_activeList is null) return; try { var upd = await ListSvc.ClearCheckedAsync(BudgetState.ActiveBudgetId, _activeList.Id); if (upd != null) { _activeList = upd; var g = _lists.FirstOrDefault(x => x.Id == upd.Id); if (g != null) { var idx = _lists.IndexOf(g); _lists[idx] = upd; } } } catch (Exception ex) { Toast.Error(ex.Message); } }
+    private void SyncListItem(int listId, int itemId, ListItemDto upd) { var l = _lists.FirstOrDefault(x => x.Id == listId); if (l == null) return; var i = l.Items.FirstOrDefault(x => x.Id == itemId); if (i != null) { i.IsChecked = upd.IsChecked; i.CompletedAt = upd.CompletedAt; } l.CheckedItems = l.Items.Count(x => x.IsChecked); }
+    private async Task OnListItemKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e, int listId) { if (e.Key == "Enter") await AddListItemInlineAsync(listId); }
+    private async Task AddListItemInlineAsync(int listId)
+    { if (!_newItemText.TryGetValue(listId, out var txt) || string.IsNullOrWhiteSpace(txt)) return; try { var item = await ListSvc.AddItemAsync(BudgetState.ActiveBudgetId, listId, new CreateListItemDto(txt.Trim())); if (item != null) { var l = _lists.FirstOrDefault(x => x.Id == listId); if (l != null) { l.Items.Add(item); l.TotalItems++; } _newItemText[listId] = ""; StateHasChanged(); } } catch (Exception ex) { Toast.Error(ex.Message); } }
 
-    private void SyncListItem(int listId, int itemId, ListItemDto upd)
-    { var l = _lists.FirstOrDefault(x => x.Id == listId); if (l == null) return; var i = l.Items.FirstOrDefault(x => x.Id == itemId); if (i != null) { i.IsChecked = upd.IsChecked; i.CompletedAt = upd.CompletedAt; } l.CheckedItems = l.Items.Count(x => x.IsChecked); }
+    RenderFragment JournalTable() =>
+        @<table style="width:100%;border-collapse:collapse" class="quickgrid">
+            <thead>
+                <tr>
+                    <th style="width:32px">@if (BudgetState.CanEdit) { <input type="checkbox" checked="@_selectAll" @onchange="ToggleAll" /> }</th>
+                    <th style="cursor:pointer;width:100px" @onclick='() => SetSort("Date")'>Datum @SortIndicator("Date")</th>
+                    <th style="width:92px">Typ</th>
+                    <th style="cursor:pointer" @onclick='() => SetSort("Description")'>Beskrivning @SortIndicator("Description")</th>
+                    <th style="width:140px">Kategori / Taggar</th>
+                    <th style="width:100px">Projekt</th>
+                    <th style="width:90px">Status</th>
+                    <th style="cursor:pointer;text-align:right;width:105px" @onclick='() => SetSort("Amount")'>Belopp @SortIndicator("Amount")</th>
+                    <th style="width:80px"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!_entries.Any() && (!ShowLists || !_lists.Any()))
+                { <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--color-muted)"><span class="material-icons" style="display:block;font-size:2rem;margin-bottom:8px;opacity:.4">inbox</span>Inga poster hittades.</td></tr> }
+
+                @if (ShowLists)
+                {
+                    @foreach (var list in _lists)
+                    {
+                        var ul = list;
+                        var isExp = _expanded.Contains($"list-{ul.Id}");
+                        <tr style="background:var(--color-bg)">
+                            <td></td>
+                            <td style="font-size:.8rem;color:var(--color-muted)">@ul.UpdatedAt.ToString("yyyy-MM-dd")</td>
+                            <td><span class="badge badge-muted" style="font-size:.7rem">@(ul.IsNote ? "Anteckning" : ListTypeLabel(ul.ListType))</span></td>
+                            <td>
+                                <span style="font-size:.875rem;font-weight:500">@ul.Name</span>
+                                @if (ul.IsNote && ul.Content != null)
+                                { <div style="font-size:.75rem;color:var(--color-muted);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">@ul.Content</div> }
+                                else if (!ul.IsNote)
+                                { <span style="font-size:.75rem;color:var(--color-muted);margin-left:6px">@ul.CheckedItems/@ul.TotalItems klara</span> }
+                            </td>
+                            <td style="font-size:.78rem;color:var(--color-primary)">@(ul.Tags ?? "–")</td>
+                            <td colspan="2"></td>
+                            <td style="text-align:right">
+                                @if (!ul.IsNote && ul.TotalItems > 0)
+                                { var pct = (int)(100.0 * ul.CheckedItems / ul.TotalItems); <div style="width:60px;height:6px;background:var(--color-border);border-radius:3px;display:inline-block;vertical-align:middle;overflow:hidden"><div style="height:100%;width:@pct%;background:var(--color-income);border-radius:3px"></div></div> }
+                            </td>
+                            <td @onclick:stopPropagation style="display:flex;gap:2px;align-items:center">
+                                @if (!ul.IsNote) { <button class="btn btn-ghost btn-icon btn-sm" @onclick='() => ToggleExpand($"list-{ul.Id}")'><span class="material-icons" style="font-size:.9rem">@(isExp ? "expand_less" : "expand_more")</span></button> }
+                                <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => OpenListDetail(ul)"><span class="material-icons" style="font-size:.9rem">open_in_new</span></button>
+                            </td>
+                        </tr>
+                        @if (isExp && !ul.IsNote)
+                        {
+                            @foreach (var item in ul.Items)
+                            {
+                                var li = item;
+                                <tr style="background:#fafafa">
+                                    <td></td><td></td><td></td>
+                                    <td style="padding-left:24px">
+                                        <div style="display:flex;align-items:center;gap:8px">
+                                            <input type="checkbox" checked="@li.IsChecked" @onchange="() => ToggleActiveListItemAsync(li.Id)" />
+                                            <span style='flex:1;font-size:.9rem;@(li.IsChecked ? "text-decoration:line-through;color:var(--color-muted)" : "")'>@li.Text</span>
+                                        </div>
+                                    </td>
+                                    <td colspan="5"></td>
+                                </tr>
+                            }
+                            @if (BudgetState.CanEdit)
+                            {
+                                <tr style="background:#fafafa"><td></td><td></td><td></td>
+                                    <td style="padding:4px 12px 8px 24px">
+                                        <div style="display:flex;gap:6px">
+                                            <input class="form-control" style="max-width:260px;padding:4px 8px;font-size:.8rem" placeholder="Lägg till rad..."
+                                                   value="@(_newItemText.GetValueOrDefault(ul.Id, ""))"
+                                                   @onchange='e => _newItemText[ul.Id] = e.Value?.ToString() ?? ""'
+                                                   @onkeydown="e => OnListItemKeyDown(e, ul.Id)" />
+                                            <button class="btn btn-primary btn-sm" @onclick="() => AddListItemInlineAsync(ul.Id)"><span class="material-icons" style="font-size:.85rem">add</span></button>
+                                        </div>
+                                    </td><td colspan="5"></td>
+                                </tr>
+                            }
+                        }
+                    }
+                }
+
+                @foreach (var entry in _entries)
+                {
+                    var e = entry; var isSel = _selectedIds.Contains(e.SourceId);
+                    var expandKey = $"{e.EntryType}-{e.SourceId}"; var isExpandedRow = _expanded.Contains(expandKey);
+                    <tr class="@(isSel ? "selected" : "")">
+                        <td @onclick:stopPropagation>@if (BudgetState.CanEdit && e.EntryType == JournalEntryType.Transaction) { <input type="checkbox" checked="@isSel" @onchange="() => ToggleRow(e.SourceId)" /> }</td>
+                        <td style="font-size:.8rem;color:var(--color-muted)">@e.Date.ToString("yyyy-MM-dd")</td>
+                        <td><span class="badge @TypeBadge(e.EntryType)" style="font-size:.7rem">@e.TypeLabel</span></td>
+                        <td>
+                            <span style="font-size:.875rem">@e.Description</span>
+                            @if (e.HasDetail && e.EntryType == JournalEntryType.Transaction) { <span class="badge badge-muted" style="margin-left:4px;font-size:.67rem">K</span> }
+                            @if (e.ReceiptLineCount > 0) { <span class="badge badge-muted" style="margin-left:4px;font-size:.67rem">@e.ReceiptLineCount kv.</span> }
+                            @if (e.MetaLine != null) { <div style="font-size:.75rem;color:var(--color-muted)">@e.MetaLine</div> }
+                        </td>
+                        <td style="font-size:.8rem;color:var(--color-muted)">@(e.CategoryName ?? "–")</td>
+                        <td style="font-size:.8rem;color:var(--color-muted)">@(e.ProjectName ?? "–")</td>
+                        <td>@if (e.Status != null) { <span class="badge @StatusBadge(e.Status)" style="font-size:.7rem">@e.Status</span> }</td>
+                        <td style="text-align:right"><span class='@(e.Amount >= 0 ? "amount-income" : "amount-expense")' style="font-size:.875rem;font-weight:600">@AmountStr(e)</span></td>
+                        <td @onclick:stopPropagation style="display:flex;gap:2px;align-items:center">
+                            @if (e.HasDetail) { <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => ToggleExpand(expandKey)"><span class="material-icons" style="font-size:.9rem">@(isExpandedRow ? "expand_less" : "expand_more")</span></button> }
+                            @if (e.EntryType == JournalEntryType.ReceiptBatch) { var rid = e.SourceId; <button class="btn btn-ghost btn-icon btn-sm" @onclick='() => Nav.NavigateTo($"/receipts/{rid}")'><span class="material-icons" style="font-size:.9rem">open_in_new</span></button> }
+                            @if (BudgetState.CanEdit && e.EntryType == JournalEntryType.Transaction)
+                            {
+                                @if (_editingId == e.SourceId) { <span class="spinner" style="width:14px;height:14px;border-width:2px;margin:7px 4px"></span> }
+                                else { <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => EditEntryAsync(e)"><span class="material-icons" style="font-size:.9rem">edit</span></button> }
+                            }
+                        </td>
+                    </tr>
+                    @if (isExpandedRow && e.EntryType == JournalEntryType.Transaction && e.KonteringRows.Any())
+                    {
+                        @foreach (var k in e.KonteringRows)
+                        { <tr style="background:var(--color-bg)"><td></td><td></td><td style="font-size:.75rem;color:var(--color-muted)">↳ @k.KontoNr</td><td style="font-size:.75rem;color:var(--color-muted)">@(k.Description ?? "")</td><td style="font-size:.75rem;color:var(--color-muted)">@(k.CostCenter ?? "")</td><td colspan="2"></td><td style="text-align:right;font-size:.8rem;color:var(--color-muted)">@k.Amount.ToString("N2") kr</td><td></td></tr> }
+                    }
+                }
+            </tbody>
+        </table>;
 
     private string SortIndicator(string col) => Filter.Query.SortBy != col ? "" : Filter.Query.SortDir == "asc" ? " ▲" : " ▼";
-    private static string TypeLabel(JournalEntryType t) => t switch { JournalEntryType.Transaction => "Transakt.", JournalEntryType.Milersattning => "Milersättn.", JournalEntryType.Vab => "VAB", JournalEntryType.ReceiptBatch => "Kvitto", JournalEntryType.List => "Listor", _ => t.ToString() };
-    private static string ListTypeLabel(ListType t) => t switch { ListType.ToDo => "Att göra", ListType.Shopping => "Inköp", _ => "Lista" };
+    private static string TypeLabel(JournalEntryType t) => t switch { JournalEntryType.Transaction => "Transakt.", JournalEntryType.Milersattning => "Milersättn.", JournalEntryType.Vab => "VAB", JournalEntryType.ReceiptBatch => "Kvitto", JournalEntryType.List => "Listor/Ant.", _ => t.ToString() };
+    private static string ListTypeLabel(ListType t) => t switch { ListType.ToDo => "Att göra", ListType.Shopping => "Inköp", ListType.CheckList => "Checklista", _ => "Lista" };
     private static string TypeBadge(JournalEntryType t) => t switch { JournalEntryType.Transaction => "badge-primary", JournalEntryType.Milersattning => "badge-income", JournalEntryType.Vab => "badge-income", _ => "badge" };
-    private static string StatusBadge(string s) => s switch { "Godkänd" => "badge-income", "Avslagen" => "badge-expense", "Utbetald" => "badge-primary", "Inskickad" => "badge", _ => "badge-muted" };
+    private static string StatusBadge(string s) => s switch { "Godkänd" => "badge-income", "Avslagen" => "badge-expense", "Utbetald" => "badge-primary", _ => "badge-muted" };
     private static string AmountStr(JournalEntryDto e) => e.EntryType == JournalEntryType.ReceiptBatch ? $"{e.Amount:N0} kr" : (e.Amount >= 0 ? "+" : "") + $"{e.Amount:N0} kr";
+    private static string KindLabel(EntryKind k) => k switch { EntryKind.Transaction => "Transaktion", EntryKind.Milersattning => "Milersättning", EntryKind.Vab => "VAB", EntryKind.Lista => "Lista", EntryKind.Anteckning => "Anteckning", _ => k.ToString() };
+    private static string KindIcon(EntryKind k) => k switch { EntryKind.Transaction => "receipt", EntryKind.Milersattning => "directions_car", EntryKind.Vab => "child_care", EntryKind.Lista => "checklist", EntryKind.Anteckning => "note", _ => "add" };
 }

@@ -12,8 +12,8 @@ using MoneyKey.DAL.Data;
 namespace MoneyKey.DAL.Migrations
 {
     [DbContext(typeof(BudgetDbContext))]
-    [Migration("20260417205939_updates")]
-    partial class updates
+    [Migration("20260418052156_init")]
+    partial class init
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

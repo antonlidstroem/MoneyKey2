@@ -93,7 +93,9 @@ public class JournalQueryService
             FilterByStartDate = q.FilterByStartDate,
             StartDate         = q.StartDate,
             FilterByEndDate   = q.FilterByEndDate,
-            EndDate           = q.EndDate
+            EndDate           = q.EndDate,
+            // Milersättning and VAB create their own journal entries; exclude their linked transactions
+            ExcludeLinked     = true
         };
         var (txs, _) = await _txRepo.GetPagedAsync(tq);
         return txs.Select(t => new JournalEntryDto

@@ -2,9 +2,12 @@
 @attribute [Authorize]
 @implements IDisposable
 @inject ReportsApiService ReportsSvc
+@inject JournalApiService JournalSvc
 @inject BudgetState BudgetState
+@inject JournalFilterState Filter
 @inject IJSRuntime JS
 
+<!-- Desktop header -->
 <div class="desktop-page-wrapper" style="flex:0;overflow:visible">
     <div class="page-header">
         <span class="page-title">Dashboard</span>
@@ -17,11 +20,11 @@
     </div>
 </div>
 
+<!-- Mobile header -->
 <div class="mobile-page-shell" style="height:auto;flex:0;overflow:visible">
     <div class="mobile-topbar">
-        <span class="mobile-title">Dashboard</span>
-        <select class="form-control" style="width:80px;padding:4px 6px;font-size:.8rem;background:transparent;border-color:var(--color-border)"
-                value="@_year" @onchange="OnYearChanged">
+        <span class="mobile-title">Dashboard @_year</span>
+        <select class="form-control" style="width:80px;padding:4px 6px;font-size:.8rem;background:transparent;border-color:var(--color-border)" value="@_year" @onchange="OnYearChanged">
             @for (var y = DateTime.Today.Year; y >= DateTime.Today.Year - 3; y--)
             { var yr = y; <option value="@yr">@yr</option> }
         </select>
@@ -43,22 +46,94 @@
     }
     else
     {
+        <!-- ── KPI cards ── -->
         <div class="card-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
-            <div class="kpi-card"><div class="kpi-label">Totala inkomster @_year</div><div class="kpi-value income">@_totalIncome.ToString("N0") kr</div></div>
-            <div class="kpi-card"><div class="kpi-label">Totala utgifter @_year</div><div class="kpi-value expense">@_totalExpense.ToString("N0") kr</div></div>
+            <div class="kpi-card">
+                <div class="kpi-label">Inkomster @_year</div>
+                <div class="kpi-value income">@_totalIncome.ToString("N0") kr</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Utgifter @_year</div>
+                <div class="kpi-value expense">@Math.Abs(_totalExpense).ToString("N0") kr</div>
+            </div>
             <div class="kpi-card">
                 <div class="kpi-label">Netto @_year</div>
-                <div class="kpi-value @(_totalIncome + _totalExpense >= 0 ? "income" : "expense")">@((_totalIncome + _totalExpense).ToString("N0")) kr</div>
+                <div class="kpi-value @(_totalIncome + _totalExpense >= 0 ? "income" : "expense")">
+                    @((_totalIncome + _totalExpense).ToString("N0")) kr
+                </div>
             </div>
+            <div class="kpi-card" title="(Inkomst − Utgifter) / Inkomst">
+                <div class="kpi-label">Sparkvot</div>
+                <div class="kpi-value @(_savingsRate >= 0 ? "income" : "expense")">@_savingsRate.ToString("N1") %</div>
+            </div>
+            @if (_avgMonthlyIncome > 0)
+            {
+                <div class="kpi-card">
+                    <div class="kpi-label">Sn. ink./mån</div>
+                    <div class="kpi-value income">@_avgMonthlyIncome.ToString("N0") kr</div>
+                </div>
+            }
+            @if (_avgMonthlyExpense > 0)
+            {
+                <div class="kpi-card">
+                    <div class="kpi-label">Sn. utg./mån</div>
+                    <div class="kpi-value expense">@_avgMonthlyExpense.ToString("N0") kr</div>
+                </div>
+            }
         </div>
+
+        <!-- ── Bar chart — income vs expenses per month ── -->
         <div class="card" style="margin-top:16px">
-            <div class="card-title">Månadsutveckling @_year</div>
-            <div id="monthly-chart" style="height:240px"></div>
+            <div class="card-title">
+                <span class="material-icons">bar_chart</span>
+                Månadsutveckling @_year
+                <span style="font-size:.75rem;font-weight:400;color:var(--color-muted);margin-left:8px">Inkomster vs utgifter per månad</span>
+            </div>
+            <div id="monthly-chart" style="height:260px"></div>
         </div>
-        <div class="card" style="margin-top:16px">
-            <div class="card-title">Utgifter per kategori</div>
-            <div id="category-chart" style="height:240px"></div>
-        </div>
+
+        <!-- ── Running net (cumulative) ── -->
+        @if (_hasNetData)
+        {
+            <div class="card" style="margin-top:16px">
+                <div class="card-title">
+                    <span class="material-icons">trending_up</span>
+                    Ackumulerat netto @_year
+                    <span style="font-size:.75rem;font-weight:400;color:var(--color-muted);margin-left:8px">Löpande saldo</span>
+                </div>
+                <div id="net-chart" style="height:200px"></div>
+            </div>
+        }
+
+        <!-- ── Category breakdown ── -->
+        @if (_hasBreakdown)
+        {
+            <div class="card" style="margin-top:16px">
+                <div class="card-title">
+                    <span class="material-icons">donut_large</span>
+                    Utgifter per kategori @_year
+                    <span style="font-size:.75rem;font-weight:400;color:var(--color-muted);margin-left:8px">Topp 10</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 200px;gap:16px;align-items:center">
+                    <div id="category-chart" style="height:240px"></div>
+                    <div>
+                        @foreach (var item in _breakdown.Take(8))
+                        {
+                            var pct = _totalExpense != 0 ? (double)(item.Total / Math.Abs(_totalExpense) * 100) : 0;
+                            <div style="margin-bottom:8px">
+                                <div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:2px">
+                                    <span style="color:var(--color-dark);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px">@item.Category</span>
+                                    <span style="color:var(--color-expense);font-weight:600;flex-shrink:0;margin-left:4px">@item.Total.ToString("N0") kr</span>
+                                </div>
+                                <div style="height:4px;background:var(--color-border);border-radius:2px;overflow:hidden">
+                                    <div style="height:100%;width:@pct.ToString("N0")%;background:var(--color-expense);border-radius:2px"></div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
     }
 </div>
 
@@ -66,7 +141,11 @@
     private int     _year      = DateTime.Today.Year;
     private bool    _loading   = true;
     private string? _loadError;
+
     private decimal _totalIncome, _totalExpense;
+    private decimal _avgMonthlyIncome, _avgMonthlyExpense, _savingsRate;
+    private bool    _hasNetData, _hasBreakdown;
+    private List<CategoryBreakdownItem> _breakdown = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -78,16 +157,10 @@
     public void Dispose() => BudgetState.StateChanged -= OnStateChanged;
 
     private void OnStateChanged() => InvokeAsync(async () =>
-    {
-        try   { await LoadAsync(); }
-        catch { /* surfaced via _loadError */ }
-        StateHasChanged();
-    });
+    { try { await LoadAsync(); } catch { } StateHasChanged(); });
 
     private async Task OnYearChanged(ChangeEventArgs e)
-    {
-        if (int.TryParse(e.Value?.ToString(), out var y)) { _year = y; await LoadAsync(); }
-    }
+    { if (int.TryParse(e.Value?.ToString(), out var y)) { _year = y; await LoadAsync(); } }
 
     private async Task LoadAsync()
     {
@@ -97,23 +170,55 @@
         {
             var summary   = await ReportsSvc.GetMonthlySummaryAsync(BudgetState.ActiveBudgetId, _year);
             var breakdown = await ReportsSvc.GetCategoryBreakdownAsync(BudgetState.ActiveBudgetId, new DateTime(_year, 1, 1), new DateTime(_year, 12, 31));
-            _loading = false; StateHasChanged();
-            // Allow Blazor to commit the rendered DOM before JS chart calls
-            await Task.Yield();
 
+            // Compute KPI values
             if (summary != null)
             {
                 _totalIncome  = summary.Rows.Sum(r => r.Income);
                 _totalExpense = summary.Rows.Sum(r => r.Expenses);
-                var months = summary.Rows.Select(r => $"{r.Year}-{r.Month:D2}").ToArray();
-                var inc    = summary.Rows.Select(r => (double)r.Income).ToArray();
-                var exp    = summary.Rows.Select(r => (double)Math.Abs(r.Expenses)).ToArray();
-                await JS.InvokeVoidAsync("renderBarChart", "monthly-chart", months, inc, exp);
+                _savingsRate  = _totalIncome > 0
+                    ? Math.Round((_totalIncome + _totalExpense) / _totalIncome * 100, 1)
+                    : 0;
+                var activeMonths = summary.Rows.Count(r => r.Income > 0 || r.Expenses != 0);
+                if (activeMonths > 0)
+                {
+                    _avgMonthlyIncome  = Math.Round(_totalIncome  / activeMonths, 0);
+                    _avgMonthlyExpense = Math.Round(Math.Abs(_totalExpense) / activeMonths, 0);
+                }
+                _hasNetData = summary.Rows.Any(r => r.Income > 0 || r.Expenses != 0);
             }
-            if (breakdown != null)
+
+            _breakdown    = breakdown ?? new();
+            _hasBreakdown = _breakdown.Any();
+
+            _loading = false;
+            StateHasChanged();
+            await Task.Yield(); // let DOM render before JS chart calls
+
+            if (summary != null && summary.Rows.Any())
             {
-                var cats = breakdown.Select(x => x.Category).ToArray();
-                var vals = breakdown.Select(x => (double)x.Total).ToArray();
+                var months = summary.Rows.Select(r => r.Month switch
+                {
+                    1 => "Jan", 2 => "Feb", 3 => "Mar", 4 => "Apr", 5 => "Maj", 6 => "Jun",
+                    7 => "Jul", 8 => "Aug", 9 => "Sep", 10 => "Okt", 11 => "Nov", _ => "Dec"
+                }).ToArray();
+                var inc = summary.Rows.Select(r => (double)r.Income).ToArray();
+                var exp = summary.Rows.Select(r => (double)Math.Abs(r.Expenses)).ToArray();
+                await JS.InvokeVoidAsync("renderBarChart", "monthly-chart", months, inc, exp);
+
+                if (_hasNetData)
+                {
+                    // Cumulative net chart
+                    decimal running = 0;
+                    var netVals = summary.Rows.Select(r => { running += r.Net; return (double)running; }).ToArray();
+                    await JS.InvokeVoidAsync("renderLineChart", "net-chart", months, netVals);
+                }
+            }
+
+            if (_hasBreakdown)
+            {
+                var cats = _breakdown.Take(10).Select(x => x.Category).ToArray();
+                var vals = _breakdown.Take(10).Select(x => (double)x.Total).ToArray();
                 await JS.InvokeVoidAsync("renderDonutChart", "category-chart", cats, vals);
             }
         }
