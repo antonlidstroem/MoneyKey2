@@ -26,4 +26,9 @@ public class TransactionQuery
     public int?     ProjectId            { get; set; }
     public TransactionType? Type         { get; set; }
     public bool?    IsActive             { get; set; }
+    /// <summary>
+    /// When true, excludes auto-generated linked transactions created by MilersättningService and VabService.
+    /// These are shown as their own journal entry type and must not also appear as plain transactions.
+    /// </summary>
+    public bool     ExcludeLinked        { get; set; }
 }

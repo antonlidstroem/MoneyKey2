@@ -4,30 +4,81 @@
 @inject ProjectService ProjectSvc
 @inject ToastService Toast
 @inject BudgetState BudgetState
+@using MoneyKey.Blazor.Components.Shared
 
+<!-- ═══════════════════════════ DESKTOP ══════════════════════════════════════ -->
 <div class="desktop-page-wrapper">
     <div class="page-header">
         <span class="page-title">Projekt</span>
-        @if (BudgetState.CanEdit) { <div class="header-actions"><button class="btn btn-primary btn-sm" @onclick='() => _showCreate = true'><span class="material-icons" style="font-size:.9rem">add</span> Nytt projekt</button></div> }
+        @if (BudgetState.CanEdit)
+        {
+            <div class="header-actions">
+                <button class="btn btn-primary btn-sm" @onclick="OpenCreate">
+                    <span class="material-icons" style="font-size:.9rem">add</span> Nytt projekt
+                </button>
+            </div>
+        }
     </div>
     <div class="page-content">
         @if (_loading) { <div style="text-align:center;padding:40px"><div class="spinner"></div></div> }
-        else {
-            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px">
-                @foreach (var p in _projects) {
+        else if (!_projects.Any())
+        {
+            <div style="text-align:center;padding:60px;color:var(--color-muted)">
+                <span class="material-icons" style="font-size:2.5rem;display:block;margin-bottom:12px;opacity:.4">folder_open</span>
+                Inga projekt skapade. Skapa ett projekt för att spåra utgifter mot en budget.
+            </div>
+        }
+        else
+        {
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">
+                @foreach (var p in _projects)
+                {
+                    var proj = p;
                     <div class="card">
-                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-                            <span style="font-weight:500;font-size:.95rem">@p.Name</span>
-                            <span class="badge @(p.IsActive?"badge-income":"badge-muted")" style="font-size:.72rem">@(p.IsActive ? "Aktiv" : "Inaktiv")</span>
+                        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
+                            <div style="min-width:0">
+                                <div style="font-weight:600;font-size:.95rem;margin-bottom:2px">@p.Name</div>
+                                @if (p.Description != null) { <div style="font-size:.82rem;color:var(--color-muted)">@p.Description</div> }
+                            </div>
+                            <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:10px">
+                                <span class="badge @(p.IsActive ? "badge-income" : "badge-muted")" style="font-size:.7rem">@(p.IsActive ? "Aktiv" : "Inaktiv")</span>
+                                @if (BudgetState.CanEdit)
+                                {
+                                    <button class="btn btn-ghost btn-icon btn-sm" title="Redigera" @onclick="() => OpenEdit(proj)">
+                                        <span class="material-icons" style="font-size:.85rem">edit</span>
+                                    </button>
+                                    <button class="btn btn-ghost btn-icon btn-sm" title="Ta bort" @onclick="() => ConfirmDeleteAsync(proj)">
+                                        <span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span>
+                                    </button>
+                                }
+                            </div>
                         </div>
-                        @if (p.Description != null) { <p style="font-size:.85rem;color:var(--color-muted);margin-bottom:8px">@p.Description</p> }
-                        <div style="height:6px;background:var(--color-border);border-radius:3px;margin-bottom:8px;overflow:hidden">
-                            <div style="height:100%;width:@(Math.Min(100,p.ProgressPercent))%;background:@(p.ProgressPercent>90?"var(--color-expense)":"var(--color-income)");transition:width .3s"></div>
+
+                        <div style="height:6px;background:var(--color-border);border-radius:3px;margin-bottom:10px;overflow:hidden">
+                            <div style="height:100%;width:@(Math.Min(100, p.ProgressPercent))%;background:@(p.ProgressPercent > 90 ? "var(--color-expense)" : "var(--color-income)");transition:width .3s;border-radius:3px"></div>
                         </div>
-                        <div style="display:flex;justify-content:space-between;font-size:.8rem;color:var(--color-muted)">
-                            <span>Spenderat: @p.SpentAmount.ToString("N0") kr</span>
-                            <span>Budget: @p.BudgetAmount.ToString("N0") kr</span>
+
+                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;text-align:center">
+                            <div>
+                                <div style="font-size:.7rem;color:var(--color-muted);margin-bottom:1px">Spenderat</div>
+                                <div style="font-size:.85rem;font-weight:600;color:var(--color-expense)">@Math.Abs(p.SpentAmount).ToString("N0") kr</div>
+                            </div>
+                            <div>
+                                <div style="font-size:.7rem;color:var(--color-muted);margin-bottom:1px">Budget</div>
+                                <div style="font-size:.85rem;font-weight:600">@p.BudgetAmount.ToString("N0") kr</div>
+                            </div>
+                            <div>
+                                <div style="font-size:.7rem;color:var(--color-muted);margin-bottom:1px">Kvar</div>
+                                <div style="font-size:.85rem;font-weight:600;color:@(p.RemainingAmount >= 0 ? "var(--color-income)" : "var(--color-expense)")">@p.RemainingAmount.ToString("N0") kr</div>
+                            </div>
                         </div>
+
+                        @if (p.StartDate != default || p.EndDate != null)
+                        {
+                            <div style="margin-top:8px;font-size:.75rem;color:var(--color-muted)">
+                                @p.StartDate.ToString("yyyy-MM-dd")@(p.EndDate != null ? $" – {p.EndDate.Value:yyyy-MM-dd}" : " →")
+                            </div>
+                        }
                     </div>
                 }
             </div>
@@ -35,68 +86,119 @@
     </div>
 </div>
 
+<!-- ═══════════════════════════ MOBILE ═══════════════════════════════════════ -->
 <div class="mobile-page-shell">
     <div class="mobile-topbar">
         <span class="mobile-title">Projekt</span>
-        @if (BudgetState.CanEdit) { <button class="mobile-icon-btn" @onclick='() => _showCreate = true'><span class="material-icons">add</span></button> }
+        @if (BudgetState.CanEdit) { <button class="mobile-icon-btn" @onclick="OpenCreate"><span class="material-icons">add</span></button> }
     </div>
     <div class="mobile-page-scroll">
         @if (_loading) { <div style="text-align:center;padding:40px"><div class="spinner"></div></div> }
         else if (!_projects.Any()) { <div style="text-align:center;padding:48px 24px;color:var(--color-muted)"><span class="material-icons" style="font-size:2.5rem;display:block;margin-bottom:8px">folder_open</span>Inga projekt skapade</div> }
-        else {
-            @foreach (var p in _projects) {
+        else
+        {
+            @foreach (var p in _projects)
+            {
+                var proj = p;
                 <div class="mobile-entry-card">
-                    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">
-                        <span style="font-weight:500;font-size:.92rem">@p.Name</span>
-                        <span class="badge @(p.IsActive?"badge-income":"badge-muted")" style="font-size:.68rem;flex-shrink:0;margin-left:8px">@(p.IsActive ? "Aktiv" : "Inaktiv")</span>
+                    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+                        <div style="min-width:0">
+                            <div style="font-weight:500;font-size:.92rem">@p.Name</div>
+                            @if (p.Description != null) { <div class="mobile-entry-card-meta">@p.Description</div> }
+                        </div>
+                        <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;margin-left:8px">
+                            <span class="badge @(p.IsActive ? "badge-income" : "badge-muted")" style="font-size:.68rem">@(p.IsActive ? "Aktiv" : "Inaktiv")</span>
+                            @if (BudgetState.CanEdit)
+                            {
+                                <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => OpenEdit(proj)"><span class="material-icons" style="font-size:.85rem">edit</span></button>
+                                <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => ConfirmDeleteAsync(proj)"><span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span></button>
+                            }
+                        </div>
                     </div>
-                    @if (p.Description != null) { <div class="mobile-entry-card-meta" style="margin-bottom:6px">@p.Description</div> }
-                    <div class="mobile-progress-bar"><div class="mobile-progress-fill" style="width:@(Math.Min(100, p.ProgressPercent))%;background:@(p.ProgressPercent>90?"var(--color-expense)":"var(--color-income)")"></div></div>
-                    <div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--color-muted)">
-                        <span>Spenderat @p.SpentAmount.ToString("N0") kr</span>
+                    <div class="mobile-progress-bar">
+                        <div class="mobile-progress-fill" style="width:@(Math.Min(100, p.ProgressPercent))%;background:@(p.ProgressPercent > 90 ? "var(--color-expense)" : "var(--color-income)")"></div>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--color-muted);margin-top:4px">
+                        <span>Spenderat @Math.Abs(p.SpentAmount).ToString("N0") kr</span>
                         <span>Budget @p.BudgetAmount.ToString("N0") kr</span>
+                        <span style="color:@(p.RemainingAmount >= 0 ? "var(--color-income)" : "var(--color-expense)")">Kvar @p.RemainingAmount.ToString("N0") kr</span>
                     </div>
                 </div>
             }
         }
     </div>
-    @if (BudgetState.CanEdit) { <button class="mobile-fab" @onclick='() => _showCreate = true'><span class="material-icons">add</span></button> }
+    @if (BudgetState.CanEdit) { <button class="mobile-fab" @onclick="OpenCreate"><span class="material-icons">add</span></button> }
 </div>
 
-@if (_showCreate)
+<!-- ═══════════════════════ CREATE / EDIT MODAL ══════════════════════════════ -->
+@if (_showModal)
 {
-    <div class="modal-overlay" @onclick='() => _showCreate = false'>
-        <div class="modal" @onclick:stopPropagation>
-            <div class="modal-header"><span class="modal-title">Nytt projekt</span></div>
+    <div class="modal-overlay" @onclick="() => _showModal = false">
+        <div class="modal" style="max-width:520px" @onclick:stopPropagation>
+            <div class="modal-header">
+                <span class="modal-title">@(_editProject == null ? "Nytt projekt" : "Redigera projekt")</span>
+                <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => _showModal = false"><span class="material-icons">close</span></button>
+            </div>
             <div class="modal-body">
-                <div class="form-group"><label class="form-label">Namn *</label><input class="form-control" @bind="_newName" /></div>
-                <div class="form-group"><label class="form-label">Beskrivning</label><input class="form-control" @bind="_newDesc" placeholder="Valfri beskrivning..." /></div>
-                <div class="form-group"><label class="form-label">Budget (kr)</label><input class="form-control" type="number" @bind="_newBudget" /></div>
+                @if (!string.IsNullOrEmpty(_error)) { <div style="background:var(--color-expense-bg);color:var(--color-expense);padding:8px 12px;border-radius:8px;font-size:.85rem;margin-bottom:12px">@_error</div> }
+                <div class="form-group"><label class="form-label">Namn *</label><input class="form-control" @bind="_name" placeholder="T.ex. Köksprojekt, Kund ABC..." /></div>
+                <div class="form-group"><label class="form-label">Beskrivning</label><input class="form-control" @bind="_desc" placeholder="Valfri beskrivning..." /></div>
+                <div class="form-group"><label class="form-label">Budget (kr)</label><input class="form-control" type="number" @bind="_budget" /></div>
                 <div class="form-row">
-                    <div class="form-group"><label class="form-label">Startdatum</label><input class="form-control" type="date" value="@_newStart.ToString("yyyy-MM-dd")" @onchange='e => _newStart = DateTime.Parse(e.Value!.ToString()!)' /></div>
-                    <div class="form-group"><label class="form-label">Slutdatum</label><input class="form-control" type="date" value="@(_newEnd?.ToString("yyyy-MM-dd") ?? "")" @onchange="OnEndDateChanged" /></div>
+                    <div class="form-group">
+                        <label class="form-label">Startdatum</label>
+                        <input class="form-control" type="date" value="@_start.ToString("yyyy-MM-dd")" @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _start = d; }' />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Slutdatum</label>
+                        <input class="form-control" type="date" value="@(_end?.ToString("yyyy-MM-dd") ?? "")"
+                               @onchange='e => { var s = e.Value?.ToString(); _end = string.IsNullOrEmpty(s) ? null : DateTime.TryParse(s, out var d) ? d : _end; }' />
+                    </div>
                 </div>
+                @if (_editProject != null)
+                {
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.875rem">
+                            <input type="checkbox" @bind="_isActive" /> Aktivt projekt
+                        </label>
+                    </div>
+                }
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" @onclick='() => _showCreate = false'>Avbryt</button>
-                <button class="btn btn-primary" @onclick="CreateAsync" disabled="@_saving">
+                <button class="btn btn-secondary" @onclick="() => _showModal = false">Avbryt</button>
+                <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
                     @if (_saving) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
-                    Skapa
+                    @(_editProject == null ? "Skapa" : "Spara")
                 </button>
             </div>
         </div>
     </div>
 }
 
+<ConfirmDialog @ref="_confirm" Title="Ta bort projekt" Message="Är du säker? Projektet kan bara tas bort om det inte har kopplade transaktioner." />
+
 @code {
     private List<ProjectDto> _projects = new();
-    private bool      _loading = true, _showCreate, _saving;
-    private string    _newName = ""; private string? _newDesc;
-    private decimal   _newBudget; private DateTime _newStart = DateTime.Today; private DateTime? _newEnd;
+    private bool        _loading = true;
+    private bool        _showModal, _saving;
+    private string      _error   = "";
+    private ProjectDto? _editProject;
+
+    // Form fields
+    private string    _name   = "";
+    private string?   _desc;
+    private decimal   _budget;
+    private DateTime  _start  = DateTime.Today;
+    private DateTime? _end;
+    private bool      _isActive = true;
+
+    private ConfirmDialog? _confirm;
 
     protected override async Task OnInitializedAsync() { BudgetState.StateChanged += OnStateChanged; await ReloadAsync(); }
     public void Dispose() => BudgetState.StateChanged -= OnStateChanged;
-    private void OnStateChanged() => InvokeAsync(async () => { try { await ReloadAsync(); } catch (Exception ex) { Toast.Error($"Laddningsfel: {ex.Message}"); } StateHasChanged(); });
+
+    private void OnStateChanged() => InvokeAsync(async () =>
+    { try { await ReloadAsync(); } catch (Exception ex) { Toast.Error($"Laddningsfel: {ex.Message}"); } StateHasChanged(); });
 
     private async Task ReloadAsync()
     {
@@ -106,23 +208,53 @@
         _loading  = false;
     }
 
-    private void OnEndDateChanged(ChangeEventArgs e)
+    private void OpenCreate()
     {
-        var raw = e.Value?.ToString();
-        _newEnd = string.IsNullOrEmpty(raw) ? null : DateTime.TryParse(raw, out var d) ? d : _newEnd;
+        _editProject = null; _error = "";
+        _name = ""; _desc = null; _budget = 0; _start = DateTime.Today; _end = null; _isActive = true;
+        _showModal = true;
     }
 
-    private async Task CreateAsync()
+    private void OpenEdit(ProjectDto p)
     {
-        if (string.IsNullOrWhiteSpace(_newName)) return;
-        _saving = true;
+        _editProject = p; _error = "";
+        _name = p.Name; _desc = p.Description; _budget = p.BudgetAmount;
+        _start = p.StartDate; _end = p.EndDate; _isActive = p.IsActive;
+        _showModal = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_name)) { _error = "Ange ett projektnamn."; return; }
+        _saving = true; _error = "";
         try
         {
-            await ProjectSvc.CreateAsync(BudgetState.ActiveBudgetId, new CreateProjectDto(_newName, _newDesc, _newBudget, _newStart, _newEnd));
-            Toast.Success("Projekt skapat."); _showCreate = false; _newName = ""; _newDesc = null; _newBudget = 0;
+            if (_editProject == null)
+            {
+                await ProjectSvc.CreateAsync(BudgetState.ActiveBudgetId, new CreateProjectDto(_name.Trim(), _desc, _budget, _start, _end));
+                Toast.Success("Projekt skapat.");
+            }
+            else
+            {
+                await ProjectSvc.UpdateAsync(BudgetState.ActiveBudgetId, new UpdateProjectDto(_editProject.Id, _name.Trim(), _desc, _budget, _start, _end, _isActive));
+                Toast.Success("Projekt uppdaterat.");
+            }
+            _showModal = false;
+            await ReloadAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task ConfirmDeleteAsync(ProjectDto p)
+    {
+        if (_confirm == null || !await _confirm.ShowAsync()) return;
+        try
+        {
+            await ProjectSvc.DeleteAsync(BudgetState.ActiveBudgetId, p.Id);
+            Toast.Success($"\"{p.Name}\" borttaget.");
             await ReloadAsync();
         }
         catch (Exception ex) { Toast.Error(ex.Message); }
-        finally { _saving = false; }
     }
 }

@@ -28,3 +28,22 @@ window.renderDonutChart = (elementId, labels, values) => {
     });
     el._chart.render();
 };
+
+window.renderLineChart = (elementId, categories, values) => {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    if (el._chart) { el._chart.destroy(); }
+    const isPositive = values.length === 0 || values[values.length - 1] >= 0;
+    el._chart = new ApexCharts(el, {
+        chart: { type: 'area', height: 200, toolbar: { show: false }, fontFamily: 'Inter, system-ui, sans-serif', sparkline: { enabled: false } },
+        series: [{ name: 'Ackumulerat netto', data: values, color: isPositive ? '#2E7D32' : '#C62828' }],
+        xaxis: { categories, labels: { style: { fontSize: '11px' } } },
+        yaxis: { labels: { formatter: v => Math.round(v).toLocaleString('sv-SE') + ' kr', style: { fontSize: '10px' } } },
+        fill: { type: 'gradient', gradient: { opacityFrom: 0.4, opacityTo: 0.05 } },
+        stroke: { width: 2, curve: 'smooth' },
+        grid: { borderColor: '#E0E0E0' },
+        tooltip: { y: { formatter: v => v.toLocaleString('sv-SE', { minimumFractionDigits: 0 }) + ' kr' } },
+        annotations: { yaxis: [{ y: 0, borderColor: '#90A4AE', strokeDashArray: 4 }] }
+    });
+    el._chart.render();
+};

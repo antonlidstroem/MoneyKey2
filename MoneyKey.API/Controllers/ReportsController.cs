@@ -24,10 +24,12 @@ public class ReportsController : BaseApiController
         if (year == 0) year = DateTime.Today.Year;
         var q = new TransactionQuery
         {
-            BudgetId = budgetId,
+            BudgetId          = budgetId,
             FilterByStartDate = true, StartDate = new DateTime(year, 1, 1),
             FilterByEndDate   = true, EndDate   = new DateTime(year, 12, 31),
-            PageSize = int.MaxValue
+            PageSize          = int.MaxValue,
+            // Exclude milersättning/vab auto-transactions to avoid double-counting
+            ExcludeLinked     = true
         };
         var (txs, _) = await _txRepo.GetPagedAsync(q);
         var rows = txs
@@ -41,7 +43,13 @@ public class ReportsController : BaseApiController
             })
             .OrderBy(r => r.Month)
             .ToList();
-        return Ok(new MonthlySummary { Rows = rows });
+
+        // Fill in months with no data so charts always show all 12 bars
+        var allMonths = Enumerable.Range(1, 12)
+            .Select(m => rows.FirstOrDefault(r => r.Month == m) ?? new MonthlyRow { Year = year, Month = m })
+            .ToList();
+
+        return Ok(new MonthlySummary { Rows = allMonths });
     }
 
     [HttpGet("category-breakdown")]
@@ -50,17 +58,19 @@ public class ReportsController : BaseApiController
         if (!await _auth.HasRoleAsync(budgetId, UserId, BudgetMemberRole.Viewer)) return Forbid();
         var q = new TransactionQuery
         {
-            BudgetId = budgetId,
+            BudgetId          = budgetId,
             FilterByStartDate = from.HasValue, StartDate = from,
             FilterByEndDate   = to.HasValue,   EndDate   = to,
-            PageSize = int.MaxValue
+            PageSize          = int.MaxValue,
+            ExcludeLinked     = true
         };
         var (txs, _) = await _txRepo.GetPagedAsync(q);
         var breakdown = txs
             .Where(t => t.NetAmount < 0)
             .GroupBy(t => t.Category?.Name ?? "Okänd")
             .Select(g => new CategoryBreakdownItem { Category = g.Key, Total = Math.Abs(g.Sum(t => t.NetAmount)) })
-            .OrderByDescending(x => x.Total);
+            .OrderByDescending(x => x.Total)
+            .Take(10);
         return Ok(breakdown);
     }
 }
