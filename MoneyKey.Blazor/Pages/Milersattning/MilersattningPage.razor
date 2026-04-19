@@ -11,6 +11,9 @@
         @if (BudgetState.CanEdit)
         {
             <div class="header-actions">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <BudgetScopeSelector @bind-SelectedIds="_scopeIds" OnChanged="ReloadAsync" />
+            
                 <button class="btn btn-primary btn-sm" @onclick='() => { ResetForm(); _showForm = true; }'>
                     <span class="material-icons" style="font-size:.9rem">add</span> Ny resa
                 </button>
@@ -220,7 +223,8 @@
     private bool     _roundTrip;
     private string   _from = "", _to = "", _purpose = "", _payer = "";
 
-    protected override async Task OnInitializedAsync() { BudgetState.StateChanged += OnStateChanged; await ReloadAsync(); }
+    protected override async Task OnInitializedAsync() { BudgetState.StateChanged += OnStateChanged;
+        _scopeIds = new List<int> { BudgetState.ActiveBudgetId }; await ReloadAsync(); }
     public void Dispose() => BudgetState.StateChanged -= OnStateChanged;
     private void OnStateChanged() => InvokeAsync(async () => { try { await ReloadAsync(); } catch (Exception ex) { Toast.Error($"Laddningsfel: {ex.Message}"); } StateHasChanged(); });
 

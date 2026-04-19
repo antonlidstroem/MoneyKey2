@@ -1,8 +1,11 @@
 @page "/settings"
+@using MoneyKey.Domain.Constants
 @attribute [Authorize]
 @inject BudgetService BudgetSvc
 @inject ToastService Toast
 @inject BudgetState BudgetState
+@inject SubscriptionApiService SubSvc
+@inject InvitationApiService InvSvc
 @inject AdminApiService AdminSvc
 @inject JwtAuthenticationStateProvider AuthProvider
 @inject IConfiguration Config
@@ -19,7 +22,11 @@
 </div>
 
 @code {
-    private string _budgetName = "", _budgetDescription = "", _inviteEmail = "", _saveError = "";
+    private string _budgetName = "", _budgetDescription = "", _inviteEmail = "", _inviteDisplayName = "", _saveError = "";
+    private List<string> _displayNameSuggestions = new();
+    private string _transferTo = "";
+    private bool _transferring;
+    private System.Threading.Timer? _searchDebounce;
     private string _newBudgetName = "", _newBudgetDescription = "", _newBudgetError = "";
     private BudgetMemberRole _inviteRole = BudgetMemberRole.Editor;
     private bool _saving, _inviting, _signalREnabled = true, _signalRLoading, _signalRSaving;
@@ -35,7 +42,8 @@
         ("Receipts",      "Kvittounderlag",   "receipt_long"),
         ("Lists",         "Listor & anteckn.","checklist"),
         ("Kontering",     "Kontering",        "account_tree"),
-        ("Export",        "Export (PDF/XLS)", "download")
+        ("Export",        "Export (PDF/XLS)", "download"),
+        ("TimeTracking",  "Tidrapportering", "schedule")
     };
 
     private bool IsSuperAdmin =>
@@ -115,11 +123,9 @@
         finally { _creatingBudget = false; }
     }
 
-    private async Task InviteAsync()
-    {
-        if (string.IsNullOrWhiteSpace(_inviteEmail)) return;
-        _inviting = true;
-        try { await BudgetSvc.InviteAsync(BudgetState.ActiveBudgetId, new InviteMemberDto(_inviteEmail, _inviteRole)); Toast.Success("Inbjudan skickad."); _inviteEmail = ""; }
+
+            else { Toast..Success($"Inbjudan skickad till {_inviteDisplayName}."); _inviteDisplayName = ""; _displayNameSuggestions.Clear(); }
+        }
         catch (Exception ex) { Toast.Error(ex.Message); }
         finally { _inviting = false; }
     }
@@ -183,7 +189,24 @@
             {
                 <div class="card">
                     <div class="card-title"><span class="material-icons">group_add</span> Bjud in användare</div>
-                    <div class="form-group"><label class="form-label">E-postadress</label><input class="form-control" type="email" @bind="_inviteEmail" placeholder="anvan@example.com" /></div>
+                    <div class="form-group">
+                        <label class="form-label">Smeknamn (DisplayName)</label>
+                        <div style="position:relative">
+                            <input class="form-control" @bind="_inviteDisplayName" @bind:event="oninput"
+                                   @oninput="OnSearchInput"
+                                   placeholder="Sök på smeknamn..." autocomplete="off" />
+                            @if (_displayNameSuggestions.Any())
+                            {
+                                <div style="position:absolute;top:100%;left:0;right:0;z-index:200;background:var(--color-surface);border:1px solid var(--color-border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.3)">
+                                    @foreach (var s in _displayNameSuggestions)
+                                    {
+                                        var sug = s;
+                                        <div style="padding:8px 12px;cursor:pointer;font-size:.875rem" @onclick="() => SelectSuggestion(sug)">@sug</div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label class="form-label">Roll</label>
                         <select class="form-control" @bind="_inviteRole">
@@ -202,7 +225,17 @@
 
             @* ── Create new budget ──────────────────────────────────────────── *@
             <div class="card">
-                <div class="card-title"><span class="material-icons">add_circle_outline</span> Skapa ny budget</div>
+                <div class="card-title"><span class="material-icons">add_circle_outline</span> @* ── Prenumeration ─────────────────────────────────────────────────────── *@
+            <div class="card">
+                <div class="card-title"><span class="material-icons">workspace_premium</span> Prenumeration</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px">
+                    <div class="kpi-card"><div class="kpi-label">Plan</div><div class="kpi-value" style="font-size:1rem">@SubscriptionLimits.TierLabel(BudgetState.Tier)</div></div>
+                    <div class="kpi-card"><div class="kpi-label">Budgetar</div><div class="kpi-value" style="font-size:1rem">@BudgetState.UsedBudgets / @(BudgetState.MaxBudgets >= 9999 ? "∞" : BudgetState.MaxBudgets.ToString())</div></div>
+                    <div class="kpi-card"><div class="kpi-label">Max delning</div><div class="kpi-value" style="font-size:1rem">@(BudgetState.MaxMembers >= 9999 ? "∞" : BudgetState.MaxMembers.ToString()) pers</div></div>
+                </div>
+            </div>
+
+            Skapa ny budget</div>
                 <p style="font-size:.85rem;color:var(--color-muted);margin-bottom:14px">
                     Skapa en separat budget för t.ex. ett projekt, ett hushåll eller ett företag.
                 </p>
@@ -234,4 +267,48 @@
                 </div>
             }
         </div>;
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        var q = e.Value?.ToString() ?? "";
+        _inviteDisplayName = q;
+        _searchDebounce?.Dispose();
+        if (q.Length < 2) { _displayNameSuggestions.Clear(); StateHasChanged(); return; }
+        _searchDebounce = new System.Threading.Timer(async _ =>
+        {
+            var results = await SubSvc.SearchUsersAsync(q);
+            await InvokeAsync(() => { _displayNameSuggestions = results; StateHasChanged(); });
+        }, null, 300, System.Threading.Timeout.Infinite);
+    }
+
+    private void SelectSuggestion(string name)
+    { _inviteDisplayName = name; _displayNameSuggestions.Clear(); }
+
+    private async Task InviteAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_inviteDisplayName)) return;
+        _inviting = true;
+        try
+        {
+            var err = await InvSvc.SendInvitationAsync(BudgetState.ActiveBudgetId, _inviteDisplayName, _inviteRole);
+            if (err != null) Toast.Error(err);
+            else { Toast.Success($"Inbjudan skickad till {_inviteDisplayName}."); _inviteDisplayName = ""; _displayNameSuggestions.Clear(); }
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+        finally { _inviting = false; }
+    }
+
+    private async Task TransferOwnerAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_transferTo)) return;
+        _transferring = true;
+        try
+        {
+            var err = await InvSvc.TransferOwnerAsync(BudgetState.ActiveBudgetId, _transferTo);
+            if (err != null) Toast.Error(err);
+            else { Toast.Success("Ägarskap överfört."); _transferTo = ""; }
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+        finally { _transferring = false; }
+    }
+
 }

@@ -8,7 +8,10 @@
 <div class="desktop-page-wrapper">
     <div class="page-header">
         <span class="page-title">VAB-perioder</span>
-        @if (BudgetState.CanEdit) { <div class="header-actions"><button class="btn btn-primary btn-sm" @onclick='() => _showForm = true'><span class="material-icons" style="font-size:.9rem">add</span> Ny VAB</button></div> }
+        @if (BudgetState.CanEdit) { <div class="header-actions">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <BudgetScopeSelector @bind-SelectedIds="_scopeIds" OnChanged="ReloadAsync" />
+            <button class="btn btn-primary btn-sm" @onclick='() => _showForm = true'><span class="material-icons" style="font-size:.9rem">add</span> Ny VAB</button></div> }
     </div>
     <div class="page-content">
         @if (_loading) { <div style="text-align:center;padding:40px"><div class="spinner"></div></div> }
@@ -98,7 +101,8 @@
     private DateTime _start = DateTime.Today, _end = DateTime.Today;
     private decimal _benefit, _rate = 0.8m;
 
-    protected override async Task OnInitializedAsync() { BudgetState.StateChanged += OnStateChanged; await ReloadAsync(); }
+    protected override async Task OnInitializedAsync() { BudgetState.StateChanged += OnStateChanged;
+        _scopeIds = new List<int> { BudgetState.ActiveBudgetId }; await ReloadAsync(); }
     public void Dispose() => BudgetState.StateChanged -= OnStateChanged;
     private void OnStateChanged() => InvokeAsync(async () => { try { await ReloadAsync(); } catch (Exception ex) { Toast.Error($"Laddningsfel: {ex.Message}"); } StateHasChanged(); });
     private async Task ReloadAsync() { if (BudgetState.ActiveBudgetId <= 0) { _loading = false; return; } _loading = true; _items = await VabSvc.GetAllAsync(BudgetState.ActiveBudgetId) ?? new(); _loading = false; }

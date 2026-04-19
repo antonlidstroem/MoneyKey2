@@ -1,0 +1,448 @@
+@page "/timetracking"
+@using MoneyKey.Core.DTOs.Job
+@using MoneyKey.Core.DTOs.TimeEntry
+@attribute [Authorize]
+@implements IDisposable
+@inject TimeEntryApiService EntrySvc
+@inject JobApiService JobSvc
+@inject ToastService Toast
+@inject BudgetState BudgetState
+@inject IJSRuntime JS
+
+<!-- ════ Desktop header ══════════════════════════════════════════════════════ -->
+<div class="desktop-page-wrapper" style="flex:0;overflow:visible">
+    <div class="page-header">
+        <span class="page-title">Tidrapportering</span>
+        <div class="header-actions">
+            <!-- Week navigation -->
+            <button class="btn btn-ghost btn-sm" @onclick="PrevWeek"><span class="material-icons">chevron_left</span></button>
+            <span style="font-size:.85rem;min-width:160px;text-align:center">Vecka @WeekNum — @_weekStart.ToString("d MMM") – @_weekEnd.ToString("d MMM yyyy")</span>
+            <button class="btn btn-ghost btn-sm" @onclick="NextWeek"><span class="material-icons">chevron_right</span></button>
+            <button class="btn btn-secondary btn-sm" @onclick="GoToday">Idag</button>
+            <button class="btn btn-primary btn-sm" @onclick="OpenAddEntry">
+                <span class="material-icons" style="font-size:.9rem">add</span> Ny rad
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ════ Mobile header ═══════════════════════════════════════════════════════ -->
+<div class="mobile-page-shell" style="height:auto;flex:0;overflow:visible">
+    <div class="mobile-topbar">
+        <button class="btn btn-ghost btn-icon btn-sm" @onclick="PrevWeek"><span class="material-icons">chevron_left</span></button>
+        <span class="mobile-title" style="font-size:.85rem">V.@WeekNum @_weekStart.ToString("d/M") – @_weekEnd.ToString("d/M")</span>
+        <button class="btn btn-ghost btn-icon btn-sm" @onclick="NextWeek"><span class="material-icons">chevron_right</span></button>
+        <button class="mobile-icon-btn" @onclick="OpenAddEntry"><span class="material-icons">add</span></button>
+    </div>
+</div>
+
+<div class="page-content" style="overflow-y:auto;flex:1;padding-bottom:80px">
+
+    @if (_loading) { <div style="text-align:center;padding:48px"><div class="spinner"></div></div> }
+    else
+    {
+        <!-- ══ KPI summary ══════════════════════════════════════════════════ -->
+        <div class="card-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:0">
+            <div class="kpi-card"><div class="kpi-label">Vecka totalt</div><div class="kpi-value">@WeekTotalHours.ToString("N1") tim</div></div>
+            @if (_hourlyJobs.Any())
+            {
+                <div class="kpi-card"><div class="kpi-label">Brutto vecka</div><div class="kpi-value income">@WeekGross.ToString("N0") kr</div></div>
+                @if (UnpostedHours > 0)
+                {
+                    <div class="kpi-card"><div class="kpi-label">Ej postat</div><div class="kpi-value" style="color:#F9A825">@UnpostedHours.ToString("N1") tim</div></div>
+                    <div class="kpi-card"><div class="kpi-label">Att posta</div><div class="kpi-value" style="color:#F9A825">@UnpostedGross.ToString("N0") kr</div></div>
+                }
+            }
+        </div>
+
+        <!-- ══ Week grid ════════════════════════════════════════════════════ -->
+        <div class="card" style="margin-top:16px;padding:0;overflow:hidden">
+            @for (var d = _weekStart; d <= _weekEnd; d = d.AddDays(1))
+            {
+                var day      = d;
+                var dayName  = day.ToString("ddd d/M");
+                var entries  = _weekEntries.Where(e => e.Date.Date == day.Date).OrderBy(e => e.StartTime).ToList();
+                var dayMins  = entries.Where(e => !e.IsBreak).Sum(e => e.DurationMinutes);
+                var isToday  = day.Date == DateTime.Today;
+
+                <div style="border-bottom:.5px solid var(--color-border)">
+                    <!-- Day header -->
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:@(isToday ? "var(--color-income-bg)" : "transparent")">
+                        <span style="font-weight:@(isToday ? "700" : "500");font-size:.88rem">
+                            @dayName @(isToday ? "★" : "")
+                        </span>
+                        <span style="font-size:.82rem;color:@(dayMins > 0 ? "var(--color-income)" : "var(--color-muted)")">
+                            @if (dayMins > 0) { @($"{dayMins / 60}t {dayMins % 60:D2}m") } else { <span>–</span> }
+                        </span>
+                    </div>
+
+                    <!-- Entries -->
+                    @foreach (var entry in entries)
+                    {
+                        var e = entry;
+                        <div style="display:flex;align-items:center;gap:10px;padding:7px 16px 7px 28px;border-top:.5px solid var(--color-border);font-size:.83rem;@(e.IsBreak ? "opacity:.55" : "")">
+                            <span style="color:var(--color-muted);min-width:85px">
+                                @if (e.StartTime.HasValue) { @($"{e.StartTime.Value:hh\\:mm}–{e.EndTime?.ToString("hh\\:mm") ?? "?"}") }
+                                else { @($"{e.DurationMinutes/60}t {e.DurationMinutes%60:D2}m") }
+                            </span>
+                            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                                @(e.Description ?? e.JobName)
+                                @if (e.Description != null) { <span style="color:var(--color-muted)"> · @e.JobName</span> }
+                            </span>
+                            @if (!e.IsBreak && e.GrossEarned > 0)
+                            { <span style="color:var(--color-income);min-width:65px;text-align:right">@e.GrossEarned.ToString("N0") kr</span> }
+                            @if (e.IsPosted)
+                            { <span class="badge badge-income" style="font-size:.67rem">Postad</span> }
+                            @if (BudgetState.CanEdit && !e.IsPosted)
+                            {
+                                <button class="btn btn-ghost btn-icon btn-sm" title="Redigera" @onclick="() => OpenEditEntry(e)"><span class="material-icons" style="font-size:.82rem">edit</span></button>
+                                <button class="btn btn-ghost btn-icon btn-sm" title="Ta bort" @onclick="() => DeleteEntryAsync(e)"><span class="material-icons" style="font-size:.82rem;color:var(--color-expense)">delete</span></button>
+                            }
+                        </div>
+                    }
+
+                    @if (!entries.Any())
+                    {
+                        <div style="padding:6px 16px 6px 28px;font-size:.8rem;color:var(--color-muted);font-style:italic">Inga tidrapporter</div>
+                    }
+                </div>
+            }
+        </div>
+
+        <!-- ══ Payroll posting section ═══════════════════════════════════════ -->
+        @if (_hourlyJobs.Any() && UnpostedHours > 0)
+        {
+            <div class="card" style="margin-top:16px;border-left:3px solid #F9A825">
+                <div class="card-title" style="color:#F9A825">
+                    <span class="material-icons">payments</span>
+                    Posta till lön
+                </div>
+                <p style="font-size:.85rem;color:var(--color-muted);margin-bottom:12px">
+                    Du har @UnpostedHours.ToString("N1") opostade timmar (@UnpostedGross.ToString("N0") kr brutto). Välj period och jobb för att skapa en lönetransaktion.
+                </p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Jobb</label>
+                        <select class="form-control" @bind="_postJobId">
+                            <option value="0">– Välj jobb –</option>
+                            @foreach (var j in _hourlyJobs) { <option value="@j.Id">@j.Name (@j.HourlyRate?.ToString("N0") kr/tim)</option> }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Period</label>
+                        <input class="form-control" type="month" @bind="_postPeriod" />
+                    </div>
+                </div>
+                <button class="btn btn-primary btn-sm" @onclick="PreviewPayrollAsync" disabled="@(_postJobId == 0 || string.IsNullOrEmpty(_postPeriod))">
+                    <span class="material-icons" style="font-size:.9rem">preview</span> Förhandsgranska
+                </button>
+            </div>
+        }
+    }
+</div>
+
+<!-- Mobile scroll mirror -->
+<div class="mobile-page-shell" style="pointer-events:none;display:none"></div>
+
+<!-- ═══ Add/Edit Entry modal ═════════════════════════════════════════════════ -->
+@if (_showEntryModal)
+{
+    <div class="modal-overlay" @onclick="() => _showEntryModal = false" @onkeydown='e => { if (e.Key == "Escape") _showEntryModal = false; }'>
+        <div class="modal" style="max-width:480px" @onclick:stopPropagation>
+            <div class="modal-header">
+                <span class="modal-title">@(_editEntry == null ? "Ny tidpost" : "Redigera tidpost")</span>
+                <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => _showEntryModal = false"><span class="material-icons">close</span></button>
+            </div>
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(_entryError)) { <div style="background:var(--color-expense-bg);color:var(--color-expense);padding:8px 12px;border-radius:8px;font-size:.85rem;margin-bottom:12px">@_entryError</div> }
+
+                <div class="form-group">
+                    <label class="form-label">Jobb *</label>
+                    <select class="form-control" @bind="_eJobId">
+                        <option value="0">– Välj jobb –</option>
+                        @foreach (var j in _allJobs) { <option value="@j.Id">@j.Name (@j.PayTypeLabel)</option> }
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Datum</label>
+                        <input class="form-control" type="date" value="@_eDate.ToString("yyyy-MM-dd")"
+                               @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _eDate = d; }' />
+                    </div>
+                    <div class="form-group" style="flex:.7">
+                        <label class="form-label">Typ</label>
+                        <select class="form-control" @bind="_eManual">
+                            <option value="true">Manuell tid</option>
+                            <option value="false">Klockslag</option>
+                        </select>
+                    </div>
+                </div>
+
+                @if (_eManual)
+                {
+                    <div class="form-group">
+                        <label class="form-label">Tid (tim:min)</label>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <input class="form-control" type="number" min="0" max="24" @bind="_eHours" style="width:80px" /> h
+                            <input class="form-control" type="number" min="0" max="59" @bind="_eMinutes" style="width:80px" /> min
+                        </div>
+                        @if (_eHours > 0 || _eMinutes > 0)
+                        {
+                            var selectedJob = _allJobs.FirstOrDefault(j => j.Id == _eJobId);
+                            var rate        = selectedJob?.HourlyRate ?? 0;
+                            var gross       = (_eHours + _eMinutes / 60m) * rate;
+                            if (gross > 0) { <div style="font-size:.8rem;color:var(--color-income);margin-top:4px">≈ @gross.ToString("N0") kr brutto</div> }
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="form-row">
+                        <div class="form-group"><label class="form-label">Starttid</label><input class="form-control" type="time" @bind="_eStart" /></div>
+                        <div class="form-group"><label class="form-label">Sluttid</label><input class="form-control" type="time" @bind="_eEnd" /></div>
+                    </div>
+                }
+
+                <div class="form-group"><label class="form-label">Uppgift / beskrivning</label><input class="form-control" @bind="_eDesc" placeholder="Vad jobbade du med?" /></div>
+
+                <label style="display:flex;align-items:center;gap:8px;font-size:.875rem;cursor:pointer">
+                    <input type="checkbox" @bind="_eIsBreak" /> Rast (räknas ej som arbetstid)
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="() => _showEntryModal = false">Avbryt</button>
+                <button class="btn btn-primary" @onclick="SaveEntryAsync" disabled="@_savingEntry">
+                    @if (_savingEntry) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
+                    @(_editEntry == null ? "Spara" : "Uppdatera")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ═══ Payroll preview modal ════════════════════════════════════════════════ -->
+@if (_payrollPreview != null)
+{
+    <div class="modal-overlay" @onclick="() => _payrollPreview = null">
+        <div class="modal" style="max-width:540px" @onclick:stopPropagation>
+            <div class="modal-header">
+                <span class="modal-title">Posta lön — @_payrollPreview.PeriodLabel</span>
+                <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => _payrollPreview = null"><span class="material-icons">close</span></button>
+            </div>
+            <div class="modal-body">
+                <div class="card-grid" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:12px">
+                    <div class="kpi-card"><div class="kpi-label">Timmar</div><div class="kpi-value">@_payrollPreview.TotalHours.ToString("N1") tim</div></div>
+                    <div class="kpi-card"><div class="kpi-label">Taxa</div><div class="kpi-value">@_payrollPreview.HourlyRate.ToString("N0") kr/tim</div></div>
+                    <div class="kpi-card"><div class="kpi-label">Brutto</div><div class="kpi-value income">@_payrollPreview.GrossAmount.ToString("N0") kr</div></div>
+                </div>
+
+                <div style="max-height:200px;overflow-y:auto;margin-bottom:12px">
+                    @foreach (var e in _payrollPreview.Entries)
+                    {
+                        <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:.82rem;border-bottom:.5px solid var(--color-border)">
+                            <span>@e.Date.ToString("d/M") @(e.Description ?? "")</span>
+                            <span style="color:var(--color-muted)">@(e.DurationMinutes/60)t @(e.DurationMinutes%60)m · @e.GrossEarned.ToString("N0") kr</span>
+                        </div>
+                    }
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Bruttobelopp (kr)</label>
+                        <input class="form-control" type="number" @bind="_postGross" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Netto efter skatt (kr)</label>
+                        <input class="form-control" type="number" @bind="_postNet" />
+                        <div style="font-size:.75rem;color:var(--color-muted);margin-top:3px">Ange faktisk utbetalning</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Beskrivning på transaktionen</label>
+                    <input class="form-control" @bind="_postDesc" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="() => _payrollPreview = null">Avbryt</button>
+                <button class="btn btn-primary" @onclick="ConfirmPostPayrollAsync" disabled="@_posting">
+                    @if (_posting) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
+                    Skapa lönetransaktion
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<TimeEntryDto> _weekEntries  = new();
+    private List<JobDto>       _allJobs      = new();
+    private List<JobDto>       _hourlyJobs   = new();
+    private bool               _loading      = true;
+
+    // Week navigation
+    private DateTime _weekStart;
+    private DateTime _weekEnd;
+    private int      WeekNum => System.Globalization.ISOWeek.GetWeekOfYear(_weekStart);
+
+    // Entry modal
+    private bool          _showEntryModal, _savingEntry;
+    private string        _entryError = "";
+    private TimeEntryDto? _editEntry;
+    private int           _eJobId;
+    private DateTime      _eDate     = DateTime.Today;
+    private bool          _eManual   = true;
+    private int           _eHours, _eMinutes;
+    private TimeSpan      _eStart, _eEnd;
+    private string?       _eDesc;
+    private bool          _eIsBreak;
+
+    // Payroll
+    private int                    _postJobId;
+    private string                 _postPeriod = DateTime.Today.ToString("yyyy-MM");
+    private PayrollPeriodSummaryDto? _payrollPreview;
+    private decimal                _postGross, _postNet;
+    private string?                _postDesc;
+    private bool                   _posting;
+
+    // Computed
+    private decimal WeekTotalHours => _weekEntries.Where(e => !e.IsBreak).Sum(e => e.DurationMinutes) / 60m;
+    private decimal WeekGross      => _weekEntries.Where(e => !e.IsBreak && !e.IsPosted).Sum(e => e.GrossEarned);
+    private decimal UnpostedHours  => _weekEntries.Where(e => !e.IsBreak && !e.IsPosted).Sum(e => e.DurationMinutes) / 60m;
+    private decimal UnpostedGross  => _weekEntries.Where(e => !e.IsBreak && !e.IsPosted).Sum(e => e.GrossEarned);
+
+    protected override async Task OnInitializedAsync()
+    {
+        BudgetState.StateChanged += OnStateChanged;
+        SetWeek(DateTime.Today);
+        await ReloadJobsAsync();
+        await ReloadEntriesAsync();
+    }
+
+    public void Dispose() => BudgetState.StateChanged -= OnStateChanged;
+
+    private void OnStateChanged() => InvokeAsync(async () =>
+    { try { await ReloadJobsAsync(); await ReloadEntriesAsync(); } catch { } StateHasChanged(); });
+
+    private void SetWeek(DateTime date)
+    {
+        var dow   = (int)date.DayOfWeek;
+        var diff  = dow == 0 ? -6 : -(dow - 1); // Monday = start
+        _weekStart = date.AddDays(diff).Date;
+        _weekEnd   = _weekStart.AddDays(6).Date;
+    }
+
+    private async Task PrevWeek() { SetWeek(_weekStart.AddDays(-7)); await ReloadEntriesAsync(); }
+    private async Task NextWeek() { SetWeek(_weekStart.AddDays(7));  await ReloadEntriesAsync(); }
+    private async Task GoToday()  { SetWeek(DateTime.Today);         await ReloadEntriesAsync(); }
+
+    private async Task ReloadJobsAsync()
+    {
+        if (BudgetState.ActiveBudgetId <= 0) return;
+        _allJobs    = await JobSvc.GetAllAsync(BudgetState.ActiveBudgetId) ?? new();
+        _hourlyJobs = _allJobs.Where(j => j.PayType == JobPayType.Hourly
+                                       && j.TransactionMode == JobTransactionMode.AutoCreate).ToList();
+    }
+
+    private async Task ReloadEntriesAsync()
+    {
+        if (BudgetState.ActiveBudgetId <= 0) { _loading = false; return; }
+        _loading     = true;
+        _weekEntries = await EntrySvc.GetAllAsync(BudgetState.ActiveBudgetId, from: _weekStart, to: _weekEnd) ?? new();
+        _loading     = false;
+    }
+
+    // ── Entry modal ─────────────────────────────────────────────────────────
+    private void OpenAddEntry()
+    {
+        _editEntry = null; _entryError = ""; _eJobId = _allJobs.FirstOrDefault()?.Id ?? 0;
+        _eDate = DateTime.Today; _eManual = true; _eHours = 0; _eMinutes = 0;
+        _eStart = TimeSpan.Zero; _eEnd = TimeSpan.Zero; _eDesc = null; _eIsBreak = false;
+        _showEntryModal = true;
+    }
+
+    private void OpenEditEntry(TimeEntryDto e)
+    {
+        _editEntry  = e; _entryError = ""; _eJobId = e.JobId; _eDate = e.Date;
+        _eManual    = !e.StartTime.HasValue;
+        _eHours     = e.DurationMinutes / 60; _eMinutes = e.DurationMinutes % 60;
+        _eStart     = e.StartTime ?? TimeSpan.Zero; _eEnd = e.EndTime ?? TimeSpan.Zero;
+        _eDesc      = e.Description; _eIsBreak = e.IsBreak;
+        _showEntryModal = true;
+    }
+
+    private async Task SaveEntryAsync()
+    {
+        if (_eJobId == 0) { _entryError = "Välj ett jobb."; return; }
+        int duration;
+        TimeSpan? startTs = null, endTs = null;
+        if (_eManual)
+        {
+            duration = _eHours * 60 + _eMinutes;
+            if (duration <= 0) { _entryError = "Ange tid."; return; }
+        }
+        else
+        {
+            startTs = _eStart; endTs = _eEnd;
+            duration = (int)(_eEnd - _eStart).TotalMinutes;
+            if (duration <= 0) { _entryError = "Sluttid måste vara efter starttid."; return; }
+        }
+
+        _savingEntry = true; _entryError = "";
+        try
+        {
+            var dto = new CreateTimeEntryDto { JobId = _eJobId, Date = _eDate, StartTime = startTs, EndTime = endTs, DurationMinutes = duration, Description = _eDesc, IsBreak = _eIsBreak };
+            if (_editEntry == null) await EntrySvc.CreateAsync(BudgetState.ActiveBudgetId, dto);
+            else                    await EntrySvc.UpdateAsync(BudgetState.ActiveBudgetId, _editEntry.Id, dto);
+            Toast.Success("Tidpost sparad.");
+            _showEntryModal = false;
+            await ReloadEntriesAsync();
+        }
+        catch (Exception ex) { _entryError = ex.Message; }
+        finally { _savingEntry = false; }
+    }
+
+    private async Task DeleteEntryAsync(TimeEntryDto e)
+    {
+        try { await EntrySvc.DeleteAsync(BudgetState.ActiveBudgetId, e.Id); await ReloadEntriesAsync(); }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    // ── Payroll ─────────────────────────────────────────────────────────────
+    private async Task PreviewPayrollAsync()
+    {
+        try
+        {
+            _payrollPreview = await EntrySvc.GetPeriodSummaryAsync(BudgetState.ActiveBudgetId, _postJobId, _postPeriod);
+            if (_payrollPreview == null) { Toast.Error("Inga opostade timmar för vald period."); return; }
+            _postGross = _payrollPreview.GrossAmount;
+            _postNet   = Math.Round(_postGross * 0.70m, 0); // ~30% tax placeholder
+            _postDesc  = $"Lön [{_payrollPreview.JobName}] {_payrollPreview.PeriodLabel}";
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private async Task ConfirmPostPayrollAsync()
+    {
+        if (_payrollPreview == null) return;
+        _posting = true;
+        try
+        {
+            var dto = new PostToPayrollDto
+            {
+                JobId            = _postJobId,
+                PayrollPeriodKey = _postPeriod,
+                EntryIds         = _payrollPreview.Entries.Select(e => e.Id).ToList(),
+                GrossAmount      = _postGross,
+                NetAmount        = _postNet,
+                Description      = _postDesc
+            };
+            var result = await EntrySvc.PostToPayrollAsync(BudgetState.ActiveBudgetId, dto);
+            Toast.Success($"Lönetransaktion skapad: {result?.GrossAmount.ToString("N0")} kr brutto.");
+            _payrollPreview = null;
+            await ReloadEntriesAsync();
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+        finally { _posting = false; }
+    }
+}

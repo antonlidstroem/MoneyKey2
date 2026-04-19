@@ -47,3 +47,36 @@ window.renderLineChart = (elementId, categories, values) => {
     });
     el._chart.render();
 };
+
+// ── UX helpers ────────────────────────────────────────────────────────────────
+window.focusElement = (selector) => {
+    const el = typeof selector === 'string'
+        ? document.querySelector(selector)
+        : document.getElementById(selector);
+    if (el) { el.focus(); if (el.select) el.select(); }
+};
+
+window.downloadFile = (filename, mimeType, base64Data) => {
+    const a    = document.createElement('a');
+    a.href     = `data:${mimeType};base64,${base64Data}`;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+};
+
+// Returns elapsed seconds since ISO timestamp
+window.getElapsedSeconds = (isoStart) => {
+    const ms = Date.now() - new Date(isoStart).getTime();
+    return Math.floor(ms / 1000);
+};
+
+// Format seconds → "1t 23m" or "45m"
+window.formatDuration = (totalSeconds) => {
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    if (h > 0) return `${h}t ${m.toString().padStart(2,'0')}m`;
+    if (m > 0) return `${m}m ${s.toString().padStart(2,'0')}s`;
+    return `${s}s`;
+};

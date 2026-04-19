@@ -101,4 +101,13 @@ public class BudgetRepository : IBudgetRepository
         var setting = await _db.AppSettings.FirstOrDefaultAsync(s => s.BudgetId == budgetId && s.Key == key);
         if (setting != null) { _db.AppSettings.Remove(setting); await _db.SaveChangesAsync(); }
     }
+    public async Task<List<BudgetMembership>> GetMembersAsync(int budgetId) =>
+        await _db.Set<BudgetMembership>().Where(m => m.BudgetId == budgetId && m.AcceptedAt != null).ToListAsync();
+
+    public async Task<BudgetMembership?> GetMembershipAsync(int budgetId, string userId) =>
+        await _db.Set<BudgetMembership>().FirstOrDefaultAsync(m => m.BudgetId == budgetId && m.UserId == userId);
+
+    public async Task UpdateMemberAsync(BudgetMembership m)
+    { _db.Set<BudgetMembership>().Update(m); await _db.SaveChangesAsync(); }
+
 }

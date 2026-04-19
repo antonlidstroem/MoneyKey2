@@ -21,4 +21,8 @@ public interface IBudgetRepository
     Task<List<string>>        GetDisabledFeaturesAsync(int budgetId);
     Task                      DisableFeatureAsync(int budgetId, string feature);
     Task                      EnableFeatureAsync(int budgetId, string feature);
+
+    Task<List<BudgetMembership>> GetMembersAsync(int budgetId);
+    Task<BudgetMembership?> GetMembershipAsync(int budgetId, string userId);
+    Task UpdateMemberAsync(BudgetMembership m);
 }
