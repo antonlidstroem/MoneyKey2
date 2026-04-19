@@ -17,11 +17,11 @@ public static class DbInitializer
     public static async Task InitializeAsync(IServiceProvider services)
     {
         using var scope = services.CreateScope();
-        var sp       = scope.ServiceProvider;
-        var users    = sp.GetRequiredService<UserManager<ApplicationUser>>();
-        var db       = sp.GetRequiredService<BudgetDbContext>();
-        var cfg      = sp.GetRequiredService<IConfiguration>();
-        var log      = sp.GetRequiredService<ILogger<BudgetDbContext>>();
+        var sp = scope.ServiceProvider;
+        var users = sp.GetRequiredService<UserManager<ApplicationUser>>();
+        var db = sp.GetRequiredService<BudgetDbContext>();
+        var cfg = sp.GetRequiredService<IConfiguration>();
+        var log = sp.GetRequiredService<ILogger<BudgetDbContext>>();
 
         // Ensure SystemSettings table exists — this migration may not have been applied
         // by EF Migrate() if the migration file was manually created without a proper snapshot.
@@ -163,10 +163,10 @@ public static class DbInitializer
             return;
         }
 
-        var email     = cfg["AdminSetup:Email"];
-        var password  = cfg["AdminSetup:Password"];
+        var email = cfg["AdminSetup:Email"];
+        var password = cfg["AdminSetup:Password"];
         var firstName = cfg["AdminSetup:FirstName"] ?? "Admin";
-        var lastName  = cfg["AdminSetup:LastName"]  ?? "Budgetsson";
+        var lastName = cfg["AdminSetup:LastName"] ?? "Budgetsson";
 
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
         {
@@ -200,33 +200,51 @@ public static class DbInitializer
         await db.SaveChangesAsync();
 
         log.LogInformation("DbInitializer: initial admin created — {Email}", email);
+    }
 
-        // ✅ KEEP ADDITIONAL SQL HERE (inside method)
-        await db.Database.ExecuteSqlRawAsync("""
-    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'UserSubscriptions')
-    BEGIN
-        CREATE TABLE [UserSubscriptions] (
-            ...
-        );
-    END
-""");
+    // Intentionally appended - auto-runs at startup
+    // ── UserSubscriptions + BudgetInvitations ─────────────────────────────
+    await db.Database.ExecuteSqlRawAsync("""
+            IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'UserSubscriptions')
+            BEGIN
+                CREATE TABLE [UserSubscriptions] (
+                    [UserId]      NVARCHAR(450) NOT NULL,
+                    [Tier]        INT           NOT NULL DEFAULT 0,
+                    [PaidUntil]   DATETIME2     NULL,
+                    [PaymentRef]  NVARCHAR(200) NULL,
+                    [IsAdmin]     BIT           NOT NULL DEFAULT 0,
+                    [AdminNotes]  NVARCHAR(1000) NULL,
+                    [CreatedAt]   DATETIME2     NOT NULL DEFAULT GETUTCDATE(),
+                    [UpdatedAt]   DATETIME2     NOT NULL DEFAULT GETUTCDATE(),
+                    CONSTRAINT [PK_UserSubscriptions] PRIMARY KEY ([UserId])
+                );
+            END
+            """);
 
-        await db.Database.ExecuteSqlRawAsync("""
-    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'BudgetInvitations')
-    BEGIN
-        CREATE TABLE [BudgetInvitations] (
-            ...
-        );
-    END
-""");
+    await db.Database.ExecuteSqlRawAsync("""
+            IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'BudgetInvitations')
+            BEGIN
+                CREATE TABLE [BudgetInvitations] (
+                    [Id]              INT           NOT NULL IDENTITY(1,1),
+                    [BudgetId]        INT           NOT NULL,
+                    [InvitedByUserId] NVARCHAR(450) NOT NULL,
+                    [InvitedUserId]   NVARCHAR(450) NOT NULL,
+                    [Role]            INT           NOT NULL DEFAULT 0,
+                    [Status]          INT           NOT NULL DEFAULT 0,
+                    [CreatedAt]       DATETIME2     NOT NULL DEFAULT GETUTCDATE(),
+                    [ExpiresAt]       DATETIME2     NOT NULL,
+                    CONSTRAINT [PK_BudgetInvitations] PRIMARY KEY ([Id]),
+                    CONSTRAINT [FK_BudgetInvitations_Budgets] FOREIGN KEY ([BudgetId])
+                        REFERENCES [Budgets]([Id]) ON DELETE CASCADE
+                );
+            END
+            """);
 
-        await db.Database.ExecuteSqlRawAsync("""
-    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME='AspNetUsers' AND COLUMN_NAME='DisplayName')
-    BEGIN
-        ALTER TABLE [AspNetUsers] ADD [DisplayName] NVARCHAR(50) NOT NULL DEFAULT '';
-    END
-""");
-
-    } // ← closes InitializeAsync
-} // ← closes class
+    await db.Database.ExecuteSqlRawAsync("""
+            IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME='AspNetUsers' AND COLUMN_NAME='DisplayName')
+            BEGIN
+                ALTER TABLE [AspNetUsers] ADD [DisplayName] NVARCHAR(50) NOT NULL DEFAULT '';
+            END
+            """);
+}

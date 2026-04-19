@@ -9,4 +9,5 @@ public class ListItemDto
     public int     SortOrder   { get; set; }
     public DateTime CreatedAt  { get; set; }
     public DateTime? CompletedAt { get; set; }
+    public int Order { get; init; }
 }

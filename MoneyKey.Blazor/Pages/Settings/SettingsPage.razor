@@ -1,5 +1,4 @@
 @page "/settings"
-@using MoneyKey.Domain.Constants
 @attribute [Authorize]
 @inject BudgetService BudgetSvc
 @inject ToastService Toast
@@ -124,7 +123,7 @@
     }
 
 
-            else { Toast..Success($"Inbjudan skickad till {_inviteDisplayName}."); _inviteDisplayName = ""; _displayNameSuggestions.Clear(); }
+            else { Toast.Success($"Inbjudan skickad till {_inviteDisplayName}."); _inviteDisplayName = ""; _displayNameSuggestions.Clear(); }
         }
         catch (Exception ex) { Toast.Error(ex.Message); }
         finally { _inviting = false; }

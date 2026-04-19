@@ -1,3 +1,4 @@
+using MoneyKey.DAL.Repositories.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -17,6 +18,7 @@ namespace MoneyKey.API.Controllers;
 public class AuthController : BaseApiController
 {
     private readonly UserManager<ApplicationUser> _users;
+    private readonly IUserSubscriptionRepository _subRepo;
     private readonly TokenService                 _tokens;
     private readonly BudgetDbContext              _db;
     private const string CookieName = "mk_refresh";
@@ -32,9 +34,14 @@ public class AuthController : BaseApiController
     [EnableRateLimiting("AuthPolicy")]
     public async Task<IActionResult> Register([FromBody] RegisterDto dto)
     {
-        var user   = new ApplicationUser { UserName = dto.Email, Email = dto.Email, FirstName = dto.FirstName, LastName = dto.LastName };
+        var user   = new ApplicationUser { UserName = dto.Email, Email = dto.Email,
+                                  FirstName = dto.FirstName, LastName = dto.LastName,
+                                  DisplayName = dto.DisplayName.Trim() };
         var result = await _users.CreateAsync(user, dto.Password);
         if (!result.Succeeded) return BadRequest(new { Errors = result.Errors.Select(e => e.Description) });
+
+        // Auto-create Free subscription for new users
+        await _subRepo.UpsertAsync(new MoneyKey.Domain.Models.UserSubscription { UserId = user.Id });
 
         // FIX MEDIUM-4: Create Budget AND BudgetMembership in a single SaveChanges so
         // no orphaned budget can exist without its owner membership if the second write fails.

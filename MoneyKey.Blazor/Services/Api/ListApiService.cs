@@ -12,7 +12,7 @@ public class ListApiService : ApiServiceBase
         GetAsync<List<UserListDto>>($"api/budgets/{budgetId}/lists?includeArchived={includeArchived}");
 
     public Task<UserListDto?> GetByIdAsync(int budgetId, int listId) =>
-        GetAsync<UserListDto>($"api/budgets/{budgetId}/lists/{listId}");
+    GetAsync<UserListDto>($"api/budgets/{budgetId}/lists/{listId}");
 
     public Task<UserListDto?> CreateAsync(int budgetId, CreateListDto dto) =>
         PostAsync<UserListDto>($"api/budgets/{budgetId}/lists", dto);
@@ -35,9 +35,11 @@ public class ListApiService : ApiServiceBase
     public Task<ListItemDto?> AddItemAsync(int budgetId, int listId, CreateListItemDto dto) =>
         PostAsync<ListItemDto>($"api/budgets/{budgetId}/lists/{listId}/items", dto);
 
-    public async Task<ListItemDto?> ToggleItemAsync(int budgetId, int listId, int itemId)
+    public async Task<ListItemDto?> ToggleItemAsync(int listId, int itemId, int budgetId, bool isChecked)
     {
-        var r = await Http.PatchAsync($"api/budgets/{budgetId}/lists/{listId}/items/{itemId}/toggle", null);
+        // Vi skickar med isChecked i bodyn eller som query om backend kräver det, 
+        // här utgår vi från din befintliga toggle-endpoint.
+        var r = await Http.PatchAsync($"api/budgets/{budgetId}/lists/{listId}/items/{itemId}/toggle?isChecked={isChecked}", null);
         return r.IsSuccessStatusCode ? await r.Content.ReadFromJsonAsync<ListItemDto>() : null;
     }
 
