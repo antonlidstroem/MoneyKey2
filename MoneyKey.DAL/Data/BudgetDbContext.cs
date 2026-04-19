@@ -27,6 +27,8 @@ public class BudgetDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<SystemSetting>        SystemSettings         => Set<SystemSetting>();
     public DbSet<UserList>             UserLists              => Set<UserList>();
     public DbSet<ListItem>             ListItems              => Set<ListItem>();
+    public DbSet<Job>                  Jobs                   => Set<Job>();
+    public DbSet<TimeEntry>            TimeEntries            => Set<TimeEntry>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -210,6 +212,25 @@ public class BudgetDbContext : IdentityDbContext<ApplicationUser>
             e.HasKey(x => x.Id);
             e.Property(x => x.Text).HasMaxLength(500).IsRequired();
         });
+        mb.Entity<Job>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.GrossAmount).HasColumnType("decimal(18,2)");
+            e.Property(x => x.HourlyRate).HasColumnType("decimal(10,2)");
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Project).WithMany().HasForeignKey(x => x.ProjectId).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+            e.HasMany(x => x.TimeEntries).WithOne(t => t.Job).HasForeignKey(t => t.JobId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        mb.Entity<TimeEntry>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.HourlyRateOverride).HasColumnType("decimal(10,2)");
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.LinkedTransaction).WithMany().HasForeignKey(x => x.LinkedTransactionId).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
+
         mb.Entity<ReceiptBatchCategory>().HasData(
             new ReceiptBatchCategory { Id = 1, Name = "Resor & Transport",      IconName = "directions_car", SortOrder = 1, Description = "Tåg, flyg, hotell, parkering, taxi" },
             new ReceiptBatchCategory { Id = 2, Name = "Representation",         IconName = "restaurant",     SortOrder = 2, Description = "Kundluncher, middag, presentkort" },

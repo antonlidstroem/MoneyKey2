@@ -56,6 +56,14 @@ else
                 <div class="skeleton" style="height:26px;width:75%;border-radius:4px"></div>
             </div>
         }
+    @if (BudgetState.IsFeatureEnabled("TimeTracking") && _unpostedHours > 0)
+    {
+        <div class="kpi-card" style="border-left:3px solid #F9A825" title="Timmar loggade men ej postade som lön">
+            <div class="kpi-label">Opostat arbetstid</div>
+            <div class="kpi-value" style="color:#F9A825">@_unpostedHours.ToString("N1") tim</div>
+            <div style="font-size:.72rem;color:var(--color-muted)">≈ @_unpostedGross.ToString("N0") kr brutto</div>
+        </div>
+    }
     </div>
 }
 @code { [Parameter] public SummaryDto? Summary { get; set; } }

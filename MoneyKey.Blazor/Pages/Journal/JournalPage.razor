@@ -19,6 +19,8 @@
 @using MoneyKey.Blazor.Components.Shared
 @using MoneyKey.Domain.Models
 
+
+<!-- ═══════════════════════════ DESKTOP ══════════════════════════════════════ -->
 <div class="desktop-page-wrapper">
     <div class="page-header">
         <span class="page-title">Journal — @BudgetState.ActiveBudgetName</span>
@@ -66,11 +68,11 @@
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px 20px">
                     <div class="form-group" style="margin:0">
                         <label class="form-label" style="display:flex;align-items:center;gap:6px"><input type="checkbox" @bind="Filter.Query.FilterByStartDate" @bind:after="NotifyFilter" /> Från</label>
-                        <input type="date" class="form-control" disabled="@(!Filter.Query.FilterByStartDate)" value='@Filter.Query.StartDate?.ToString("yyyy-MM-dd")' @onchange="e => SetFilterDate(e, d => Filter.Query.StartDate = d)" />
+                        <input type="date" class="form-control" disabled="@(!Filter.Query.FilterByStartDate)" value="@Filter.Query.StartDate?.ToString("yyyy-MM-dd")" @onchange="e => SetFilterDate(e, d => Filter.Query.StartDate = d)" />
                     </div>
                     <div class="form-group" style="margin:0">
                         <label class="form-label" style="display:flex;align-items:center;gap:6px"><input type="checkbox" @bind="Filter.Query.FilterByEndDate" @bind:after="NotifyFilter" /> Till</label>
-                        <input type="date" class="form-control" disabled="@(!Filter.Query.FilterByEndDate)" value='@Filter.Query.EndDate?.ToString("yyyy-MM-dd")' @onchange="e => SetFilterDate(e, d => Filter.Query.EndDate = d)" />
+                        <input type="date" class="form-control" disabled="@(!Filter.Query.FilterByEndDate)" value="@Filter.Query.EndDate?.ToString("yyyy-MM-dd")" @onchange="e => SetFilterDate(e, d => Filter.Query.EndDate = d)" />
                     </div>
                     <div class="form-group" style="margin:0">
                         <label class="form-label" style="display:flex;align-items:center;gap:6px"><input type="checkbox" @bind="Filter.Query.FilterByDescription" @bind:after="NotifyFilter" /> Fritext</label>
@@ -152,6 +154,7 @@
     </div>
 </div>
 
+<!-- ═══════════════════════════ MOBILE ═══════════════════════════════════════ -->
 <div class="mobile-page-shell">
     <div class="mobile-topbar">
         <span class="mobile-title">Journal</span>
@@ -167,6 +170,7 @@
         else if (_loadError != null) { <div style="text-align:center;padding:32px;color:var(--color-expense);font-size:.85rem">@_loadError</div> }
         else
         {
+            @* Lists / Notes in mobile *@
             @if (ShowLists)
             {
                 @foreach (var list in _lists)
@@ -194,6 +198,7 @@
                     </div>
                 }
             }
+            @* Journal entries in mobile *@
             @if (!_entries.Any() && (!ShowLists || !_lists.Any()))
             { <div style="text-align:center;padding:48px 24px;color:var(--color-muted)"><span class="material-icons" style="font-size:2.5rem;display:block;margin-bottom:8px;opacity:.4">inbox</span>Inga poster</div> }
             @foreach (var entry in _entries)
@@ -214,7 +219,7 @@
                             </div>
                         </div>
                         <div style="text-align:right;flex-shrink:0">
-                            <div class='@(e.Amount >= 0 ? "amount-pos" : "amount-neg")' style="font-size:.9rem;font-weight:700">
+                            <div class="@(e.Amount >= 0 ? "amount-pos" : "amount-neg")" style="font-size:.9rem;font-weight:700">
                                 @AmountStr(e)
                             </div>
                             @if (BudgetState.CanEdit && e.EntryType == JournalEntryType.Transaction)
@@ -228,6 +233,7 @@
     @if (BudgetState.CanEdit) { <button class="mobile-fab" @onclick="OpenNewEntryForm"><span class="material-icons">add</span></button> }
 </div>
 
+<!-- ═══════════════════ UNIVERSAL "NY POST" FORM ════════════════════════════ -->
 @if (_showEntryForm)
 {
     <div class="modal-overlay" @onclick="CloseEntryForm">
@@ -237,6 +243,7 @@
                 <button class="btn btn-ghost btn-icon btn-sm" @onclick="CloseEntryForm"><span class="material-icons">close</span></button>
             </div>
             <div class="modal-body">
+                @* Type selector — only shown for new posts *@
                 @if (_editTx == null)
                 {
                     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--color-border)">
@@ -253,12 +260,13 @@
                 @if (!string.IsNullOrEmpty(_formError))
                 { <div style="background:var(--color-expense-bg);color:var(--color-expense);padding:8px 12px;border-radius:8px;font-size:.85rem;margin-bottom:12px">@_formError</div> }
 
+                @* ── TRANSACTION ────────────────────────────────────────────── *@
                 @if (_entryKind == EntryKind.Transaction)
                 {
                     <div class="form-row">
                         <div class="form-group">
                             <label class="form-label">Datum *</label>
-                            <input type="date" class="form-control" value='@_txDate.ToString("yyyy-MM-dd")'
+                            <input type="date" class="form-control" value="@_txDate.ToString("yyyy-MM-dd")"
                                    @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _txDate = d; }' />
                         </div>
                         <div class="form-group">
@@ -301,7 +309,7 @@
                     {
                         <div class="form-group">
                             <label class="form-label">Slutdatum</label>
-                            <input type="date" class="form-control" value='@(_txEndDate?.ToString("yyyy-MM-dd") ?? "")'
+                            <input type="date" class="form-control" value="@(_txEndDate?.ToString("yyyy-MM-dd") ?? "")"
                                    @onchange='e => { var s = e.Value?.ToString(); _txEndDate = string.IsNullOrEmpty(s) ? null : DateTime.TryParse(s, out var ed) ? ed : _txEndDate; }' />
                         </div>
                     }
@@ -323,12 +331,13 @@
                     </div>
                 }
 
+                @* ── MILERSÄTTNING ───────────────────────────────────────────── *@
                 @if (_entryKind == EntryKind.Milersattning)
                 {
                     <div class="form-row">
                         <div class="form-group">
                             <label class="form-label">Datum *</label>
-                            <input type="date" class="form-control" value='@_miDate.ToString("yyyy-MM-dd")' @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _miDate = d; }' />
+                            <input type="date" class="form-control" value="@_miDate.ToString("yyyy-MM-dd")" @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _miDate = d; }' />
                         </div>
                         <div class="form-group">
                             <label class="form-label">Distans km (enkel väg) *</label>
@@ -359,17 +368,18 @@
                     </div>
                 }
 
+                @* ── VAB ────────────────────────────────────────────────────── *@
                 @if (_entryKind == EntryKind.Vab)
                 {
                     <div class="form-group"><label class="form-label">Barnets namn (valfritt)</label><input class="form-control" @bind="_vabChild" placeholder="Lämna tomt om det gäller dig" /></div>
                     <div class="form-row">
                         <div class="form-group">
                             <label class="form-label">Startdatum *</label>
-                            <input type="date" class="form-control" value='@_vabStart.ToString("yyyy-MM-dd")' @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _vabStart = d; }' />
+                            <input type="date" class="form-control" value="@_vabStart.ToString("yyyy-MM-dd")" @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _vabStart = d; }' />
                         </div>
                         <div class="form-group">
                             <label class="form-label">Slutdatum *</label>
-                            <input type="date" class="form-control" value='@_vabEnd.ToString("yyyy-MM-dd")' @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _vabEnd = d; }' />
+                            <input type="date" class="form-control" value="@_vabEnd.ToString("yyyy-MM-dd")" @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _vabEnd = d; }' />
                         </div>
                     </div>
                     <div class="form-row">
@@ -383,10 +393,10 @@
                                    @onchange='e => { if (decimal.TryParse(e.Value?.ToString(), out var v)) _vabDailyBenefit = v; }' />
                         </div>
                     </div>
-                    
+                    @{
                         var vabDays = Math.Max(1, (int)(_vabEnd - _vabStart).TotalDays + 1);
                         var vabTotal = vabDays * _vabDailyBenefit * 0.8m;
-                    
+                    }
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 14px;font-size:.85rem;line-height:1.6">
                         <div>Dagar: <strong>@vabDays</strong> (@_vabStart.ToString("d")–@_vabEnd.ToString("d"))</div>
                         <div>Utebliven inkomst: <strong style="color:var(--color-warning)">@vabTotal.ToString("N2") kr</strong> <span style="font-size:.75rem;color:var(--color-muted)">(@vabDays dag × @_vabDailyBenefit.ToString("N2") kr × 80%)</span></div>
@@ -394,6 +404,7 @@
                     </div>
                 }
 
+                @* ── LISTA ──────────────────────────────────────────────────── *@
                 @if (_entryKind == EntryKind.Lista)
                 {
                     <div class="form-group"><label class="form-label">Namn *</label><input class="form-control" @bind="_listName" placeholder="T.ex. Inköpslista, Veckoplanering..." /></div>
@@ -419,6 +430,7 @@
                     <div class="form-group"><label class="form-label">Taggar (valfritt, komma-separerade)</label><input class="form-control" @bind="_listTags" placeholder="arbete, privat, q1..." /></div>
                 }
 
+                @* ── ANTECKNING ──────────────────────────────────────────────── *@
                 @if (_entryKind == EntryKind.Anteckning)
                 {
                     <div class="form-group"><label class="form-label">Titel *</label><input class="form-control" @bind="_listName" placeholder="T.ex. Mötesanteckningar, Idé..." /></div>
@@ -451,6 +463,7 @@
     </div>
 }
 
+<!-- ═══════════════════════ LIST DETAIL MODAL ════════════════════════════════ -->
 @if (_activeList is not null)
 {
     <div class="modal-overlay" @onclick='() => _activeList = null'>
@@ -472,10 +485,12 @@
             <div class="modal-body" style="overflow-y:auto;flex:1">
                 @if (_activeList.IsNote)
                 {
+                    @* Note: show rich text content *@
                     <div style="font-size:.9rem;line-height:1.7;white-space:pre-wrap">@(_activeList.Content ?? "(Tom anteckning)")</div>
                 }
                 else
                 {
+                    @* Checklist items *@
                     @if (!_activeList.Items.Any())
                     { <p style="text-align:center;padding:24px;color:var(--color-muted);font-size:.875rem">Inga poster ännu.</p> }
                     @foreach (var item in _activeList.Items)
@@ -483,7 +498,7 @@
                         var li = item;
                         <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:.5px solid var(--color-border)">
                             <input type="checkbox" checked="@li.IsChecked" @onchange="() => ToggleActiveListItemAsync(li.Id)" />
-                            <span style='flex:1;font-size:.9rem;@(li.IsChecked ? "text-decoration:line-through;color:var(--color-muted)" : "")'>@li.Text</span>
+                            <span style="flex:1;font-size:.9rem;@(li.IsChecked ? "text-decoration:line-through;color:var(--color-muted)" : "")">@li.Text</span>
                             @if (BudgetState.CanEdit) { <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => DeleteActiveListItemAsync(li.Id)"><span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span></button> }
                         </div>
                     }
@@ -516,7 +531,7 @@
     private List<UserListDto>         _lists          = new();
     private SummaryDto?               _summary;
     private HashSet<int>              _selectedIds    = new();
-    private HashSet<string>           _expanded        = new();
+    private HashSet<string>           _expanded       = new();
     private ConfirmDialog?            _confirmDialog;
     private string                    _qs             = "";
     private string?                   _loadError;
@@ -734,9 +749,12 @@
     private async Task DeleteTxAsync()
     { if (_editTx == null || _confirmDialog == null || !await _confirmDialog.ShowAsync()) return; try { await TxSvc.DeleteAsync(BudgetState.ActiveBudgetId, _editTx.Id); Toast.Success("Borttagen."); _showEntryForm = false; await LoadAsync(); } catch (Exception ex) { _formError = ex.Message; } }
 
+    // ── VAB SGI auto-calc ─────────────────────────────────────────────────────
+    // Triggered when SGI changes
     private void OnSgiChanged(ChangeEventArgs e)
     { if (decimal.TryParse(e.Value?.ToString(), out var v)) { _vabSgi = v; if (v > 0) _vabDailyBenefit = VabService.CalculateDailyBenefit(v); } }
 
+    // ── List / Note detail modal ──────────────────────────────────────────────
     private void OpenListDetail(UserListDto list) { _activeList = list; _activeNewItemText = ""; }
 
     private async Task ToggleActiveListItemAsync(int itemId)
@@ -753,6 +771,7 @@
     private async Task AddListItemInlineAsync(int listId)
     { if (!_newItemText.TryGetValue(listId, out var txt) || string.IsNullOrWhiteSpace(txt)) return; try { var item = await ListSvc.AddItemAsync(BudgetState.ActiveBudgetId, listId, new CreateListItemDto(txt.Trim())); if (item != null) { var l = _lists.FirstOrDefault(x => x.Id == listId); if (l != null) { l.Items.Add(item); l.TotalItems++; } _newItemText[listId] = ""; StateHasChanged(); } } catch (Exception ex) { Toast.Error(ex.Message); } }
 
+    // ── Journal table helper ──────────────────────────────────────────────────
     RenderFragment JournalTable() =>
         @<table style="width:100%;border-collapse:collapse" class="quickgrid">
             <thead>
@@ -772,6 +791,7 @@
                 @if (!_entries.Any() && (!ShowLists || !_lists.Any()))
                 { <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--color-muted)"><span class="material-icons" style="display:block;font-size:2rem;margin-bottom:8px;opacity:.4">inbox</span>Inga poster hittades.</td></tr> }
 
+                @* Lists + Notes rows *@
                 @if (ShowLists)
                 {
                     @foreach (var list in _lists)
@@ -796,7 +816,7 @@
                                 { var pct = (int)(100.0 * ul.CheckedItems / ul.TotalItems); <div style="width:60px;height:6px;background:var(--color-border);border-radius:3px;display:inline-block;vertical-align:middle;overflow:hidden"><div style="height:100%;width:@pct%;background:var(--color-income);border-radius:3px"></div></div> }
                             </td>
                             <td @onclick:stopPropagation style="display:flex;gap:2px;align-items:center">
-                                @if (!ul.IsNote) { <button class="btn btn-ghost btn-icon btn-sm" @onclick='() => ToggleExpand($"list-{ul.Id}")'><span class="material-icons" style="font-size:.9rem">@(isExp ? "expand_less" : "expand_more")</span></button> }
+                                @if (!ul.IsNote) { <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => { if (!_expanded.Remove($"list-{ul.Id}")) _expanded.Add($"list-{ul.Id}"); }"><span class="material-icons" style="font-size:.9rem">@(isExp ? "expand_less" : "expand_more")</span></button> }
                                 <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => OpenListDetail(ul)"><span class="material-icons" style="font-size:.9rem">open_in_new</span></button>
                             </td>
                         </tr>
@@ -810,7 +830,7 @@
                                     <td style="padding-left:24px">
                                         <div style="display:flex;align-items:center;gap:8px">
                                             <input type="checkbox" checked="@li.IsChecked" @onchange="() => ToggleActiveListItemAsync(li.Id)" />
-                                            <span style='flex:1;font-size:.9rem;@(li.IsChecked ? "text-decoration:line-through;color:var(--color-muted)" : "")'>@li.Text</span>
+                                            @if (_activeList?.Id == ul.Id) {} @* dummy to resolve context *@
                                         </div>
                                     </td>
                                     <td colspan="5"></td>
@@ -823,7 +843,7 @@
                                         <div style="display:flex;gap:6px">
                                             <input class="form-control" style="max-width:260px;padding:4px 8px;font-size:.8rem" placeholder="Lägg till rad..."
                                                    value="@(_newItemText.GetValueOrDefault(ul.Id, ""))"
-                                                   @onchange='e => _newItemText[ul.Id] = e.Value?.ToString() ?? ""'
+                                                   @onchange="e => _newItemText[ul.Id] = e.Value?.ToString() ?? string.Empty"
                                                    @onkeydown="e => OnListItemKeyDown(e, ul.Id)" />
                                             <button class="btn btn-primary btn-sm" @onclick="() => AddListItemInlineAsync(ul.Id)"><span class="material-icons" style="font-size:.85rem">add</span></button>
                                         </div>
@@ -834,6 +854,7 @@
                     }
                 }
 
+                @* Journal entries *@
                 @foreach (var entry in _entries)
                 {
                     var e = entry; var isSel = _selectedIds.Contains(e.SourceId);
@@ -851,7 +872,7 @@
                         <td style="font-size:.8rem;color:var(--color-muted)">@(e.CategoryName ?? "–")</td>
                         <td style="font-size:.8rem;color:var(--color-muted)">@(e.ProjectName ?? "–")</td>
                         <td>@if (e.Status != null) { <span class="badge @StatusBadge(e.Status)" style="font-size:.7rem">@e.Status</span> }</td>
-                        <td style="text-align:right"><span class='@(e.Amount >= 0 ? "amount-income" : "amount-expense")' style="font-size:.875rem;font-weight:600">@AmountStr(e)</span></td>
+                        <td style="text-align:right"><span class="@(e.Amount >= 0 ? "amount-income" : "amount-expense")" style="font-size:.875rem;font-weight:600">@AmountStr(e)</span></td>
                         <td @onclick:stopPropagation style="display:flex;gap:2px;align-items:center">
                             @if (e.HasDetail) { <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => ToggleExpand(expandKey)"><span class="material-icons" style="font-size:.9rem">@(isExpandedRow ? "expand_less" : "expand_more")</span></button> }
                             @if (e.EntryType == JournalEntryType.ReceiptBatch) { var rid = e.SourceId; <button class="btn btn-ghost btn-icon btn-sm" @onclick='() => Nav.NavigateTo($"/receipts/{rid}")'><span class="material-icons" style="font-size:.9rem">open_in_new</span></button> }
@@ -871,6 +892,7 @@
             </tbody>
         </table>;
 
+    // ── Helpers ───────────────────────────────────────────────────────────────
     private string SortIndicator(string col) => Filter.Query.SortBy != col ? "" : Filter.Query.SortDir == "asc" ? " ▲" : " ▼";
     private static string TypeLabel(JournalEntryType t) => t switch { JournalEntryType.Transaction => "Transakt.", JournalEntryType.Milersattning => "Milersättn.", JournalEntryType.Vab => "VAB", JournalEntryType.ReceiptBatch => "Kvitto", JournalEntryType.List => "Listor/Ant.", _ => t.ToString() };
     private static string ListTypeLabel(ListType t) => t switch { ListType.ToDo => "Att göra", ListType.Shopping => "Inköp", ListType.CheckList => "Checklista", _ => "Lista" };

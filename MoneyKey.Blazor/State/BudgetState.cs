@@ -66,4 +66,35 @@ public class BudgetState
         }
         StateChanged?.Invoke();
     }
+
+    // ── Live timer state ────────────────────────────────────────────────────────
+    public int?      TimerJobId       { get; private set; }
+    public string?   TimerJobName     { get; private set; }
+    public DateTime? TimerStartedAt   { get; private set; }
+    public bool      IsTimerRunning   => TimerStartedAt.HasValue;
+
+    public void StartTimer(int jobId, string jobName)
+    {
+        TimerJobId     = jobId;
+        TimerJobName   = jobName;
+        TimerStartedAt = DateTime.Now;
+        StateChanged?.Invoke();
+    }
+
+    public (int minutes, int jobId, string jobName, DateTime start) StopTimer()
+    {
+        var start   = TimerStartedAt ?? DateTime.Now;
+        var minutes = (int)(DateTime.Now - start).TotalMinutes;
+        var jobId   = TimerJobId ?? 0;
+        var name    = TimerJobName ?? "";
+        TimerStartedAt = null; TimerJobId = null; TimerJobName = null;
+        StateChanged?.Invoke();
+        return (minutes, jobId, name, start);
+    }
+
+    public void CancelTimer()
+    {
+        TimerStartedAt = null; TimerJobId = null; TimerJobName = null;
+        StateChanged?.Invoke();
+    }
 }

@@ -114,6 +114,8 @@ svcs.AddScoped<IAuditRepository,         AuditRepository>();
 svcs.AddScoped<IAppSettingRepository,    AppSettingRepository>();
 svcs.AddScoped<ISystemSettingRepository, SystemSettingRepository>();
 svcs.AddScoped<IListRepository,          ListRepository>();
+        svcs.AddScoped<IJobRepository,            JobRepository>();
+        svcs.AddScoped<ITimeEntryRepository,       TimeEntryRepository>();
 
 // ── Services ───────────────────────────────────────────────────────────────────
 svcs.AddScoped<TokenService>();
@@ -125,6 +127,7 @@ svcs.AddScoped<ExportService>();
 svcs.AddScoped<ImportService>();
 svcs.AddScoped<ReceiptService>();
 svcs.AddScoped<JournalQueryService>();
+        svcs.AddScoped<TimeTrackingService>();
 svcs.AddScoped<SignalRFeatureService>();
 svcs.AddScoped<MoneyKey.Core.Services.Interfaces.IReceiptAttachmentService, MoneyKey.Core.Services.NoOpReceiptAttachmentService>();
 

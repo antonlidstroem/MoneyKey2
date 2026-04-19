@@ -31,7 +31,20 @@
 
         <nav class="nav-section">
             <div class="nav-label">Navigering</div>
-            <NavLink class="nav-item" href="/" Match="NavLinkMatch.All">
+            @if (BudgetState.IsTimerRunning)
+            {
+                <div class="timer-widget" style="background:var(--color-income-bg);border:1px solid var(--color-income);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:.82rem">
+                    <div style="color:var(--color-income);font-weight:600;margin-bottom:4px">
+                        <span class="material-icons" style="font-size:.9rem;vertical-align:middle;animation:pulse 1s infinite">timer</span>
+                        Timer pågår
+                    </div>
+                    <div style="color:var(--color-muted)">@BudgetState.TimerJobName</div>
+                    <button class="btn btn-primary btn-sm" style="width:100%;margin-top:6px" @onclick="StopTimerAsync">
+                        <span class="material-icons" style="font-size:.85rem">stop</span> Stoppa
+                    </button>
+                </div>
+            }
+                        <NavLink class="nav-item" href="/" Match="NavLinkMatch.All">
                 <span class="material-icons">list_alt</span> Journal
             </NavLink>
             <NavLink class="nav-item" href="/projects">
@@ -47,6 +60,24 @@
             {
                 <NavLink class="nav-item" href="/vab">
                     <span class="material-icons">child_care</span> VAB
+                </NavLink>
+            }
+            @if (BudgetState.IsFeatureEnabled("Lists"))
+            {
+                <NavLink class="nav-item" href="/lists">
+                    <span class="material-icons">checklist</span>
+                    <span>Listor</span>
+                </NavLink>
+            }
+            @if (BudgetState.IsFeatureEnabled("TimeTracking"))
+            {
+                <NavLink class="nav-item" href="/timetracking">
+                    <span class="material-icons">schedule</span>
+                    <span>Tidrapport</span>
+                </NavLink>
+                <NavLink class="nav-item" href="/jobs">
+                    <span class="material-icons">work</span>
+                    <span>Inkomstkällor</span>
                 </NavLink>
             }
             @if (BudgetState.IsFeatureEnabled("Receipts"))
