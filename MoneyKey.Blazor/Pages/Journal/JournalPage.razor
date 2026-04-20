@@ -388,14 +388,14 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">Dagersättning (kr)</label>
-                            <input type="number" step="0.01" class="form-control" value="@_vabDailyBenefit.ToString("N2")"
+                            <input type="number" step="0.01" class="form-control" value="@(_vabDailyBenefit.ToString("N2"))"
                                    @onchange='e => { if (decimal.TryParse(e.Value?.ToString(), out var v)) _vabDailyBenefit = v; }' />
                         </div>
                     </div>
-                    @{
+                    
                         var vabDays = Math.Max(1, (int)(_vabEnd - _vabStart).TotalDays + 1);
                         var vabTotal = vabDays * _vabDailyBenefit * 0.8m;
-                    }
+                    
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 14px;font-size:.85rem;line-height:1.6">
                         <div>Dagar: <strong>@vabDays</strong> (@_vabStart.ToString("d")–@_vabEnd.ToString("d"))</div>
                         <div>Utebliven inkomst: <strong style="color:var(--color-warning)">@vabTotal.ToString("N2") kr</strong> <span style="font-size:.75rem;color:var(--color-muted)">(@vabDays dag × @_vabDailyBenefit.ToString("N2") kr × 80%)</span></div>
@@ -815,7 +815,7 @@
                                 { var pct = (int)(100.0 * ul.CheckedItems / ul.TotalItems); <div style="width:60px;height:6px;background:var(--color-border);border-radius:3px;display:inline-block;vertical-align:middle;overflow:hidden"><div style="height:100%;width:@pct%;background:var(--color-income);border-radius:3px"></div></div> }
                             </td>
                             <td @onclick:stopPropagation style="display:flex;gap:2px;align-items:center">
-                                @if (!ul.IsNote) { <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => { if (!_expanded.Remove($"list-{ul.Id}")) _expanded.Add($"list-{ul.Id}"); }"><span class="material-icons" style="font-size:.9rem">@(isExp ? "expand_less" : "expand_more")</span></button> }
+                                @if (!ul.IsNote) { <button class="btn btn-ghost btn-icon btn-sm" @onclick='() => ToggleExpand($"list-{ul.Id}")'><span class="material-icons" style="font-size:.9rem">@(isExp ? "expand_less" : "expand_more")</span></button> }
                                 <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => OpenListDetail(ul)"><span class="material-icons" style="font-size:.9rem">open_in_new</span></button>
                             </td>
                         </tr>
@@ -889,7 +889,7 @@
                     }
                 }
             </tbody>
-        </table>
+        </table>;
 
     // ── Helpers ───────────────────────────────────────────────────────────────
     private string SortIndicator(string col) => Filter.Query.SortBy != col ? "" : Filter.Query.SortDir == "asc" ? " ▲" : " ▼";

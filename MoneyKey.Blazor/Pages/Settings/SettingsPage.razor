@@ -8,16 +8,21 @@
 @inject AdminApiService AdminSvc
 @inject JwtAuthenticationStateProvider AuthProvider
 @inject IConfiguration Config
+@inject NavigationManager Nav
+@inject HttpClient Http
 
 <div class="desktop-page-wrapper">
     <div class="page-header"><span class="page-title">Inställningar</span></div>
     <div class="page-content" style="max-width:640px;display:flex;flex-direction:column;gap:16px">
-        @Body()
+        @@SettingsContent
     </div>
 </div>
+
 <div class="mobile-page-shell">
     <div class="mobile-topbar"><span class="mobile-title">Inställningar</span></div>
-    <div class="mobile-page-scroll">@Body()</div>
+    <div class="mobile-page-scroll">
+        @@SettingsContent
+    </div>
 </div>
 
 @code {
@@ -25,6 +30,8 @@
     private List<string> _displayNameSuggestions = new();
     private string _transferTo = "";
     private bool _transferring;
+    private bool _showDeleteConfirm, _deleting;
+    private string _deleteConfirmText = "";
     private System.Threading.Timer? _searchDebounce;
     private string _newBudgetName = "", _newBudgetDescription = "", _newBudgetError = "";
     private BudgetMemberRole _inviteRole = BudgetMemberRole.Editor;
@@ -33,7 +40,6 @@
     private HashSet<string> _disabledFeatures = new(StringComparer.OrdinalIgnoreCase);
     private bool _featuresLoading;
 
-    // All configurable feature flags
     private static readonly (string Key, string Label, string Icon)[] AllFeatures =
     {
         ("Milersattning", "Milersättning",    "directions_car"),
@@ -42,12 +48,15 @@
         ("Lists",         "Listor & anteckn.","checklist"),
         ("Kontering",     "Kontering",        "account_tree"),
         ("Export",        "Export (PDF/XLS)", "download"),
-        ("TimeTracking",  "Tidrapportering", "schedule")
+        ("TimeTracking",  "Tidrapportering", "schedule"),
+        ("Loans",         "Lån & Krediter",   "account_balance"),
+        ("Insurance",     "Försäkringar",     "security"),
+        ("SickLeave",     "Sjukfrånvaro",     "sick")
     };
 
     private bool IsSuperAdmin =>
         !string.IsNullOrEmpty(Config["AdminSetup:Email"]) &&
-        string.Equals(JwtAuthenticationStateProvider.CurrentUser?.Email,
+        string.Equals(AuthProvider.GetCurrentUser()?.Email,
             Config["AdminSetup:Email"], StringComparison.OrdinalIgnoreCase);
 
     protected override async Task OnInitializedAsync()
@@ -57,7 +66,11 @@
         if (IsSuperAdmin)
         {
             _signalRLoading = true;
-            try { _signalREnabled = await AdminSvc.GetSignalRStatusAsync(); }
+            try
+            {
+                var res = await AdminSvc.GetSignalRStatusAsync();
+                _signalREnabled = res?.Enabled ?? false; // FIX: CS0029 - mappar objekt till bool
+            }
             finally { _signalRLoading = false; }
         }
     }
@@ -81,7 +94,7 @@
         {
             await BudgetSvc.SetFeatureAsync(BudgetState.ActiveBudgetId, key, nowEnabled);
             if (nowEnabled) _disabledFeatures.Remove(key);
-            else            _disabledFeatures.Add(key);
+            else _disabledFeatures.Add(key);
             BudgetState.SetFeatures(_disabledFeatures);
             Toast.Success($"{key} {(nowEnabled ? "aktiverat" : "inaktiverat")}.");
         }
@@ -113,7 +126,6 @@
             {
                 Toast.Success($"Budget \"{created.Name}\" skapad.");
                 _newBudgetName = ""; _newBudgetDescription = "";
-                // Reload budgets list
                 var budgets = await BudgetSvc.GetMyBudgetsAsync();
                 if (budgets != null) BudgetState.SetBudgets(budgets);
             }
@@ -122,150 +134,6 @@
         finally { _creatingBudget = false; }
     }
 
-
-            else { Toast.Success($"Inbjudan skickad till {_inviteDisplayName}."); _inviteDisplayName = ""; _displayNameSuggestions.Clear(); }
-        }
-        catch (Exception ex) { Toast.Error(ex.Message); }
-        finally { _inviting = false; }
-    }
-
-    private async Task ToggleSignalRAsync()
-    {
-        _signalRSaving = true;
-        try { _signalREnabled = await AdminSvc.ToggleSignalRAsync(!_signalREnabled); Toast.Success(_signalREnabled ? "SignalR aktiverat." : "SignalR inaktiverat."); }
-        catch (Exception ex) { Toast.Error(ex.Message); }
-        finally { _signalRSaving = false; }
-    }
-
-    private RenderFragment Body() =>
-        @<div style="display:flex;flex-direction:column;gap:16px">
-
-            @* ── Budget name ────────────────────────────────────────────────── *@
-            <div class="card">
-                <div class="card-title"><span class="material-icons">manage_accounts</span> Budget — @BudgetState.ActiveBudgetName</div>
-                <div class="form-group"><label class="form-label">Budgetnamn</label><input class="form-control" @bind="_budgetName" /></div>
-                <div class="form-group"><label class="form-label">Beskrivning</label><input class="form-control" @bind="_budgetDescription" placeholder="Valfri beskrivning..." /></div>
-                @if (!string.IsNullOrEmpty(_saveError)) { <div style="color:var(--color-expense);font-size:.85rem;margin-bottom:8px">@_saveError</div> }
-                <button class="btn btn-primary btn-sm" @onclick="SaveBudgetAsync" disabled="@_saving">
-                    @if (_saving) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
-                    Spara
-                </button>
-            </div>
-
-            @* ── Feature flags ──────────────────────────────────────────────── *@
-            @if (BudgetState.IsOwner)
-            {
-                <div class="card">
-                    <div class="card-title"><span class="material-icons">toggle_on</span> Funktioner i denna budget</div>
-                    <p style="font-size:.85rem;color:var(--color-muted);margin-bottom:14px">
-                        Inaktivera funktioner du inte behöver för att hålla gränssnittet rent.
-                        Datan bevaras och kan aktiveras igen när som helst.
-                    </p>
-                    @if (_featuresLoading)
-                    {
-                        <div class="spinner" style="width:20px;height:20px;border-width:2px"></div>
-                    }
-                    else
-                    {
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-                            @foreach (var (key, label, icon) in AllFeatures)
-                            {
-                                var k = key; var enabled = !_disabledFeatures.Contains(k);
-                                <label style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--color-border);border-radius:8px;cursor:pointer;background:@(enabled ? "var(--color-surface)" : "var(--color-bg)")">
-                                    <input type="checkbox" checked="@enabled"
-                                           @onchange="e => ToggleFeatureAsync(k, e.Value is true)" />
-                                    <span class="material-icons" style="font-size:1.1rem;color:@(enabled ? "var(--color-primary)" : "var(--color-muted)")">@icon</span>
-                                    <span style="font-size:.875rem;@(enabled ? "" : "color:var(--color-muted)")">@label</span>
-                                </label>
-                            }
-                        </div>
-                    }
-                </div>
-            }
-
-            @* ── Invite member ──────────────────────────────────────────────── *@
-            @if (BudgetState.IsOwner)
-            {
-                <div class="card">
-                    <div class="card-title"><span class="material-icons">group_add</span> Bjud in användare</div>
-                    <div class="form-group">
-                        <label class="form-label">Smeknamn (DisplayName)</label>
-                        <div style="position:relative">
-                            <input class="form-control" @bind="_inviteDisplayName" @bind:event="oninput"
-                                   @oninput="OnSearchInput"
-                                   placeholder="Sök på smeknamn..." autocomplete="off" />
-                            @if (_displayNameSuggestions.Any())
-                            {
-                                <div style="position:absolute;top:100%;left:0;right:0;z-index:200;background:var(--color-surface);border:1px solid var(--color-border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.3)">
-                                    @foreach (var s in _displayNameSuggestions)
-                                    {
-                                        var sug = s;
-                                        <div style="padding:8px 12px;cursor:pointer;font-size:.875rem" @onclick="() => SelectSuggestion(sug)">@sug</div>
-                                    }
-                                </div>
-                            }
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Roll</label>
-                        <select class="form-control" @bind="_inviteRole">
-                            <option value="@BudgetMemberRole.Viewer">Läsare</option>
-                            <option value="@BudgetMemberRole.Editor">Redigerare</option>
-                            <option value="@BudgetMemberRole.Auditor">Revisor</option>
-                            <option value="@BudgetMemberRole.Owner">Ägare</option>
-                        </select>
-                    </div>
-                    <button class="btn btn-primary btn-sm" @onclick="InviteAsync" disabled="@_inviting">
-                        @if (_inviting) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
-                        <span class="material-icons" style="font-size:.9rem">send</span> Skicka inbjudan
-                    </button>
-                </div>
-            }
-
-            @* ── Create new budget ──────────────────────────────────────────── *@
-            <div class="card">
-                <div class="card-title"><span class="material-icons">add_circle_outline</span> @* ── Prenumeration ─────────────────────────────────────────────────────── *@
-            <div class="card">
-                <div class="card-title"><span class="material-icons">workspace_premium</span> Prenumeration</div>
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px">
-                    <div class="kpi-card"><div class="kpi-label">Plan</div><div class="kpi-value" style="font-size:1rem">@SubscriptionLimits.TierLabel(BudgetState.Tier)</div></div>
-                    <div class="kpi-card"><div class="kpi-label">Budgetar</div><div class="kpi-value" style="font-size:1rem">@BudgetState.UsedBudgets / @(BudgetState.MaxBudgets >= 9999 ? "∞" : BudgetState.MaxBudgets.ToString())</div></div>
-                    <div class="kpi-card"><div class="kpi-label">Max delning</div><div class="kpi-value" style="font-size:1rem">@(BudgetState.MaxMembers >= 9999 ? "∞" : BudgetState.MaxMembers.ToString()) pers</div></div>
-                </div>
-            </div>
-
-            Skapa ny budget</div>
-                <p style="font-size:.85rem;color:var(--color-muted);margin-bottom:14px">
-                    Skapa en separat budget för t.ex. ett projekt, ett hushåll eller ett företag.
-                </p>
-                <div class="form-group"><label class="form-label">Budgetnamn *</label><input class="form-control" @bind="_newBudgetName" placeholder="T.ex. Privatbudget 2025, Firma AB..." /></div>
-                <div class="form-group"><label class="form-label">Beskrivning</label><input class="form-control" @bind="_newBudgetDescription" /></div>
-                @if (!string.IsNullOrEmpty(_newBudgetError)) { <div style="color:var(--color-expense);font-size:.85rem;margin-bottom:8px">@_newBudgetError</div> }
-                <button class="btn btn-primary btn-sm" @onclick="CreateBudgetAsync" disabled="@_creatingBudget">
-                    @if (_creatingBudget) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
-                    Skapa budget
-                </button>
-            </div>
-
-            @* ── SignalR superadmin ─────────────────────────────────────────── *@
-            @if (IsSuperAdmin)
-            {
-                <div class="card">
-                    <div class="card-title"><span class="material-icons">hub</span> SignalR (Superadmin)</div>
-                    @if (_signalRLoading) { <div class="spinner" style="width:20px;height:20px;border-width:2px"></div> }
-                    else
-                    {
-                        <div style="display:flex;align-items:center;gap:12px">
-                            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.875rem">
-                                <input type="checkbox" checked="@_signalREnabled" @onchange="ToggleSignalRAsync" disabled="@_signalRSaving" />
-                                SignalR @(_signalREnabled ? "aktiverat" : "inaktiverat")
-                            </label>
-                            @if (_signalRSaving) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
-                        </div>
-                    }
-                </div>
-            }
-        </div>;
     private void OnSearchInput(ChangeEventArgs e)
     {
         var q = e.Value?.ToString() ?? "";
@@ -279,8 +147,7 @@
         }, null, 300, System.Threading.Timeout.Infinite);
     }
 
-    private void SelectSuggestion(string name)
-    { _inviteDisplayName = name; _displayNameSuggestions.Clear(); }
+    private void SelectSuggestion(string name) { _inviteDisplayName = name; _displayNameSuggestions.Clear(); }
 
     private async Task InviteAsync()
     {
@@ -290,24 +157,124 @@
         {
             var err = await InvSvc.SendInvitationAsync(BudgetState.ActiveBudgetId, _inviteDisplayName, _inviteRole);
             if (err != null) Toast.Error(err);
-            else { Toast.Success($"Inbjudan skickad till {_inviteDisplayName}."); _inviteDisplayName = ""; _displayNameSuggestions.Clear(); }
+            else
+            {
+                Toast.Success($"Inbjudan skickad till {_inviteDisplayName}.");
+                _inviteDisplayName = "";
+                _displayNameSuggestions.Clear();
+            }
         }
         catch (Exception ex) { Toast.Error(ex.Message); }
         finally { _inviting = false; }
     }
 
-    private async Task TransferOwnerAsync()
+    private async Task ToggleSignalRAsync()
     {
-        if (string.IsNullOrWhiteSpace(_transferTo)) return;
-        _transferring = true;
+        _signalRSaving = true;
         try
         {
-            var err = await InvSvc.TransferOwnerAsync(BudgetState.ActiveBudgetId, _transferTo);
-            if (err != null) Toast.Error(err);
-            else { Toast.Success("Ägarskap överfört."); _transferTo = ""; }
+            var res = await AdminSvc.ToggleSignalRAsync(!_signalREnabled);
+            _signalREnabled = res?.Enabled ?? !_signalREnabled;
+            Toast.Success(_signalREnabled ? "SignalR aktiverat." : "SignalR inaktiverat.");
         }
         catch (Exception ex) { Toast.Error(ex.Message); }
-        finally { _transferring = false; }
+        finally { _signalRSaving = false; }
     }
 
+    private async Task DeleteAccountAsync()
+    {
+        if (_deleteConfirmText != "RADERA") return;
+        _deleting = true;
+        try
+        {
+            var r = await Http.DeleteAsync("api/auth/account");
+            if (r.IsSuccessStatusCode)
+            {
+                await AuthProvider.LogoutAsync();
+                Nav.NavigateTo("/login");
+            }
+            else Toast.Error("Radering misslyckades. Försök igen.");
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+        finally { _deleting = false; _showDeleteConfirm = false; }
+    }
+
+    // Samlar all HTML i en RenderFragment för att undvika duplication mellan Desktop/Mobil
+    private RenderFragment SettingsContent =>
+    @<div style="display:flex;flex-direction:column;gap:16px">
+        <div class="card">
+            <div class="card-title"><span class="material-icons">manage_accounts</span> Budget — @BudgetState.ActiveBudgetName</div>
+            <div class="form-group"><label class="form-label">Budgetnamn</label><input class="form-control" @bind="_budgetName" /></div>
+            <div class="form-group"><label class="form-label">Beskrivning</label><input class="form-control" @bind="_budgetDescription" placeholder="Valfri beskrivning..." /></div>
+            @if (!string.IsNullOrEmpty(_saveError))
+            {
+                <div style="color:var(--color-expense);font-size:.85rem;margin-bottom:8px">@_saveError</div>
+            }
+            <button class="btn btn-primary btn-sm" @onclick="SaveBudgetAsync" disabled="@_saving">
+                @if (_saving)
+                {
+                    <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>
+                }
+                Spara
+            </button>
+        </div>
+
+        @if (BudgetState.IsOwner)
+        {
+            <div class="card">
+                <div class="card-title"><span class="material-icons">toggle_on</span> Funktioner</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                    @foreach (var (key, label, icon) in AllFeatures)
+                    {
+                        var k = key; var enabled = !_disabledFeatures.Contains(k);
+                        <label style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--color-border);border-radius:8px;cursor:pointer">
+                            <input type="checkbox" checked="@enabled" @onchange="e => ToggleFeatureAsync(k, e.Value is true)" />
+                            <span class="material-icons" style="font-size:1.1rem">@icon</span>
+                            <span style="font-size:.875rem">@label</span>
+                        </label>
+                    }
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title"><span class="material-icons">group_add</span> Bjud in</div>
+                <div class="form-group">
+                    <label class="form-label">Smeknamn</label>
+                    <div style="position:relative">
+                        @* FIX: RZ10008 - Tog bort @bind:event="oninput" för att tillåta manuell hantering i OnSearchInput *@
+                        <input class="form-control" value="@_inviteDisplayName" @oninput="OnSearchInput" placeholder="Sök..." autocomplete="off" />
+                        @if (_displayNameSuggestions.Any())
+                        {
+                            <div class="suggestions-dropdown" style="position:absolute;background:white;width:100%;z-index:10;border:1px solid #ccc">
+                                @foreach (var sug in _displayNameSuggestions)
+                                {
+                                    <div style="padding:8px;cursor:pointer" @onclick="() => SelectSuggestion(sug)">@sug</div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+                <button class="btn btn-primary btn-sm" @onclick="InviteAsync" disabled="@_inviting">Skicka</button>
+            </div>
+        }
+
+        <div class="card">
+            <div class="card-title"><span class="material-icons">workspace_premium</span> Prenumeration</div>
+            <div class="kpi-card"><div class="kpi-label">Plan</div><div class="kpi-value">@SubscriptionLimits.TierLabel(BudgetState.Tier)</div></div>
+        </div>
+
+        <div class="card" style="border-left:3px solid var(--color-expense)">
+            <div class="card-title" style="color:var(--color-expense)">Radera konto</div>
+            <p style="font-size:.82rem">Detta raderar all din persondata permanent.</p>
+            @if (_showDeleteConfirm)
+            {
+                <input class="form-control" @bind="_deleteConfirmText" placeholder="Skriv RADERA" />
+                <button class="btn btn-danger btn-sm" @onclick="DeleteAccountAsync" disabled="@(_deleteConfirmText != "RADERA" || _deleting)">Bekräfta</button>
+            }
+            else
+            {
+                <button class="btn btn-outline-danger btn-sm" @onclick="() => _showDeleteConfirm = true">Radera mitt konto</button>
+            }
+        </div>
+    </div>;
 }

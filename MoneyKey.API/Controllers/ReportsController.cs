@@ -13,9 +13,13 @@ public class ReportsController : BaseApiController
 {
     private readonly ITransactionRepository     _txRepo;
     private readonly BudgetAuthorizationService _auth;
+    private readonly ICategoryAccountMappingRepository _catMapRepo;
+    private readonly IJournalRepository _journal;
 
-    public ReportsController(ITransactionRepository txRepo, BudgetAuthorizationService auth)
-    { _txRepo = txRepo; _auth = auth; }
+
+    public ReportsController(ITransactionRepository txRepo, BudgetAuthorizationService auth,
+        ICategoryAccountMappingRepository catMapRepo, IJournalRepository journal)
+    { _txRepo = txRepo; _auth = auth; _catMapRepo = catMapRepo; _journal = journal; }
 
     [HttpGet("monthly-summary")]
     public async Task<IActionResult> MonthlySummary(int budgetId, [FromQuery] int year = 0)
@@ -73,4 +77,21 @@ public class ReportsController : BaseApiController
             .Take(10);
         return Ok(breakdown);
     }
+    [HttpGet("{budgetId:int}/reports/export-sie")]
+    public async Task<IActionResult> ExportSie(int budgetId,
+        [FromQuery] int year = 0,
+        [FromQuery] string companyName = "Budget",
+        [FromQuery] string? orgNumber = null)
+    {
+        if (!await _auth.HasRoleAsync(budgetId, UserId, BudgetMemberRole.Owner)) return Forbid();
+        year = year == 0 ? DateTime.Today.Year : year;
+        var q = new TransactionQuery { BudgetId = budgetId, StartDate = new DateTime(year,1,1), EndDate = new DateTime(year,12,31), ExcludeLinked = true };
+        var txs = await _txRepo.GetPagedAsync(q);
+        var txDtos = txs.Items.Select(_journal.MapToDto).ToList();
+        var mappings = await _catMapRepo.GetForBudgetAsync(budgetId);
+        var req = new MoneyKey.Core.DTOs.Sie.SieExportRequestDto { BudgetId = budgetId, Year = year, CompanyName = companyName, OrgNumber = orgNumber };
+        var bytes = MoneyKey.Core.Services.SieExportService.Generate(req, txDtos, mappings);
+        return File(bytes, "application/octet-stream", $"sie4_{companyName}_{year}.se");
+    }
+
 }

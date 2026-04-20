@@ -117,6 +117,12 @@ svcs.AddScoped<ISystemSettingRepository, SystemSettingRepository>();
 svcs.AddScoped<IListRepository,          ListRepository>();
         svcs.AddScoped<IUserSubscriptionRepository, UserSubscriptionRepository>();
         svcs.AddScoped<IBudgetInvitationRepository, BudgetInvitationRepository>();
+        svcs.AddScoped<ILoanRepository,                   LoanRepository>();
+        svcs.AddScoped<IInsuranceRepository,              InsuranceRepository>();
+        svcs.AddScoped<ISickLeaveRepository,              SickLeaveRepository>();
+        svcs.AddScoped<IBudgetTargetRepository,           BudgetTargetRepository>();
+        svcs.AddScoped<ICategoryAccountMappingRepository, CategoryAccountMappingRepository>();
+        svcs.AddScoped<AccountDeletionService>();
                 svcs.AddScoped<IJobRepository,            JobRepository>();
         svcs.AddScoped<ITimeEntryRepository,       TimeEntryRepository>();
 
@@ -132,7 +138,7 @@ svcs.AddScoped<ReceiptService>();
 svcs.AddScoped<JournalQueryService>();
         svcs.AddScoped<TimeTrackingService>();
 svcs.AddScoped<SignalRFeatureService>();
-svcs.AddScoped<Core.Services.Interfaces.IReceiptAttachmentService, Core.Services.NoOpReceiptAttachmentService>();
+svcs.AddScoped<MoneyKey.Core.Services.Interfaces.IReceiptAttachmentService, MoneyKey.Core.Services.NoOpReceiptAttachmentService>();
 
 // ── Email ─────────────────────────────────────────────────────────────────────
 var emailOpts = cfg.GetSection("Email").Get<EmailOptions>() ?? new EmailOptions();

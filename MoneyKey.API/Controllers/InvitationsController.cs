@@ -54,6 +54,17 @@ public class InvitationsController : BaseApiController
         if (inv.Status != BudgetInvitationStatus.Pending || inv.ExpiresAt < DateTime.UtcNow)
             return BadRequest(new { Message = "Inbjudan är inte längre giltig." });
 
+        // B2 fix: check owner's member limit at acceptance time
+        var budget = await _budgetRepo.GetByIdAsync(inv.BudgetId);
+        if (budget != null)
+        {
+            var ownerSub    = await _subRepo.GetAsync(budget.OwnerId) ?? new() { UserId = budget.OwnerId };
+            var memberCount = (await _budgetRepo.GetMembersAsync(inv.BudgetId)).Count;
+            var maxMembers  = ownerSub.IsAdmin ? int.MaxValue : SubscriptionLimits.MaxMembersPerBudget(ownerSub.Tier);
+            if (memberCount >= maxMembers)
+                return BadRequest(new { Message = "Budgetägarens plan tillåter inte fler medlemmar." });
+        }
+
         await _budgetRepo.AddMemberAsync(new BudgetMembership
         {
             BudgetId = inv.BudgetId, UserId = UserId, Role = inv.Role,

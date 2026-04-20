@@ -29,7 +29,41 @@
         </div>
     </div>
 
-    @if (BudgetState.CanEdit)
+
+    <!-- SIE4 Bokföringsexport -->
+    <div class="card">
+        <div class="card-title"><span class="material-icons">account_tree</span> SIE4 Bokföringsexport</div>
+        <p style="font-size:.875rem;color:var(--color-muted);margin-bottom:14px">
+            Exporterar transaktioner i SIE4-format som kan importeras i Bokio, Fortnox, Visma och andra bokföringssystem.
+        </p>
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Företagsnamn</label>
+                <input class="form-control" @bind="_sieCompany" placeholder="T.ex. Mitt AB" />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Org.nummer</label>
+                <input class="form-control" @bind="_sieOrgNr" placeholder="556123-4567" />
+            </div>
+            <div class="form-group">
+                <label class="form-label">År</label>
+                <select class="form-control" @bind="_sieYear">
+                    @for (var y = DateTime.Today.Year; y >= DateTime.Today.Year - 3; y--)
+                    { var yr = y; <option value="@yr">@yr</option> }
+                </select>
+            </div>
+        </div>
+        <button class="btn btn-secondary" @onclick="ExportSieAsync" disabled="@_exporting">
+            @if (_exporting) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
+            else { <span class="material-icons" style="font-size:.9rem">download</span> }
+            Ladda ned SIE4-fil (.se)
+        </button>
+        <div style="margin-top:8px;font-size:.76rem;color:var(--color-muted)">
+            Filen kan importeras direkt i Bokio, Fortnox eller Visma utan att kräva kontoinloggning.
+        </div>
+    </div>
+
+        @if (BudgetState.CanEdit)
     {
         <div class="card">
             <div class="card-title"><span class="material-icons">upload</span> Importera CSV</div>

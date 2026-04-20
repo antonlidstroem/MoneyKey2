@@ -1,0 +1,230 @@
+@page "/loans"
+@attribute [Authorize]
+@implements IDisposable
+@using MoneyKey.Blazor.Components.Shared
+@inject LoanApiService LoanSvc
+@inject ToastService Toast
+@inject BudgetState BudgetState
+
+<div class="desktop-page-wrapper">
+    <div class="page-header">
+        <span class="page-title">Lån &amp; Krediter</span>
+        @if (BudgetState.CanEdit)
+        {
+            <div class="header-actions">
+                <button class="btn btn-primary btn-sm" @onclick="OpenCreate">
+                    <span class="material-icons" style="font-size:.9rem">add</span> Nytt lån
+                </button>
+            </div>
+        }
+    </div>
+    <div class="page-content">
+        @if (_loading) { <div style="text-align:center;padding:48px"><div class="spinner"></div></div> }
+        else if (!_loans.Any())
+        {
+            <div style="text-align:center;padding:64px;color:var(--color-muted)">
+                <span class="material-icons" style="font-size:3rem;display:block;margin-bottom:12px;opacity:.35">account_balance</span>
+                Inga lån registrerade. Lägg till bolån, billån eller andra krediter.
+            </div>
+        }
+        else
+        {
+            <!-- KPI summary -->
+            <div class="card-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:16px">
+                <div class="kpi-card">
+                    <div class="kpi-label">Total skuld</div>
+                    <div class="kpi-value expense">@_loans.Where(l => l.IsActive).Sum(l => l.CurrentBalance).ToString("N0") kr</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Månadskostnad</div>
+                    <div class="kpi-value expense">@_loans.Where(l => l.IsActive).Sum(l => l.MonthlyPayment).ToString("N0") kr</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Snittränta</div>
+                    <div class="kpi-value">
+                        @if (_loans.Any(l => l.IsActive))
+                        {
+                            @((_loans.Where(l => l.IsActive).Average(l => l.InterestRate)).ToString("N2"))@("%")
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px">
+                @foreach (var loan in _loans)
+                {
+                    var l = loan;
+                    <div class="card">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+                            <div>
+                                <div style="font-weight:600;font-size:.95rem">@l.Name</div>
+                                <div style="font-size:.8rem;color:var(--color-muted)">@l.TypeLabel@(l.LenderName != null ? $" · {l.LenderName}" : "")</div>
+                            </div>
+                            <div style="display:flex;gap:4px;align-items:center">
+                                <span class="badge @(l.IsActive ? "badge-expense" : "badge-muted")" style="font-size:.7rem">@(l.IsActive ? "Aktivt" : "Avslutat")</span>
+                                @if (BudgetState.CanEdit)
+                                {
+                                    <button class="btn btn-ghost btn-icon btn-sm" @onclick="@(() => OpenEdit(l))"><span class="material-icons" style="font-size:.85rem">edit</span></button>
+                                    <button class="btn btn-ghost btn-icon btn-sm" @onclick="@(() => ConfirmDeleteAsync(l))"><span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span></button>
+                                }
+                            </div>
+                        </div>
+
+                        <!-- Progress bar: paid vs remaining -->
+                        @{
+                            var pct = l.OriginalAmount > 0 ? (int)(l.PaidAmount / l.OriginalAmount * 100) : 0;
+                        }
+                        <div style="height:6px;background:var(--color-border);border-radius:3px;margin-bottom:8px;overflow:hidden">
+                            <div style="height:100%;width:@(pct)%;background:var(--color-income);border-radius:3px;transition:width .3s"></div>
+                        </div>
+                        <div style="font-size:.75rem;color:var(--color-muted);margin-bottom:10px">@pct% återbetalt</div>
+
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:.82rem">
+                            <div><span style="color:var(--color-muted)">Saldo:</span> <strong style="color:var(--color-expense)">@l.CurrentBalance.ToString("N0") kr</strong></div>
+                            <div><span style="color:var(--color-muted)">Månad:</span> <strong>@l.MonthlyPayment.ToString("N0") kr</strong></div>
+                            <div><span style="color:var(--color-muted)">Ränta:</span> <strong>@l.InterestRate.ToString("N2")%</strong></div>
+                            @if (l.EstimatedMonthsLeft > 0)
+                            {
+                                <div><span style="color:var(--color-muted)">Kvar:</span> <strong>@l.EstimatedMonthsLeft mån</strong></div>
+                            }
+                        </div>
+                        @if (l.TotalInterestEstimate > 0)
+                        {
+                            <div style="margin-top:8px;font-size:.76rem;color:var(--color-muted)">
+                                Uppskattad total ränta: @l.TotalInterestEstimate.ToString("N0") kr
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Mobile -->
+<div class="mobile-page-shell">
+    <div class="mobile-topbar">
+        <span class="mobile-title">Lån &amp; Krediter</span>
+        @if (BudgetState.CanEdit) { <button class="mobile-icon-btn" @onclick="OpenCreate"><span class="material-icons">add</span></button> }
+    </div>
+    <div class="mobile-page-scroll">
+        @foreach (var l in _loans)
+        {
+            var loan = l;
+            <div class="mobile-entry-card">
+                <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+                    <div><div style="font-weight:500">@l.Name</div><div class="mobile-entry-card-meta">@l.TypeLabel@(l.LenderName != null ? $" · {l.LenderName}" : "")</div></div>
+                    <div style="text-align:right">
+                        <div style="font-weight:600;color:var(--color-expense)">@l.CurrentBalance.ToString("N0") kr</div>
+                        <div class="mobile-entry-card-meta">@l.InterestRate.ToString("N2")% · @l.MonthlyPayment.ToString("N0") kr/mån</div>
+                    </div>
+                </div>
+                @{
+                    var pct2 = l.OriginalAmount > 0 ? (int)(l.PaidAmount / l.OriginalAmount * 100) : 0;
+                }
+                <div class="mobile-progress-bar">
+                    <div class="mobile-progress-fill" style="width:@(pct2)%;background:var(--color-income)"></div>
+                </div>
+            </div>
+        }
+    </div>
+    @if (BudgetState.CanEdit) { <button class="mobile-fab" @onclick="OpenCreate"><span class="material-icons">add</span></button> }
+</div>
+
+<!-- Modal -->
+@if (_showModal)
+{
+    <div class="modal-overlay" @onclick="@(() => _showModal = false)">
+        <div class="modal" style="max-width:500px" @onclick:stopPropagation>
+            <div class="modal-header">
+                <span class="modal-title">@(_editLoan == null ? "Nytt lån" : "Redigera lån")</span>
+                <button class="btn btn-ghost btn-icon btn-sm" @onclick="@(() => _showModal = false)"><span class="material-icons">close</span></button>
+            </div>
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(_err)) { <div style="background:var(--color-expense-bg);color:var(--color-expense);padding:8px 12px;border-radius:8px;font-size:.85rem;margin-bottom:12px">@_err</div> }
+                <div class="form-group"><label class="form-label">Namn *</label><input class="form-control" @bind="_name" placeholder="T.ex. Bolån Nordea" /></div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Typ</label>
+                        <select class="form-control" @bind="_loanType">
+                            @foreach (var t in Enum.GetValues<LoanType>())
+                            { <option value="@t">@SwLoan(t)</option> }
+                        </select>
+                    </div>
+                    <div class="form-group"><label class="form-label">Långivare</label><input class="form-control" @bind="_lender" placeholder="Bank/institut" /></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">Ursprungsbelopp (kr)</label><input class="form-control" type="number" @bind="_origAmt" /></div>
+                    <div class="form-group"><label class="form-label">Nuvarande saldo (kr)</label><input class="form-control" type="number" @bind="_balance" /></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">Årsränta (%)</label><input class="form-control" type="number" step="0.01" @bind="_rate" /></div>
+                    <div class="form-group"><label class="form-label">Månadsbetalning (kr)</label><input class="form-control" type="number" @bind="_monthly" /></div>
+                </div>
+                <div class="form-group"><label class="form-label">Startdatum</label><input class="form-control" type="date" value="@_startDate.ToString("yyyy-MM-dd")" @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _startDate = d; }' /></div>
+                <div class="form-group"><label class="form-label">Anteckningar</label><input class="form-control" @bind="_notes" /></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="@(() => _showModal = false)">Avbryt</button>
+                <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                    @if (_saving) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> } Spara
+                </button>
+            </div>
+        </div>
+    </div>
+}
+<ConfirmDialog @ref="_confirm" Title="Ta bort lån" Message="Ta bort detta lån?" />
+
+@code {
+    private List<LoanDto> _loans = new();
+    private bool _loading = true, _showModal, _saving;
+    private string _err = "", _name = "", _lender = "", _notes = "";
+    private LoanType _loanType = LoanType.Mortgage;
+    private decimal _origAmt, _balance, _rate, _monthly;
+    private DateTime _startDate = DateTime.Today;
+    private LoanDto? _editLoan;
+    private ConfirmDialog? _confirm;
+
+    protected override async Task OnInitializedAsync() { BudgetState.StateChanged += Refresh; await ReloadAsync(); }
+    public void Dispose() => BudgetState.StateChanged -= Refresh;
+    private void Refresh() => InvokeAsync(async () => { await ReloadAsync(); StateHasChanged(); });
+
+    private async Task ReloadAsync() {
+        if (BudgetState.ActiveBudgetId <= 0) { _loading = false; return; }
+        _loading = true; _loans = await LoanSvc.GetAllAsync(BudgetState.ActiveBudgetId) ?? new(); _loading = false;
+    }
+
+    private void OpenCreate() {
+        _editLoan = null; _err = ""; _name = ""; _lender = ""; _notes = ""; _loanType = LoanType.Mortgage;
+        _origAmt = 0; _balance = 0; _rate = 0; _monthly = 0; _startDate = DateTime.Today; _showModal = true;
+    }
+    private void OpenEdit(LoanDto l) {
+        _editLoan = l; _err = ""; _name = l.Name; _lender = l.LenderName ?? ""; _notes = l.Notes ?? "";
+        _loanType = l.LoanType; _origAmt = l.OriginalAmount; _balance = l.CurrentBalance;
+        _rate = l.InterestRate; _monthly = l.MonthlyPayment; _startDate = l.StartDate; _showModal = true;
+    }
+
+    private async Task SaveAsync() {
+        if (string.IsNullOrWhiteSpace(_name)) { _err = "Ange ett namn."; return; }
+        _saving = true; _err = "";
+        try {
+            var dto = new CreateLoanDto { LoanType = _loanType, Name = _name.Trim(), LenderName = _lender.Length > 0 ? _lender : null,
+                OriginalAmount = _origAmt, CurrentBalance = _balance, InterestRate = _rate,
+                MonthlyPayment = _monthly, StartDate = _startDate, Notes = _notes.Length > 0 ? _notes : null };
+            if (_editLoan == null) await LoanSvc.CreateAsync(BudgetState.ActiveBudgetId, dto);
+            else await LoanSvc.UpdateAsync(BudgetState.ActiveBudgetId, _editLoan.Id, dto);
+            Toast.Success("Sparat."); _showModal = false; await ReloadAsync();
+        } catch (Exception ex) { _err = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task ConfirmDeleteAsync(LoanDto l) {
+        if (_confirm is null || !await _confirm.ShowAsync()) return;
+        try { await LoanSvc.DeleteAsync(BudgetState.ActiveBudgetId, l.Id); await ReloadAsync(); }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private static string SwLoan(LoanType t) => t switch {
+        LoanType.Mortgage => "Bolån", LoanType.CarLoan => "Billån", LoanType.StudentLoan => "Studielån",
+        LoanType.PersonalLoan => "Privatlån", LoanType.CreditCard => "Kreditkort", _ => "Övrigt" };
+}

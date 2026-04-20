@@ -80,4 +80,13 @@ public class JwtAuthenticationStateProvider : AuthenticationStateProvider
         }
         catch { return true; }
     }
+
+    
+    public UserDto? GetCurrentUser() => _currentUser;
+
+    public Task LogoutAsync()
+    {
+        ClearToken();
+        return Task.CompletedTask;
+    }
 }

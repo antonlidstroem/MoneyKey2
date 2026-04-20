@@ -67,6 +67,21 @@ public class VabService
         await _repo.DeleteAsync(id, budgetId);
     }
 
+    public VabDto ToDto(VabEntry v) => new VabDto
+    {
+        Id = v.Id,
+        BudgetId = v.BudgetId,
+        UserId = v.UserId,
+        ChildName = v.ChildName,
+        StartDate = v.StartDate,
+        EndDate = v.EndDate,
+        DailyBenefit = v.DailyBenefit,
+        Rate = v.Rate,
+        TotalDays = v.TotalDays,
+        TotalAmount = v.TotalAmount,
+        LinkedTransactionId = v.LinkedTransactionId
+    };
+
     /// <summary>
     /// Calculates the actual SGI-based daily VAB benefit.
     /// SGI = Sjukpenninggrundande inkomst (qualifying annual income).

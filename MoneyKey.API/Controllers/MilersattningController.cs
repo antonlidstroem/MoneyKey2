@@ -22,7 +22,10 @@ public class MilersattningController : BaseApiController
         {
             if (!await _auth.HasRoleAsync(bid, UserId, BudgetMemberRole.Viewer)) continue;
             var entries = await _repo.GetForBudgetAsync(bid);
-            all.AddRange(entries.Select(e => (object)_svc.ToDto(e)));
+
+           
+            all.AddRange(entries.Select(e =>
+                (object)MilersattningService.ToDto(e, MilersattningService.SwedishStatus(e.Status))));
         }
         return Ok(all);
     }

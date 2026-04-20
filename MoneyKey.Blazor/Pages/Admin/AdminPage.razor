@@ -68,7 +68,7 @@
         @if (_tab == 1)
         {
             <div style="display:flex;gap:8px;margin-bottom:12px">
-                <input class="form-control" style="max-width:300px" @bind="_search" @bind:event="oninput"
+                <input class="form-control" style="max-width:300px" @value="_search" @bind:event="oninput"
                        @oninput="OnSearchChange" placeholder="Sök e-post eller smeknamn..." />
             </div>
             @if (_usersLoading) { <div style="text-align:center;padding:40px"><div class="spinner"></div></div> }

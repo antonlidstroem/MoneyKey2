@@ -154,4 +154,21 @@ public class AuthController : BaseApiController
             .Include(m => m.Budget)
             .Select(m => new BudgetMembershipDto(m.BudgetId, m.Budget.Name, m.Role))
             .ToListAsync();
+    [Authorize]
+    [HttpDelete("account")]
+    public async Task<IActionResult> DeleteAccount([FromServices] MoneyKey.Core.Services.AccountDeletionService svc)
+    {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+        try
+        {
+            await svc.DeleteAccountAsync(userId);
+            return Ok(new { Message = "Ditt konto och all persondata har raderats." });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Message = $"Radering misslyckades: {ex.Message}" });
+        }
+    }
+
 }

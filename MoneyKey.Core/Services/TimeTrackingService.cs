@@ -1,4 +1,5 @@
 using MoneyKey.Core.DTOs.TimeEntry;
+using MoneyKey.DAL.Data;
 using MoneyKey.DAL.Repositories.Interfaces;
 using MoneyKey.Domain.Constants;
 using MoneyKey.Domain.Enums;
@@ -11,15 +12,18 @@ public class TimeTrackingService
     private readonly ITimeEntryRepository _entryRepo;
     private readonly IJobRepository       _jobRepo;
     private readonly ITransactionRepository _txRepo;
+    private readonly BudgetDbContext _db;
 
     public TimeTrackingService(
         ITimeEntryRepository entryRepo,
         IJobRepository jobRepo,
-        ITransactionRepository txRepo)
+        ITransactionRepository txRepo,
+        BudgetDbContext db)
     {
         _entryRepo = entryRepo;
         _jobRepo   = jobRepo;
         _txRepo    = txRepo;
+        _db        = db;
     }
 
     // ── Time entries ──────────────────────────────────────────────────────────
@@ -116,23 +120,33 @@ public class TimeTrackingService
         var description = dto.Description
             ?? $"Lön [{job.Name}] {dto.PayrollPeriodKey} — {entries.Sum(e => e.DurationMinutes) / 60m:N1} tim";
 
-        var tx = new Transaction
+        // B4 fix: atomic transaction — both ops succeed or both fail
+        await using var dbTx = await _db.Database.BeginTransactionAsync();
+        try
         {
-            BudgetId        = budgetId,
-            StartDate       = DateTime.Today,
-            NetAmount       = dto.NetAmount,
-            GrossAmount     = dto.GrossAmount,
-            Description     = description,
-            CategoryId      = CategoryConstants.Salary,
-            Type            = TransactionType.Income,
-            Recurrence      = Recurrence.OneTime,
-            IsActive        = true,
-            CreatedByUserId = userId
-        };
-        tx = await _txRepo.CreateAsync(tx);
-
-        await _entryRepo.MarkPostedAsync(dto.EntryIds, tx.Id, dto.PayrollPeriodKey);
-        return tx;
+            var transaction = new Transaction
+            {
+                BudgetId        = budgetId,
+                StartDate       = DateTime.Today,
+                NetAmount       = dto.NetAmount,
+                GrossAmount     = dto.GrossAmount,
+                Description     = description,
+                CategoryId      = CategoryConstants.Salary,
+                Type            = TransactionType.Income,
+                Recurrence      = Recurrence.OneTime,
+                IsActive        = true,
+                CreatedByUserId = userId
+            };
+            transaction = await _txRepo.CreateAsync(transaction);
+            await _entryRepo.MarkPostedAsync(dto.EntryIds, transaction.Id, dto.PayrollPeriodKey);
+            await dbTx.CommitAsync();
+            return transaction;
+        }
+        catch
+        {
+            await dbTx.RollbackAsync();
+            throw;
+        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

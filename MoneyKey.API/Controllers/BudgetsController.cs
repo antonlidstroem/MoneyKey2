@@ -46,9 +46,11 @@ public class BudgetsController : BaseApiController
     {
         // Enforce subscription budget limit
         var sub       = await _subRepo.GetAsync(UserId) ?? new() { UserId = UserId };
-        var existing  = await _repo.GetForUserAsync(UserId);
-        var maxBudgets = sub.IsAdmin ? int.MaxValue : SubscriptionLimits.MaxBudgets(sub.Tier);
-        if (existing.Count >= maxBudgets)
+        var existing   = await _repo.GetForUserAsync(UserId);
+        // B3 fix: only count active budgets the user owns (not just has membership in)
+        var ownedActive = existing.Count(b => b.IsActive && b.OwnerId == UserId);
+        var maxBudgets  = sub.IsAdmin ? int.MaxValue : SubscriptionLimits.MaxBudgets(sub.Tier);
+        if (ownedActive >= maxBudgets)
             return BadRequest(new { Message = $"Din plan ({SubscriptionLimits.TierLabel(sub.Tier)}) tillåter max {maxBudgets} budgetar. Uppgradera för att skapa fler." });
 
         var budget = await _repo.CreateAsync(new Budget { Name = dto.Name, Description = dto.Description, OwnerId = UserId });
