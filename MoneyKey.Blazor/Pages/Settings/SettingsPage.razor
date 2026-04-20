@@ -14,14 +14,14 @@
 <div class="desktop-page-wrapper">
     <div class="page-header"><span class="page-title">Inställningar</span></div>
     <div class="page-content" style="max-width:640px;display:flex;flex-direction:column;gap:16px">
-        @@SettingsContent
+        @SettingsContent
     </div>
 </div>
 
 <div class="mobile-page-shell">
     <div class="mobile-topbar"><span class="mobile-title">Inställningar</span></div>
     <div class="mobile-page-scroll">
-        @@SettingsContent
+        @SettingsContent
     </div>
 </div>
 
@@ -168,13 +168,14 @@
         finally { _inviting = false; }
     }
 
+    // Replace ToggleSignalRAsync method:
     private async Task ToggleSignalRAsync()
     {
         _signalRSaving = true;
         try
         {
-            var res = await AdminSvc.ToggleSignalRAsync(!_signalREnabled);
-            _signalREnabled = res?.Enabled ?? !_signalREnabled;
+            await AdminSvc.ToggleSignalRAsync(!_signalREnabled);
+            _signalREnabled = !_signalREnabled;
             Toast.Success(_signalREnabled ? "SignalR aktiverat." : "SignalR inaktiverat.");
         }
         catch (Exception ex) { Toast.Error(ex.Message); }

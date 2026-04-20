@@ -128,7 +128,8 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Period</label>
-                        <input class="form-control" type="month" @bind="_postPeriod" />
+                        <input class="form-control" type="date" value="@_eDate.ToString("yyyy-MM-dd")"
+                               @onchange="@(e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _eDate = d; })" />
                     </div>
                 </div>
                 <button class="btn btn-primary btn-sm" @onclick="PreviewPayrollAsync" disabled="@(_postJobId == 0 || string.IsNullOrEmpty(_postPeriod))">
@@ -273,41 +274,38 @@
 }
 
 @code {
-    private List<TimeEntryDto> _weekEntries  = new();
-    private List<JobDto>       _allJobs      = new();
-    private List<JobDto>       _hourlyJobs   = new();
-    private bool               _loading      = true;
+    private List<TimeEntryDto> _weekEntries = new();
+    private List<JobDto> _allJobs = new();
+    private List<JobDto> _hourlyJobs = new();
+    private bool _loading = true;
 
-    // Week navigation
     private DateTime _weekStart;
     private DateTime _weekEnd;
-    private int      WeekNum => System.Globalization.ISOWeek.GetWeekOfYear(_weekStart);
+    private int WeekNum => System.Globalization.ISOWeek.GetWeekOfYear(_weekStart);
 
-    // Entry modal
-    private bool          _showEntryModal, _savingEntry;
-    private string        _entryError = "";
+    private bool _showEntryModal, _savingEntry;
+    private string _entryError = "";
     private TimeEntryDto? _editEntry;
-    private int           _eJobId;
-    private DateTime      _eDate     = DateTime.Today;
-    private bool          _eManual   = true;
-    private int           _eHours, _eMinutes;
-    private TimeSpan      _eStart, _eEnd;
-    private string?       _eDesc;
-    private bool          _eIsBreak;
+    private int _eJobId;
+    private DateTime _eDate = DateTime.Today;
+    private bool _eManual = true;
+    private int _eHours, _eMinutes;
+    // FIX: TimeOnly instead of TimeSpan — Blazor @bind on <input type="time"> requires TimeOnly
+    private TimeOnly _eStart, _eEnd;
+    private string? _eDesc;
+    private bool _eIsBreak;
 
-    // Payroll
-    private int                    _postJobId;
-    private string                 _postPeriod = DateTime.Today.ToString("yyyy-MM");
+    private int _postJobId;
+    private string _postPeriod = DateTime.Today.ToString("yyyy-MM");
     private PayrollPeriodSummaryDto? _payrollPreview;
-    private decimal                _postGross, _postNet;
-    private string?                _postDesc;
-    private bool                   _posting;
+    private decimal _postGross, _postNet;
+    private string? _postDesc;
+    private bool _posting;
 
-    // Computed
     private decimal WeekTotalHours => _weekEntries.Where(e => !e.IsBreak).Sum(e => e.DurationMinutes) / 60m;
-    private decimal WeekGross      => _weekEntries.Where(e => !e.IsBreak && !e.IsPosted).Sum(e => e.GrossEarned);
-    private decimal UnpostedHours  => _weekEntries.Where(e => !e.IsBreak && !e.IsPosted).Sum(e => e.DurationMinutes) / 60m;
-    private decimal UnpostedGross  => _weekEntries.Where(e => !e.IsBreak && !e.IsPosted).Sum(e => e.GrossEarned);
+    private decimal WeekGross => _weekEntries.Where(e => !e.IsBreak && !e.IsPosted).Sum(e => e.GrossEarned);
+    private decimal UnpostedHours => _weekEntries.Where(e => !e.IsBreak && !e.IsPosted).Sum(e => e.DurationMinutes) / 60m;
+    private decimal UnpostedGross => _weekEntries.Where(e => !e.IsBreak && !e.IsPosted).Sum(e => e.GrossEarned);
 
     protected override async Task OnInitializedAsync()
     {
@@ -324,20 +322,20 @@
 
     private void SetWeek(DateTime date)
     {
-        var dow   = (int)date.DayOfWeek;
-        var diff  = dow == 0 ? -6 : -(dow - 1); // Monday = start
+        var dow = (int)date.DayOfWeek;
+        var diff = dow == 0 ? -6 : -(dow - 1);
         _weekStart = date.AddDays(diff).Date;
-        _weekEnd   = _weekStart.AddDays(6).Date;
+        _weekEnd = _weekStart.AddDays(6).Date;
     }
 
     private async Task PrevWeek() { SetWeek(_weekStart.AddDays(-7)); await ReloadEntriesAsync(); }
-    private async Task NextWeek() { SetWeek(_weekStart.AddDays(7));  await ReloadEntriesAsync(); }
-    private async Task GoToday()  { SetWeek(DateTime.Today);         await ReloadEntriesAsync(); }
+    private async Task NextWeek() { SetWeek(_weekStart.AddDays(7)); await ReloadEntriesAsync(); }
+    private async Task GoToday() { SetWeek(DateTime.Today); await ReloadEntriesAsync(); }
 
     private async Task ReloadJobsAsync()
     {
         if (BudgetState.ActiveBudgetId <= 0) return;
-        _allJobs    = await JobSvc.GetAllAsync(BudgetState.ActiveBudgetId) ?? new();
+        _allJobs = await JobSvc.GetAllAsync(BudgetState.ActiveBudgetId) ?? new();
         _hourlyJobs = _allJobs.Where(j => j.PayType == JobPayType.Hourly
                                        && j.TransactionMode == JobTransactionMode.AutoCreate).ToList();
     }
@@ -345,27 +343,39 @@
     private async Task ReloadEntriesAsync()
     {
         if (BudgetState.ActiveBudgetId <= 0) { _loading = false; return; }
-        _loading     = true;
+        _loading = true;
         _weekEntries = await EntrySvc.GetAllAsync(BudgetState.ActiveBudgetId, from: _weekStart, to: _weekEnd) ?? new();
-        _loading     = false;
+        _loading = false;
     }
 
-    // ── Entry modal ─────────────────────────────────────────────────────────
     private void OpenAddEntry()
     {
-        _editEntry = null; _entryError = ""; _eJobId = _allJobs.FirstOrDefault()?.Id ?? 0;
-        _eDate = DateTime.Today; _eManual = true; _eHours = 0; _eMinutes = 0;
-        _eStart = TimeSpan.Zero; _eEnd = TimeSpan.Zero; _eDesc = null; _eIsBreak = false;
+        _editEntry = null; _entryError = "";
+        _eJobId = _allJobs.FirstOrDefault()?.Id ?? 0;
+        _eDate = DateTime.Today;
+        _eManual = true;
+        _eHours = 0; _eMinutes = 0;
+        // FIX: TimeOnly.MinValue instead of TimeSpan.Zero
+        _eStart = TimeOnly.MinValue;
+        _eEnd = TimeOnly.MinValue;
+        _eDesc = null;
+        _eIsBreak = false;
         _showEntryModal = true;
     }
 
     private void OpenEditEntry(TimeEntryDto e)
     {
-        _editEntry  = e; _entryError = ""; _eJobId = e.JobId; _eDate = e.Date;
-        _eManual    = !e.StartTime.HasValue;
-        _eHours     = e.DurationMinutes / 60; _eMinutes = e.DurationMinutes % 60;
-        _eStart     = e.StartTime ?? TimeSpan.Zero; _eEnd = e.EndTime ?? TimeSpan.Zero;
-        _eDesc      = e.Description; _eIsBreak = e.IsBreak;
+        _editEntry = e; _entryError = "";
+        _eJobId = e.JobId;
+        _eDate = e.Date;
+        _eManual = !e.StartTime.HasValue;
+        _eHours = e.DurationMinutes / 60;
+        _eMinutes = e.DurationMinutes % 60;
+        // FIX: convert TimeSpan? → TimeOnly
+        _eStart = e.StartTime.HasValue ? TimeOnly.FromTimeSpan(e.StartTime.Value) : TimeOnly.MinValue;
+        _eEnd = e.EndTime.HasValue ? TimeOnly.FromTimeSpan(e.EndTime.Value) : TimeOnly.MinValue;
+        _eDesc = e.Description;
+        _eIsBreak = e.IsBreak;
         _showEntryModal = true;
     }
 
@@ -381,17 +391,28 @@
         }
         else
         {
-            startTs = _eStart; endTs = _eEnd;
-            duration = (int)(_eEnd - _eStart).TotalMinutes;
+            // FIX: convert TimeOnly → TimeSpan for the DTO
+            startTs = _eStart.ToTimeSpan();
+            endTs = _eEnd.ToTimeSpan();
+            duration = (int)(endTs.Value - startTs.Value).TotalMinutes;
             if (duration <= 0) { _entryError = "Sluttid måste vara efter starttid."; return; }
         }
 
         _savingEntry = true; _entryError = "";
         try
         {
-            var dto = new CreateTimeEntryDto { JobId = _eJobId, Date = _eDate, StartTime = startTs, EndTime = endTs, DurationMinutes = duration, Description = _eDesc, IsBreak = _eIsBreak };
+            var dto = new CreateTimeEntryDto
+            {
+                JobId = _eJobId,
+                Date = _eDate,
+                StartTime = startTs,
+                EndTime = endTs,
+                DurationMinutes = duration,
+                Description = _eDesc,
+                IsBreak = _eIsBreak
+            };
             if (_editEntry == null) await EntrySvc.CreateAsync(BudgetState.ActiveBudgetId, dto);
-            else                    await EntrySvc.UpdateAsync(BudgetState.ActiveBudgetId, _editEntry.Id, dto);
+            else await EntrySvc.UpdateAsync(BudgetState.ActiveBudgetId, _editEntry.Id, dto);
             Toast.Success("Tidpost sparad.");
             _showEntryModal = false;
             await ReloadEntriesAsync();
@@ -406,7 +427,6 @@
         catch (Exception ex) { Toast.Error(ex.Message); }
     }
 
-    // ── Payroll ─────────────────────────────────────────────────────────────
     private async Task PreviewPayrollAsync()
     {
         try
@@ -414,8 +434,8 @@
             _payrollPreview = await EntrySvc.GetPeriodSummaryAsync(BudgetState.ActiveBudgetId, _postJobId, _postPeriod);
             if (_payrollPreview == null) { Toast.Error("Inga opostade timmar för vald period."); return; }
             _postGross = _payrollPreview.GrossAmount;
-            _postNet   = Math.Round(_postGross * 0.70m, 0); // ~30% tax placeholder
-            _postDesc  = $"Lön [{_payrollPreview.JobName}] {_payrollPreview.PeriodLabel}";
+            _postNet = Math.Round(_postGross * 0.70m, 0);
+            _postDesc = $"Lön [{_payrollPreview.JobName}] {_payrollPreview.PeriodLabel}";
         }
         catch (Exception ex) { Toast.Error(ex.Message); }
     }
@@ -428,12 +448,12 @@
         {
             var dto = new PostToPayrollDto
             {
-                JobId            = _postJobId,
+                JobId = _postJobId,
                 PayrollPeriodKey = _postPeriod,
-                EntryIds         = _payrollPreview.Entries.Select(e => e.Id).ToList(),
-                GrossAmount      = _postGross,
-                NetAmount        = _postNet,
-                Description      = _postDesc
+                EntryIds = _payrollPreview.Entries.Select(e => e.Id).ToList(),
+                GrossAmount = _postGross,
+                NetAmount = _postNet,
+                Description = _postDesc
             };
             var result = await EntrySvc.PostToPayrollAsync(BudgetState.ActiveBudgetId, dto);
             Toast.Success($"Lönetransaktion skapad: {result?.GrossAmount.ToString("N0")} kr brutto.");

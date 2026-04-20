@@ -49,14 +49,16 @@
     {
         _error = "";
         if (string.IsNullOrWhiteSpace(_displayName)) { _error = "Välj ett smeknamn."; return; }
-        if (_displayName.Contains(' '))               { _error = "Smeknamnet får inte innehålla mellanslag."; return; }
-        if (string.IsNullOrWhiteSpace(_email))        { _error = "Ange e-postadress."; return; }
-        if (_password.Length < 8)                     { _error = "Lösenordet måste vara minst 8 tecken."; return; }
+        if (_displayName.Contains(' ')) { _error = "Smeknamnet får inte innehålla mellanslag."; return; }
+        if (string.IsNullOrWhiteSpace(_email)) { _error = "Ange e-postadress."; return; }
+        if (_password.Length < 8) { _error = "Lösenordet måste vara minst 8 tecken."; return; }
 
         _loading = true;
         try
         {
-            await AuthSvc.RegisterAsync(_firstName, _lastName, _displayName.Trim(), _email, _password);
+         
+            await AuthSvc.RegisterAsync(
+                new RegisterDto(_email, _password, _firstName, _lastName, _displayName.Trim()));
             Nav.NavigateTo("/");
         }
         catch (Exception ex) { _error = ex.Message; }

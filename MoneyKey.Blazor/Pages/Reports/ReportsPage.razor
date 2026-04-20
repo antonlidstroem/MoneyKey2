@@ -118,16 +118,21 @@
     private string? _sessionId;
     private bool _importing, _exporting;
 
+    // FIX: missing SIE export fields
+    private string _sieCompany = "Budget";
+    private string? _sieOrgNr;
+    private int _sieYear = DateTime.Today.Year;
+
     private async Task ExportPdfAsync()
     {
         if (BudgetState.ActiveBudgetId <= 0) return;
         _exporting = true;
         try
         {
-            var url      = JournalSvc.GetPdfUrl(BudgetState.ActiveBudgetId, Filter.Query);
+            var url = JournalSvc.GetPdfUrl(BudgetState.ActiveBudgetId, Filter.Query);
             var response = await Http.GetAsync(url);
             if (!response.IsSuccessStatusCode) { Toast.Error($"Export misslyckades ({(int)response.StatusCode})."); return; }
-            var base64   = Convert.ToBase64String(await response.Content.ReadAsByteArrayAsync());
+            var base64 = Convert.ToBase64String(await response.Content.ReadAsByteArrayAsync());
             await JS.InvokeVoidAsync("downloadFile", $"transaktioner_{DateTime.Today:yyyyMMdd}.pdf", "application/pdf", base64);
         }
         catch (Exception ex) { Toast.Error($"Export misslyckades: {ex.Message}"); }
@@ -140,13 +145,35 @@
         _exporting = true;
         try
         {
-            var url      = JournalSvc.GetExcelUrl(BudgetState.ActiveBudgetId, Filter.Query);
+            var url = JournalSvc.GetExcelUrl(BudgetState.ActiveBudgetId, Filter.Query);
             var response = await Http.GetAsync(url);
             if (!response.IsSuccessStatusCode) { Toast.Error($"Export misslyckades ({(int)response.StatusCode})."); return; }
-            var base64   = Convert.ToBase64String(await response.Content.ReadAsByteArrayAsync());
-            await JS.InvokeVoidAsync("downloadFile", $"transaktioner_{DateTime.Today:yyyyMMdd}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", base64);
+            var base64 = Convert.ToBase64String(await response.Content.ReadAsByteArrayAsync());
+            await JS.InvokeVoidAsync("downloadFile", $"transaktioner_{DateTime.Today:yyyyMMdd}.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", base64);
         }
         catch (Exception ex) { Toast.Error($"Export misslyckades: {ex.Message}"); }
+        finally { _exporting = false; }
+    }
+
+    // FIX: add missing ExportSieAsync
+    private async Task ExportSieAsync()
+    {
+        if (BudgetState.ActiveBudgetId <= 0) return;
+        _exporting = true;
+        try
+        {
+            var company = Uri.EscapeDataString(_sieCompany);
+            var url = $"api/budgets/{BudgetState.ActiveBudgetId}/reports/export-sie" +
+                           $"?year={_sieYear}&companyName={company}" +
+                           (_sieOrgNr != null ? $"&orgNumber={Uri.EscapeDataString(_sieOrgNr)}" : "");
+            var response = await Http.GetAsync(url);
+            if (!response.IsSuccessStatusCode) { Toast.Error("SIE-export misslyckades."); return; }
+            var base64 = Convert.ToBase64String(await response.Content.ReadAsByteArrayAsync());
+            await JS.InvokeVoidAsync("downloadFile",
+                $"sie4_{_sieCompany}_{_sieYear}.se", "application/octet-stream", base64);
+        }
+        catch (Exception ex) { Toast.Error($"SIE-export: {ex.Message}"); }
         finally { _exporting = false; }
     }
 
@@ -165,7 +192,8 @@
         var selected = _preview.Rows.Where(r => r.Selected).Select(r => r.RowIndex).ToList();
         try
         {
-            var count = await ImportSvc.ConfirmAsync(BudgetState.ActiveBudgetId, new ConfirmImportDto(selected, 3, _sessionId));
+            var count = await ImportSvc.ConfirmAsync(BudgetState.ActiveBudgetId,
+                new ConfirmImportDto(selected, 3, _sessionId));
             Toast.Success($"{count} transaktioner importerade.");
             _preview = null; _sessionId = null;
         }

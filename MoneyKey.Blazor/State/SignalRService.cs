@@ -8,32 +8,28 @@ namespace MoneyKey.Blazor.State;
 public class SignalRService : IAsyncDisposable
 {
     private HubConnection? _hub;
-    private int     _budgetId;
-    private string  _apiBase  = string.Empty;
-    private bool    _disabled = false;
+    private int _budgetId;
+    private string _apiBase = string.Empty;
+    private bool _disabled = false;
     private AuthenticationStateProvider? _authProvider;
 
     public event Func<BudgetHubEvent, Task>? OnBudgetEvent;
 
-    /// <summary>
-    /// Connects to the SignalR hub if the feature is enabled on the server.
-    /// If the server reports SignalR disabled, the connection is skipped silently.
-    /// </summary>
     public async Task ConnectAsync(
         string apiBase,
         string accessToken,
-        int    budgetId,
+        int budgetId,
         HttpClient http,
         AuthenticationStateProvider? authProvider = null)
     {
-        _apiBase      = apiBase;
+        _apiBase = apiBase;
         _authProvider = authProvider;
 
-        // Check server-side toggle before attempting connection
         try
         {
             var adminSvc = new AdminApiService(http);
-            _disabled = !await adminSvc.GetSignalRStatusAsync();
+            var status = await adminSvc.GetSignalRStatusAsync();
+            _disabled = !(status?.Enabled ?? true);   // FIX: read .Enabled, then negate
         }
         catch { _disabled = false; }
 
@@ -42,7 +38,7 @@ public class SignalRService : IAsyncDisposable
         if (_hub != null) { await _hub.DisposeAsync(); _hub = null; }
 
         _budgetId = budgetId;
-        _hub      = BuildConnection(apiBase, accessToken);
+        _hub = BuildConnection(apiBase, accessToken);
         RegisterHandlers();
 
         await _hub.StartAsync();
