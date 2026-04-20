@@ -17,6 +17,7 @@ public interface IBudgetRepository
     Task                      UpdateMemberRoleAsync(int budgetId, string userId, BudgetMemberRole role);
     Task                      RemoveMemberAsync(int budgetId, string userId);
     Task<BudgetMembership?>   GetByInviteTokenAsync(string token);
+    Task<List<BudgetMembership>> GetMembersAsync(int budgetId);
     // Feature flags (stored in AppSettings as Feature_<key>)
     Task<List<string>>        GetDisabledFeaturesAsync(int budgetId);
     Task                      DisableFeatureAsync(int budgetId, string feature);

@@ -29,7 +29,41 @@
         </div>
     </div>
 
-    @if (BudgetState.CanEdit)
+
+    <!-- SIE4 Bokföringsexport -->
+    <div class="card">
+        <div class="card-title"><span class="material-icons">account_tree</span> SIE4 Bokföringsexport</div>
+        <p style="font-size:.875rem;color:var(--color-muted);margin-bottom:14px">
+            Exporterar transaktioner i SIE4-format som kan importeras i Bokio, Fortnox, Visma och andra bokföringssystem.
+        </p>
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Företagsnamn</label>
+                <input class="form-control" @bind="_sieCompany" placeholder="T.ex. Mitt AB" />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Org.nummer</label>
+                <input class="form-control" @bind="_sieOrgNr" placeholder="556123-4567" />
+            </div>
+            <div class="form-group">
+                <label class="form-label">År</label>
+                <select class="form-control" @bind="_sieYear">
+                    @for (var y = DateTime.Today.Year; y >= DateTime.Today.Year - 3; y--)
+                    { var yr = y; <option value="@yr">@yr</option> }
+                </select>
+            </div>
+        </div>
+        <button class="btn btn-secondary" @onclick="ExportSieAsync" disabled="@_exporting">
+            @if (_exporting) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
+            else { <span class="material-icons" style="font-size:.9rem">download</span> }
+            Ladda ned SIE4-fil (.se)
+        </button>
+        <div style="margin-top:8px;font-size:.76rem;color:var(--color-muted)">
+            Filen kan importeras direkt i Bokio, Fortnox eller Visma utan att kräva kontoinloggning.
+        </div>
+    </div>
+
+        @if (BudgetState.CanEdit)
     {
         <div class="card">
             <div class="card-title"><span class="material-icons">upload</span> Importera CSV</div>
@@ -84,16 +118,21 @@
     private string? _sessionId;
     private bool _importing, _exporting;
 
+    // FIX: missing SIE export fields
+    private string _sieCompany = "Budget";
+    private string? _sieOrgNr;
+    private int _sieYear = DateTime.Today.Year;
+
     private async Task ExportPdfAsync()
     {
         if (BudgetState.ActiveBudgetId <= 0) return;
         _exporting = true;
         try
         {
-            var url      = JournalSvc.GetPdfUrl(BudgetState.ActiveBudgetId, Filter.Query);
+            var url = JournalSvc.GetPdfUrl(BudgetState.ActiveBudgetId, Filter.Query);
             var response = await Http.GetAsync(url);
             if (!response.IsSuccessStatusCode) { Toast.Error($"Export misslyckades ({(int)response.StatusCode})."); return; }
-            var base64   = Convert.ToBase64String(await response.Content.ReadAsByteArrayAsync());
+            var base64 = Convert.ToBase64String(await response.Content.ReadAsByteArrayAsync());
             await JS.InvokeVoidAsync("downloadFile", $"transaktioner_{DateTime.Today:yyyyMMdd}.pdf", "application/pdf", base64);
         }
         catch (Exception ex) { Toast.Error($"Export misslyckades: {ex.Message}"); }
@@ -106,13 +145,35 @@
         _exporting = true;
         try
         {
-            var url      = JournalSvc.GetExcelUrl(BudgetState.ActiveBudgetId, Filter.Query);
+            var url = JournalSvc.GetExcelUrl(BudgetState.ActiveBudgetId, Filter.Query);
             var response = await Http.GetAsync(url);
             if (!response.IsSuccessStatusCode) { Toast.Error($"Export misslyckades ({(int)response.StatusCode})."); return; }
-            var base64   = Convert.ToBase64String(await response.Content.ReadAsByteArrayAsync());
-            await JS.InvokeVoidAsync("downloadFile", $"transaktioner_{DateTime.Today:yyyyMMdd}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", base64);
+            var base64 = Convert.ToBase64String(await response.Content.ReadAsByteArrayAsync());
+            await JS.InvokeVoidAsync("downloadFile", $"transaktioner_{DateTime.Today:yyyyMMdd}.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", base64);
         }
         catch (Exception ex) { Toast.Error($"Export misslyckades: {ex.Message}"); }
+        finally { _exporting = false; }
+    }
+
+    // FIX: add missing ExportSieAsync
+    private async Task ExportSieAsync()
+    {
+        if (BudgetState.ActiveBudgetId <= 0) return;
+        _exporting = true;
+        try
+        {
+            var company = Uri.EscapeDataString(_sieCompany);
+            var url = $"api/budgets/{BudgetState.ActiveBudgetId}/reports/export-sie" +
+                           $"?year={_sieYear}&companyName={company}" +
+                           (_sieOrgNr != null ? $"&orgNumber={Uri.EscapeDataString(_sieOrgNr)}" : "");
+            var response = await Http.GetAsync(url);
+            if (!response.IsSuccessStatusCode) { Toast.Error("SIE-export misslyckades."); return; }
+            var base64 = Convert.ToBase64String(await response.Content.ReadAsByteArrayAsync());
+            await JS.InvokeVoidAsync("downloadFile",
+                $"sie4_{_sieCompany}_{_sieYear}.se", "application/octet-stream", base64);
+        }
+        catch (Exception ex) { Toast.Error($"SIE-export: {ex.Message}"); }
         finally { _exporting = false; }
     }
 
@@ -131,7 +192,8 @@
         var selected = _preview.Rows.Where(r => r.Selected).Select(r => r.RowIndex).ToList();
         try
         {
-            var count = await ImportSvc.ConfirmAsync(BudgetState.ActiveBudgetId, new ConfirmImportDto(selected, 3, _sessionId));
+            var count = await ImportSvc.ConfirmAsync(BudgetState.ActiveBudgetId,
+                new ConfirmImportDto(selected, 3, _sessionId));
             Toast.Success($"{count} transaktioner importerade.");
             _preview = null; _sessionId = null;
         }

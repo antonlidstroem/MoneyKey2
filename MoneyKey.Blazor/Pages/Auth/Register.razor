@@ -4,7 +4,7 @@
 @inject NavigationManager Nav
 
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--color-bg)">
-    <div style="width:100%;max-width:380px;padding:24px">
+    <div style="width:100%;max-width:420px;padding:24px">
         <div style="text-align:center;margin-bottom:32px">
             <h1 style="font-size:1.8rem;font-weight:700;color:var(--color-primary)">MoneyKey</h1>
             <p style="color:var(--color-muted);font-size:.9rem;margin-top:4px">Skapa ett nytt konto</p>
@@ -17,6 +17,13 @@
             <div class="form-row">
                 <div class="form-group"><label class="form-label">Förnamn</label><input class="form-control" @bind="_firstName" /></div>
                 <div class="form-group"><label class="form-label">Efternamn</label><input class="form-control" @bind="_lastName" /></div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Smeknamn *</label>
+                <input class="form-control" @bind="_displayName" placeholder="T.ex. anna_k, bjorn123..." maxlength="50" />
+                <div style="font-size:.75rem;color:var(--color-muted);margin-top:3px">
+                    Visas för andra användare istället för din e-postadress. Kan inte innehålla mellanslag.
+                </div>
             </div>
             <div class="form-group"><label class="form-label">E-postadress</label><input class="form-control" type="email" @bind="_email" /></div>
             <div class="form-group">
@@ -35,17 +42,24 @@
 </div>
 
 @code {
-    private string _firstName = "", _lastName = "", _email = "", _password = "", _error = "";
+    private string _firstName = "", _lastName = "", _displayName = "", _email = "", _password = "", _error = "";
     private bool _loading;
 
     private async Task RegisterAsync()
     {
-        _error = ""; _loading = true;
+        _error = "";
+        if (string.IsNullOrWhiteSpace(_displayName)) { _error = "Välj ett smeknamn."; return; }
+        if (_displayName.Contains(' ')) { _error = "Smeknamnet får inte innehålla mellanslag."; return; }
+        if (string.IsNullOrWhiteSpace(_email)) { _error = "Ange e-postadress."; return; }
+        if (_password.Length < 8) { _error = "Lösenordet måste vara minst 8 tecken."; return; }
+
+        _loading = true;
         try
         {
-            var result = await AuthSvc.RegisterAsync(new RegisterDto(_email, _password, _firstName, _lastName));
-            if (result != null) Nav.NavigateTo("/");
-            else _error = "Registreringen misslyckades.";
+         
+            await AuthSvc.RegisterAsync(
+                new RegisterDto(_email, _password, _firstName, _lastName, _displayName.Trim()));
+            Nav.NavigateTo("/");
         }
         catch (Exception ex) { _error = ex.Message; }
         finally { _loading = false; }

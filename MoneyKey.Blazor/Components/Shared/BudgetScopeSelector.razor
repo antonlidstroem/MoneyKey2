@@ -1,0 +1,85 @@
+@inject BudgetState BudgetState
+
+@* ── Budget scope selector component ──────────────────────────────────────────
+   Usage: <BudgetScopeSelector @bind-SelectedIds="_scopeIds" OnChanged="ReloadAsync" />
+   Default: single active budget. "Alla" fetches all user budgets. Custom = multi-select.
+─────────────────────────────────────────────────────────────────────────────── *@
+
+<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+    <button class="btn btn-sm @(_mode == 0 ? "btn-primary" : "btn-secondary")" @onclick="SetSingle">
+        <span class="material-icons" style="font-size:.8rem">account_balance_wallet</span>
+        Denna budget
+    </button>
+    <button class="btn btn-sm @(_mode == 1 ? "btn-primary" : "btn-secondary")" @onclick="SetAll">
+        <span class="material-icons" style="font-size:.8rem">dashboard</span>
+        Alla mina
+    </button>
+    <button class="btn btn-sm @(_mode == 2 ? "btn-primary" : "btn-secondary")" @onclick="() => _showPicker = !_showPicker">
+        <span class="material-icons" style="font-size:.8rem">tune</span>
+        Välj
+        @if (_mode == 2) { <span style="margin-left:3px">(@SelectedIds.Count)</span> }
+    </button>
+
+    @if (_showPicker && _mode == 2)
+    {
+        <div style="position:absolute;z-index:1000;background:var(--color-surface);border:1px solid var(--color-border);border-radius:10px;padding:12px;box-shadow:0 4px 16px rgba(0,0,0,.3);min-width:200px;margin-top:36px">
+            @foreach (var b in BudgetState.MyBudgets)
+            {
+                var bid = b.Id;
+                var checked_ = SelectedIds.Contains(bid);
+                <label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:.85rem">
+                    <input type="checkbox" checked="@checked_"
+                           @onchange="() => ToggleBudget(bid)" />
+                    @b.Name
+                </label>
+            }
+            <button class="btn btn-primary btn-sm" style="width:100%;margin-top:8px" @onclick="ApplyCustom">Använd</button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public List<int>           SelectedIds  { get; set; } = new();
+    [Parameter] public EventCallback<List<int>> SelectedIdsChanged { get; set; }
+    [Parameter] public EventCallback       OnChanged    { get; set; }
+
+    private int  _mode = 0; // 0=single, 1=all, 2=custom
+    private bool _showPicker;
+    private List<int> _customIds = new();
+
+    protected override void OnInitialized()
+    {
+        _customIds = new List<int> { BudgetState.ActiveBudgetId };
+        SelectedIds = _customIds;
+    }
+
+    private async Task SetSingle()
+    {
+        _mode = 0; _showPicker = false;
+        SelectedIds = new List<int> { BudgetState.ActiveBudgetId };
+        await SelectedIdsChanged.InvokeAsync(SelectedIds);
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task SetAll()
+    {
+        _mode = 1; _showPicker = false;
+        SelectedIds = BudgetState.MyBudgets.Select(b => b.Id).ToList();
+        await SelectedIdsChanged.InvokeAsync(SelectedIds);
+        await OnChanged.InvokeAsync();
+    }
+
+    private void ToggleBudget(int id)
+    {
+        if (_customIds.Contains(id)) _customIds.Remove(id);
+        else _customIds.Add(id);
+    }
+
+    private async Task ApplyCustom()
+    {
+        _showPicker = false;
+        SelectedIds = _customIds.Any() ? new(_customIds) : new List<int> { BudgetState.ActiveBudgetId };
+        await SelectedIdsChanged.InvokeAsync(SelectedIds);
+        await OnChanged.InvokeAsync();
+    }
+}

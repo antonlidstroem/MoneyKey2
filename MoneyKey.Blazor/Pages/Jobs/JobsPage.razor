@@ -1,0 +1,262 @@
+@page "/jobs"
+@attribute [Authorize]
+@implements IDisposable
+@inject JobApiService JobSvc
+@inject ToastService Toast
+@inject BudgetState BudgetState
+@using MoneyKey.Blazor.Components.Shared
+
+<div class="desktop-page-wrapper">
+    <div class="page-header">
+        <span class="page-title">Inkomstkällor</span>
+        @if (BudgetState.CanEdit)
+        {
+            <div class="header-actions">
+                <button class="btn btn-primary btn-sm" @onclick="OpenCreate">
+                    <span class="material-icons" style="font-size:.9rem">add</span> Ny inkomstkälla
+                </button>
+            </div>
+        }
+    </div>
+    <div class="page-content">
+        @if (_loading) { <div style="text-align:center;padding:48px"><div class="spinner"></div></div> }
+        else if (!_jobs.Any())
+        {
+            <div style="text-align:center;padding:64px;color:var(--color-muted)">
+                <span class="material-icons" style="font-size:3rem;display:block;margin-bottom:12px;opacity:.35">work</span>
+                Inga inkomstkällor registrerade.<br />
+                <span style="font-size:.85rem">Lägg till din anställning eller dina konsultuppdrag för att spåra inkomster och arbetstid.</span>
+            </div>
+        }
+        else
+        {
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px">
+                @foreach (var j in _jobs)
+                {
+                    var job = j;
+                    <div class="card">
+                        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+                            <div style="min-width:0">
+                                <div style="font-weight:600;font-size:.95rem">@j.Name</div>
+                                @if (j.EmployerName != null) { <div style="font-size:.8rem;color:var(--color-muted)">@j.EmployerName</div> }
+                            </div>
+                            <div style="display:flex;gap:4px;flex-shrink:0;margin-left:8px">
+                                <span class="badge @(j.IsActive ? "badge-income" : "badge-muted")" style="font-size:.7rem">@(j.IsActive ? "Aktiv" : "Inaktiv")</span>
+                                @if (BudgetState.CanEdit)
+                                {
+                                    <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => OpenEdit(job)"><span class="material-icons" style="font-size:.85rem">edit</span></button>
+                                    <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => ConfirmDeleteAsync(job)"><span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span></button>
+                                }
+                            </div>
+                        </div>
+
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+                            <span class="badge badge" style="font-size:.72rem">@j.PayTypeLabel</span>
+                            <span class="badge @(j.TransactionMode == JobTransactionMode.AutoCreate ? "badge-income" : "badge-muted")" style="font-size:.72rem">
+                                @(j.TransactionMode == JobTransactionMode.AutoCreate ? "Auto-transaktion" : "Manuell")
+                            </span>
+                        </div>
+
+                        @if (j.PayType == JobPayType.Hourly)
+                        {
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:.82rem">
+                                <div><span style="color:var(--color-muted)">Timtaxa:</span> <strong>@(j.HourlyRate?.ToString("N0") ?? "–") kr/tim</strong></div>
+                                @if (j.UnpostedHours > 0)
+                                {
+                                    <div><span style="color:var(--color-muted)">Ej fakturerat:</span>
+                                        <strong style="color:var(--color-expense)">@j.UnpostedHours.ToString("N1") tim</strong></div>
+                                    <div><span style="color:var(--color-muted)">Brutto kvar:</span>
+                                        <strong style="color:var(--color-expense)">@j.UnpostedGross.ToString("N0") kr</strong></div>
+                                }
+                            </div>
+                        }
+                        else if (j.PayType is JobPayType.Monthly or JobPayType.Yearly)
+                        {
+                            var label = j.PayType == JobPayType.Monthly ? "Månadslön" : "Årsbrutto";
+                            <div style="font-size:.82rem"><span style="color:var(--color-muted)">@label:</span> <strong>@(j.GrossAmount?.ToString("N0") ?? "–") kr</strong></div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Mobile -->
+<div class="mobile-page-shell">
+    <div class="mobile-topbar">
+        <span class="mobile-title">Inkomstkällor</span>
+        @if (BudgetState.CanEdit) { <button class="mobile-icon-btn" @onclick="OpenCreate"><span class="material-icons">add</span></button> }
+    </div>
+    <div class="mobile-page-scroll">
+        @foreach (var j in _jobs)
+        {
+            var job = j;
+            <div class="mobile-entry-card">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                    <div style="min-width:0">
+                        <div style="font-weight:500">@j.Name</div>
+                        @if (j.EmployerName != null) { <div class="mobile-entry-card-meta">@j.EmployerName</div> }
+                        <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">
+                            <span class="badge" style="font-size:.68rem">@j.PayTypeLabel</span>
+                            @if (j.PayType == JobPayType.Hourly && j.UnpostedHours > 0)
+                            { <span class="badge badge-expense" style="font-size:.68rem">@j.UnpostedHours.ToString("N1") tim opostat</span> }
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:4px;flex-shrink:0;margin-left:8px">
+                        @if (BudgetState.CanEdit)
+                        {
+                            <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => OpenEdit(job)"><span class="material-icons" style="font-size:.85rem">edit</span></button>
+                            <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => ConfirmDeleteAsync(job)"><span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span></button>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+    @if (BudgetState.CanEdit) { <button class="mobile-fab" @onclick="OpenCreate"><span class="material-icons">add</span></button> }
+</div>
+
+<!-- Create/Edit modal -->
+@if (_showModal)
+{
+    <div class="modal-overlay" @onclick="() => _showModal = false" @onkeydown="CloseJobModalOnEscape">
+        <div class="modal" style="max-width:500px" @onclick:stopPropagation>
+            <div class="modal-header">
+                <span class="modal-title">@(_editJob == null ? "Ny inkomstkälla" : "Redigera inkomstkälla")</span>
+                <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => _showModal = false"><span class="material-icons">close</span></button>
+            </div>
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(_error)) { <div style="background:var(--color-expense-bg);color:var(--color-expense);padding:8px 12px;border-radius:8px;font-size:.85rem;margin-bottom:12px">@_error</div> }
+
+                <div class="form-group"><label class="form-label">Namn *</label><input class="form-control" @bind="_name" placeholder="T.ex. Konsultuppdrag Kund AB" /></div>
+                <div class="form-group"><label class="form-label">Arbetsgivare / Kund</label><input class="form-control" @bind="_employer" placeholder="Valfritt" /></div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Anställningstyp *</label>
+                        <select class="form-control" @bind="_payType">
+                            @foreach (var t in Enum.GetValues<JobPayType>())
+                            { <option value="@t">@SwedishPayType(t)</option> }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Transaktioner</label>
+                        <select class="form-control" @bind="_txMode">
+                            <option value="@JobTransactionMode.AutoCreate">Automatisk</option>
+                            <option value="@JobTransactionMode.ManualOnly">Manuell</option>
+                        </select>
+                    </div>
+                </div>
+
+                @if (_payType == JobPayType.Hourly)
+                {
+                    <div class="form-group">
+                        <label class="form-label">Timtaxa (kr/tim)</label>
+                        <input class="form-control" type="number" step="50" @bind="_hourlyRate" />
+                    </div>
+                }
+                else if (_payType is JobPayType.Monthly or JobPayType.Yearly)
+                {
+                    <div class="form-group">
+                        <label class="form-label">@(_payType == JobPayType.Monthly ? "Månadslön brutto (kr)" : "Årsbrutto (kr)")</label>
+                        <input class="form-control" type="number" step="1000" @bind="_grossAmount" />
+                        @if (_txMode == JobTransactionMode.AutoCreate)
+                        {
+                            <div style="font-size:.78rem;color:var(--color-muted);margin-top:4px">
+                                <span class="material-icons" style="font-size:.85rem;vertical-align:middle;color:#F9A825">warning</span>
+                                Se till att ingen återkommande Lön-transaktion redan finns — annars räknas inkomsten dubbelt.
+                            </div>
+                        }
+                    </div>
+                }
+
+                <div class="form-group"><label class="form-label">Anteckningar</label><input class="form-control" @bind="_notes" placeholder="Valfritt" /></div>
+
+                @if (_editJob != null)
+                {
+                    <label style="display:flex;align-items:center;gap:8px;font-size:.875rem;cursor:pointer">
+                        <input type="checkbox" @bind="_isActive" /> Aktiv inkomstkälla
+                    </label>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="() => _showModal = false">Avbryt</button>
+                <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                    @if (_saving) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> } @(_editJob == null ? "Skapa" : "Spara")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<ConfirmDialog @ref="_confirm" Title="Ta bort inkomstkälla" Message="Tar bort inkomstkällan. Tidrapporter kopplade till jobbet behålls men blir ej kopplade." />
+
+@code {
+    private List<JobDto> _jobs    = new();
+    private bool         _loading = true, _showModal, _saving;
+    private string       _error   = "";
+    private JobDto?      _editJob;
+
+    // Form
+    private string             _name      = "";
+    private string?            _employer;
+    private JobPayType         _payType   = JobPayType.Monthly;
+    private JobTransactionMode _txMode    = JobTransactionMode.AutoCreate;
+    private decimal?           _grossAmount, _hourlyRate;
+    private bool               _isActive  = true;
+    private string?            _notes;
+
+    private ConfirmDialog? _confirm;
+
+    protected override async Task OnInitializedAsync() { BudgetState.StateChanged += OnStateChanged; await ReloadAsync(); }
+    public void Dispose() => BudgetState.StateChanged -= OnStateChanged;
+    private void OnStateChanged() => InvokeAsync(async () => { try { await ReloadAsync(); } catch { } StateHasChanged(); });
+
+    private async Task ReloadAsync()
+    {
+        if (BudgetState.ActiveBudgetId <= 0) { _loading = false; return; }
+        _loading = true;
+        _jobs    = await JobSvc.GetAllAsync(BudgetState.ActiveBudgetId, includeInactive: true) ?? new();
+        _loading = false;
+    }
+
+    private void OpenCreate() { _editJob = null; _name = ""; _employer = null; _payType = JobPayType.Monthly; _txMode = JobTransactionMode.AutoCreate; _grossAmount = null; _hourlyRate = null; _isActive = true; _notes = null; _error = ""; _showModal = true; }
+
+    private void OpenEdit(JobDto j) { _editJob = j; _name = j.Name; _employer = j.EmployerName; _payType = j.PayType; _txMode = j.TransactionMode; _grossAmount = j.GrossAmount; _hourlyRate = j.HourlyRate; _isActive = j.IsActive; _notes = j.Notes; _error = ""; _showModal = true; }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_name)) { _error = "Ange ett namn."; return; }
+        _saving = true; _error = "";
+        try
+        {
+            var dto = new CreateJobDto { Name = _name.Trim(), EmployerName = _employer, PayType = _payType, TransactionMode = _txMode, GrossAmount = _grossAmount, HourlyRate = _hourlyRate, IsActive = _isActive, Notes = _notes };
+            if (_editJob == null) await JobSvc.CreateAsync(BudgetState.ActiveBudgetId, dto);
+            else                  await JobSvc.UpdateAsync(BudgetState.ActiveBudgetId, _editJob.Id, dto);
+            Toast.Success(_editJob == null ? "Inkomstkälla skapad." : "Uppdaterad.");
+            _showModal = false;
+            await ReloadAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task ConfirmDeleteAsync(JobDto j)
+    {
+        if (_confirm == null || !await _confirm.ShowAsync()) return;
+        try { await JobSvc.DeleteAsync(BudgetState.ActiveBudgetId, j.Id); Toast.Success("Borttagen."); await ReloadAsync(); }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private static string SwedishPayType(JobPayType t) => t switch
+    {
+        JobPayType.Monthly => "Månadsanställd", JobPayType.Yearly => "Årsanställd",
+        JobPayType.Hourly => "Timbaserad", JobPayType.ProjectFixed => "Projektbaserad", _ => t.ToString()
+    };
+    private void CloseJobModalOnEscape(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") _showModal = false;
+    }
+
+}

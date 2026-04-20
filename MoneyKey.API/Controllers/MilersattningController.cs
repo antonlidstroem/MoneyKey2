@@ -13,6 +13,23 @@ namespace MoneyKey.API.Controllers;
 [Authorize, Route("api/budgets/{budgetId:int}/milersattning")]
 public class MilersattningController : BaseApiController
 {
+    /// <summary>Cross-budget view: returns entries for all supplied budgetIds the caller has access to.</summary>
+    [HttpGet("~/api/milersattning/cross-budget")]
+    public async Task<IActionResult> GetCrossBudget([FromQuery] int[] budgetIds)
+    {
+        var all = new List<object>();
+        foreach (var bid in budgetIds.Distinct())
+        {
+            if (!await _auth.HasRoleAsync(bid, UserId, BudgetMemberRole.Viewer)) continue;
+            var entries = await _repo.GetForBudgetAsync(bid);
+
+           
+            all.AddRange(entries.Select(e =>
+                (object)MilersattningService.ToDto(e, MilersattningService.SwedishStatus(e.Status))));
+        }
+        return Ok(all);
+    }
+
     private readonly IMilersattningRepository   _repo;
     private readonly MilersattningService       _svc;
     private readonly BudgetAuthorizationService _auth;

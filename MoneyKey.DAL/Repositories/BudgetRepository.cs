@@ -23,6 +23,13 @@ public class BudgetRepository : IBudgetRepository
     public async Task<Budget?> GetByIdAsync(int id) =>
         await _db.Budgets.Include(b => b.Memberships).FirstOrDefaultAsync(b => b.Id == id);
 
+    public async Task<List<BudgetMembership>> GetMembersAsync(int budgetId)
+    {
+        return await _db.BudgetMemberships
+            .Where(m => m.BudgetId == budgetId)
+            .ToListAsync();
+    }
+
     public async Task<Budget> CreateAsync(Budget b)  { _db.Budgets.Add(b); await _db.SaveChangesAsync(); return b; }
     public async Task<Budget> UpdateAsync(Budget b)  { _db.Budgets.Update(b); await _db.SaveChangesAsync(); return b; }
 
@@ -101,4 +108,5 @@ public class BudgetRepository : IBudgetRepository
         var setting = await _db.AppSettings.FirstOrDefaultAsync(s => s.BudgetId == budgetId && s.Key == key);
         if (setting != null) { _db.AppSettings.Remove(setting); await _db.SaveChangesAsync(); }
     }
+
 }
