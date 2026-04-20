@@ -13,6 +13,19 @@ namespace MoneyKey.API.Controllers;
 [Authorize, Route("api/budgets/{budgetId:int}/vab")]
 public class VabController : BaseApiController
 {
+    [HttpGet("~/api/vab/cross-budget")]
+    public async Task<IActionResult> GetCrossBudget([FromQuery] int[] budgetIds)
+    {
+        var all = new List<object>();
+        foreach (var bid in budgetIds.Distinct())
+        {
+            if (!await _auth.HasRoleAsync(bid, UserId, BudgetMemberRole.Viewer)) continue;
+            var entries = await _repo.GetForBudgetAsync(bid);
+            all.AddRange(entries.Select(e => (object)_svc.ToDto(e)));
+        }
+        return Ok(all);
+    }
+
     private readonly IVabRepository             _repo;
     private readonly VabService                 _svc;
     private readonly BudgetAuthorizationService _auth;

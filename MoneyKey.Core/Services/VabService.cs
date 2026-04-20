@@ -12,10 +12,7 @@ public class VabService
     private readonly ITransactionRepository _txRepo;
 
     public VabService(IVabRepository repo, ITransactionRepository txRepo)
-    {
-        _repo   = repo;
-        _txRepo = txRepo;
-    }
+    { _repo = repo; _txRepo = txRepo; }
 
     public async Task<VabEntry> CreateAsync(int budgetId, string userId, CreateVabDto dto)
     {
@@ -31,17 +28,26 @@ public class VabService
         };
         entry = await _repo.CreateAsync(entry);
 
+        // VAB = "Utebliven inkomst" — lost income, NOT an expense.
+        // Stored as a NEGATIVE Income transaction so it reduces net income correctly
+        // without inflating the expense total. The financial advisor clarification:
+        // VAB compensation reduces what you WOULD have earned; it is not money you spend.
+        var description = string.IsNullOrWhiteSpace(dto.ChildName)
+            ? $"VAB {dto.StartDate:d}–{dto.EndDate:d} ({entry.TotalDays} dagar, {dto.Rate * 100:N0}%)"
+            : $"VAB {dto.ChildName}: {dto.StartDate:d}–{dto.EndDate:d} ({entry.TotalDays} dagar, {dto.Rate * 100:N0}%)";
+
         var tx = new Transaction
         {
             BudgetId        = budgetId,
             StartDate       = dto.StartDate,
             EndDate         = dto.EndDate,
+            // Negative income = lost income. Not an expense.
             NetAmount       = -entry.TotalAmount,
-            Description     = string.IsNullOrWhiteSpace(dto.ChildName)
-                                ? $"VAB {dto.StartDate:d}–{dto.EndDate:d} ({entry.TotalDays} dagar)"
-                                : $"VAB {dto.ChildName}: {dto.StartDate:d}–{dto.EndDate:d} ({entry.TotalDays} dagar)",
+            Description     = description,
             CategoryId      = CategoryConstants.VabSjukfranvaro,
-            Type            = TransactionType.Expense,
+            // Corrected: TransactionType.Income with negative amount = lost income.
+            // This way VAB is excluded from FilteredExpenses in summaries and shown separately.
+            Type            = TransactionType.Income,
             Recurrence      = Recurrence.OneTime,
             IsActive        = true,
             CreatedByUserId = userId,
@@ -60,4 +66,28 @@ public class VabService
             await _txRepo.DeleteAsync(entry.LinkedTransactionId.Value, budgetId);
         await _repo.DeleteAsync(id, budgetId);
     }
+
+    public VabDto ToDto(VabEntry v) => new VabDto
+    {
+        Id = v.Id,
+        BudgetId = v.BudgetId,
+        UserId = v.UserId,
+        ChildName = v.ChildName,
+        StartDate = v.StartDate,
+        EndDate = v.EndDate,
+        DailyBenefit = v.DailyBenefit,
+        Rate = v.Rate,
+        TotalDays = v.TotalDays,
+        TotalAmount = v.TotalAmount,
+        LinkedTransactionId = v.LinkedTransactionId
+    };
+
+    /// <summary>
+    /// Calculates the actual SGI-based daily VAB benefit.
+    /// SGI = Sjukpenninggrundande inkomst (qualifying annual income).
+    /// Daily VAB = SGI / 365 * 0.8 (80% rule from Försäkringskassan).
+    /// First day is always unpaid (karensdag).
+    /// </summary>
+    public static decimal CalculateDailyBenefit(decimal annualSgi)
+        => Math.Round(annualSgi / 365m * 0.8m, 2);
 }

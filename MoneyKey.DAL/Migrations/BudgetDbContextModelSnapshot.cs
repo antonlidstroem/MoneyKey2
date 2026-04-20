@@ -170,6 +170,10 @@ namespace MoneyKey.DAL.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Email")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
@@ -336,6 +340,44 @@ namespace MoneyKey.DAL.Migrations
                     b.ToTable("Budgets");
                 });
 
+            modelBuilder.Entity("MoneyKey.Domain.Models.BudgetInvitation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BudgetId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InvitedByUserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("InvitedUserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BudgetId");
+
+                    b.ToTable("BudgetInvitations");
+                });
+
             modelBuilder.Entity("MoneyKey.Domain.Models.BudgetMembership", b =>
                 {
                     b.Property<int>("Id")
@@ -379,6 +421,45 @@ namespace MoneyKey.DAL.Migrations
                     b.ToTable("BudgetMemberships");
                 });
 
+            modelBuilder.Entity("MoneyKey.Domain.Models.BudgetTarget", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BudgetId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CategoryId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("TargetAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("BudgetId", "CategoryId", "Year", "Month")
+                        .IsUnique();
+
+                    b.ToTable("BudgetTargets");
+                });
+
             modelBuilder.Entity("MoneyKey.Domain.Models.Category", b =>
                 {
                     b.Property<int>("Id")
@@ -405,6 +486,9 @@ namespace MoneyKey.DAL.Migrations
                     b.Property<string>("IconName")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("IsReceiptRequired")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsSystemCategory")
                         .HasColumnType("bit");
 
@@ -430,6 +514,7 @@ namespace MoneyKey.DAL.Migrations
                         {
                             Id = 1,
                             HasEndDate = false,
+                            IsReceiptRequired = false,
                             IsSystemCategory = true,
                             Name = "Mat",
                             ToggleGrossNet = false,
@@ -439,6 +524,7 @@ namespace MoneyKey.DAL.Migrations
                         {
                             Id = 2,
                             HasEndDate = false,
+                            IsReceiptRequired = false,
                             IsSystemCategory = true,
                             Name = "Hus & drift",
                             ToggleGrossNet = false,
@@ -448,6 +534,7 @@ namespace MoneyKey.DAL.Migrations
                         {
                             Id = 3,
                             HasEndDate = false,
+                            IsReceiptRequired = false,
                             IsSystemCategory = true,
                             Name = "Transport",
                             ToggleGrossNet = false,
@@ -457,6 +544,7 @@ namespace MoneyKey.DAL.Migrations
                         {
                             Id = 4,
                             HasEndDate = false,
+                            IsReceiptRequired = false,
                             IsSystemCategory = true,
                             Name = "Fritid",
                             ToggleGrossNet = false,
@@ -466,6 +554,7 @@ namespace MoneyKey.DAL.Migrations
                         {
                             Id = 5,
                             HasEndDate = false,
+                            IsReceiptRequired = false,
                             IsSystemCategory = true,
                             Name = "Barn",
                             ToggleGrossNet = false,
@@ -475,6 +564,7 @@ namespace MoneyKey.DAL.Migrations
                         {
                             Id = 6,
                             HasEndDate = false,
+                            IsReceiptRequired = false,
                             IsSystemCategory = true,
                             Name = "Streaming-tjänster",
                             ToggleGrossNet = false,
@@ -484,6 +574,7 @@ namespace MoneyKey.DAL.Migrations
                         {
                             Id = 7,
                             HasEndDate = false,
+                            IsReceiptRequired = false,
                             IsSystemCategory = true,
                             Name = "SaaS-produkter",
                             ToggleGrossNet = false,
@@ -495,6 +586,7 @@ namespace MoneyKey.DAL.Migrations
                             AdjustmentType = 0,
                             DefaultRate = 30,
                             HasEndDate = false,
+                            IsReceiptRequired = false,
                             IsSystemCategory = true,
                             Name = "Lön",
                             ToggleGrossNet = true,
@@ -504,6 +596,7 @@ namespace MoneyKey.DAL.Migrations
                         {
                             Id = 9,
                             HasEndDate = false,
+                            IsReceiptRequired = false,
                             IsSystemCategory = true,
                             Name = "Bidrag",
                             ToggleGrossNet = false,
@@ -513,6 +606,7 @@ namespace MoneyKey.DAL.Migrations
                         {
                             Id = 10,
                             HasEndDate = false,
+                            IsReceiptRequired = false,
                             IsSystemCategory = true,
                             Name = "Hobbyverksamhet",
                             ToggleGrossNet = false,
@@ -524,6 +618,7 @@ namespace MoneyKey.DAL.Migrations
                             AdjustmentType = 0,
                             DefaultRate = 80,
                             HasEndDate = true,
+                            IsReceiptRequired = false,
                             IsSystemCategory = true,
                             Name = "VAB/Sjukfrånvaro",
                             ToggleGrossNet = true,
@@ -533,11 +628,157 @@ namespace MoneyKey.DAL.Migrations
                         {
                             Id = 12,
                             HasEndDate = false,
+                            IsReceiptRequired = false,
                             IsSystemCategory = true,
                             Name = "Milersättning",
                             ToggleGrossNet = false,
                             Type = 0
                         });
+                });
+
+            modelBuilder.Entity("MoneyKey.Domain.Models.CategoryAccountMapping", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AccountName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("BasAccount")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("BudgetId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CategoryId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("BudgetId", "CategoryId")
+                        .IsUnique();
+
+                    b.ToTable("CategoryAccountMappings");
+                });
+
+            modelBuilder.Entity("MoneyKey.Domain.Models.Insurance", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BudgetId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("InsuranceType")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("PayPeriod")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PolicyNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("PremiumAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Provider")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("RenewalDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BudgetId");
+
+                    b.ToTable("Insurances");
+                });
+
+            modelBuilder.Entity("MoneyKey.Domain.Models.Job", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BudgetId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EmployerName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal?>("GrossAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("HourlyRate")
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("PayType")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ProjectId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TransactionMode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BudgetId");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("Jobs");
                 });
 
             modelBuilder.Entity("MoneyKey.Domain.Models.KonteringRow", b =>
@@ -575,6 +816,100 @@ namespace MoneyKey.DAL.Migrations
                     b.ToTable("KonteringRows");
                 });
 
+            modelBuilder.Entity("MoneyKey.Domain.Models.ListItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsChecked")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("ListId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ListId");
+
+                    b.ToTable("ListItems");
+                });
+
+            modelBuilder.Entity("MoneyKey.Domain.Models.Loan", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BudgetId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("CurrentBalance")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("InterestRate")
+                        .HasColumnType("decimal(6,4)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LenderName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("LoanType")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("MonthlyPayment")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("OriginalAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("PayoffDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BudgetId");
+
+                    b.ToTable("Loans");
+                });
+
             modelBuilder.Entity("MoneyKey.Domain.Models.MilersattningEntry", b =>
                 {
                     b.Property<int>("Id")
@@ -582,6 +917,9 @@ namespace MoneyKey.DAL.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("BudgetId")
                         .HasColumnType("int");
@@ -596,14 +934,29 @@ namespace MoneyKey.DAL.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("IsRoundTrip")
+                        .HasColumnType("bit");
+
                     b.Property<int?>("LinkedTransactionId")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PayerName")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Purpose")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("RatePerKm")
                         .HasColumnType("decimal(10,4)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("ToLocation")
                         .IsRequired()
@@ -927,6 +1280,55 @@ namespace MoneyKey.DAL.Migrations
                     b.ToTable("RefreshTokens");
                 });
 
+            modelBuilder.Entity("MoneyKey.Domain.Models.SickLeaveEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("AnnualSgi")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("BudgetId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Diagnosis")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("GrossMonthlySalary")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("LinkedTransactionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("SickLeaveType")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BudgetId");
+
+                    b.ToTable("SickLeaveEntries");
+                });
+
             modelBuilder.Entity("MoneyKey.Domain.Models.SystemSetting", b =>
                 {
                     b.Property<int>("Id")
@@ -950,6 +1352,65 @@ namespace MoneyKey.DAL.Migrations
                         .IsUnique();
 
                     b.ToTable("SystemSettings");
+                });
+
+            modelBuilder.Entity("MoneyKey.Domain.Models.TimeEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BudgetId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("DurationMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<TimeSpan?>("EndTime")
+                        .HasColumnType("time");
+
+                    b.Property<decimal?>("HourlyRateOverride")
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<bool>("IsBreak")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("JobId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("LinkedTransactionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PayrollPeriodKey")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<TimeSpan?>("StartTime")
+                        .HasColumnType("time");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BudgetId");
+
+                    b.HasIndex("JobId");
+
+                    b.HasIndex("LinkedTransactionId");
+
+                    b.ToTable("TimeEntries");
                 });
 
             modelBuilder.Entity("MoneyKey.Domain.Models.Transaction", b =>
@@ -1002,6 +1463,9 @@ namespace MoneyKey.DAL.Migrations
                     b.Property<decimal?>("Rate")
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<int>("ReceiptStatus")
+                        .HasColumnType("int");
+
                     b.Property<int>("Recurrence")
                         .HasColumnType("int");
 
@@ -1020,6 +1484,9 @@ namespace MoneyKey.DAL.Migrations
                     b.Property<int?>("VabEntryId")
                         .HasColumnType("int");
 
+                    b.Property<string>("WaivedReason")
+                        .HasColumnType("nvarchar(max)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("BudgetId");
@@ -1029,6 +1496,93 @@ namespace MoneyKey.DAL.Migrations
                     b.HasIndex("ProjectId");
 
                     b.ToTable("Transactions");
+                });
+
+            modelBuilder.Entity("MoneyKey.Domain.Models.UserList", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("BudgetId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Content")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("ListType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("Scope")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Tags")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Visibility")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BudgetId");
+
+                    b.ToTable("UserLists");
+                });
+
+            modelBuilder.Entity("MoneyKey.Domain.Models.UserSubscription", b =>
+                {
+                    b.Property<string>("UserId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("AdminNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsAdmin")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("PaidUntil")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PaymentRef")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("Tier")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("UserSubscriptions");
                 });
 
             modelBuilder.Entity("MoneyKey.Domain.Models.VabEntry", b =>
@@ -1138,6 +1692,17 @@ namespace MoneyKey.DAL.Migrations
                     b.Navigation("Budget");
                 });
 
+            modelBuilder.Entity("MoneyKey.Domain.Models.BudgetInvitation", b =>
+                {
+                    b.HasOne("MoneyKey.Domain.Models.Budget", "Budget")
+                        .WithMany()
+                        .HasForeignKey("BudgetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Budget");
+                });
+
             modelBuilder.Entity("MoneyKey.Domain.Models.BudgetMembership", b =>
                 {
                     b.HasOne("MoneyKey.DAL.Models.ApplicationUser", null)
@@ -1153,11 +1718,78 @@ namespace MoneyKey.DAL.Migrations
                     b.Navigation("Budget");
                 });
 
+            modelBuilder.Entity("MoneyKey.Domain.Models.BudgetTarget", b =>
+                {
+                    b.HasOne("MoneyKey.Domain.Models.Budget", "Budget")
+                        .WithMany()
+                        .HasForeignKey("BudgetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MoneyKey.Domain.Models.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Budget");
+
+                    b.Navigation("Category");
+                });
+
             modelBuilder.Entity("MoneyKey.Domain.Models.Category", b =>
                 {
                     b.HasOne("MoneyKey.Domain.Models.Budget", null)
                         .WithMany("CustomCategories")
                         .HasForeignKey("BudgetId");
+                });
+
+            modelBuilder.Entity("MoneyKey.Domain.Models.CategoryAccountMapping", b =>
+                {
+                    b.HasOne("MoneyKey.Domain.Models.Budget", "Budget")
+                        .WithMany()
+                        .HasForeignKey("BudgetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MoneyKey.Domain.Models.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Budget");
+
+                    b.Navigation("Category");
+                });
+
+            modelBuilder.Entity("MoneyKey.Domain.Models.Insurance", b =>
+                {
+                    b.HasOne("MoneyKey.Domain.Models.Budget", "Budget")
+                        .WithMany()
+                        .HasForeignKey("BudgetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Budget");
+                });
+
+            modelBuilder.Entity("MoneyKey.Domain.Models.Job", b =>
+                {
+                    b.HasOne("MoneyKey.Domain.Models.Budget", "Budget")
+                        .WithMany()
+                        .HasForeignKey("BudgetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MoneyKey.Domain.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Budget");
+
+                    b.Navigation("Project");
                 });
 
             modelBuilder.Entity("MoneyKey.Domain.Models.KonteringRow", b =>
@@ -1169,6 +1801,28 @@ namespace MoneyKey.DAL.Migrations
                         .IsRequired();
 
                     b.Navigation("Transaction");
+                });
+
+            modelBuilder.Entity("MoneyKey.Domain.Models.ListItem", b =>
+                {
+                    b.HasOne("MoneyKey.Domain.Models.UserList", "List")
+                        .WithMany("Items")
+                        .HasForeignKey("ListId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("List");
+                });
+
+            modelBuilder.Entity("MoneyKey.Domain.Models.Loan", b =>
+                {
+                    b.HasOne("MoneyKey.Domain.Models.Budget", "Budget")
+                        .WithMany()
+                        .HasForeignKey("BudgetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Budget");
                 });
 
             modelBuilder.Entity("MoneyKey.Domain.Models.MilersattningEntry", b =>
@@ -1244,6 +1898,43 @@ namespace MoneyKey.DAL.Migrations
                     b.Navigation("LinkedTransaction");
                 });
 
+            modelBuilder.Entity("MoneyKey.Domain.Models.SickLeaveEntry", b =>
+                {
+                    b.HasOne("MoneyKey.Domain.Models.Budget", "Budget")
+                        .WithMany()
+                        .HasForeignKey("BudgetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Budget");
+                });
+
+            modelBuilder.Entity("MoneyKey.Domain.Models.TimeEntry", b =>
+                {
+                    b.HasOne("MoneyKey.Domain.Models.Budget", "Budget")
+                        .WithMany()
+                        .HasForeignKey("BudgetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MoneyKey.Domain.Models.Job", "Job")
+                        .WithMany("TimeEntries")
+                        .HasForeignKey("JobId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MoneyKey.Domain.Models.Transaction", "LinkedTransaction")
+                        .WithMany()
+                        .HasForeignKey("LinkedTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Budget");
+
+                    b.Navigation("Job");
+
+                    b.Navigation("LinkedTransaction");
+                });
+
             modelBuilder.Entity("MoneyKey.Domain.Models.Transaction", b =>
                 {
                     b.HasOne("MoneyKey.Domain.Models.Budget", "Budget")
@@ -1268,6 +1959,16 @@ namespace MoneyKey.DAL.Migrations
                     b.Navigation("Category");
 
                     b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("MoneyKey.Domain.Models.UserList", b =>
+                {
+                    b.HasOne("MoneyKey.Domain.Models.Budget", "Budget")
+                        .WithMany()
+                        .HasForeignKey("BudgetId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Budget");
                 });
 
             modelBuilder.Entity("MoneyKey.Domain.Models.VabEntry", b =>
@@ -1306,6 +2007,11 @@ namespace MoneyKey.DAL.Migrations
                     b.Navigation("Transactions");
                 });
 
+            modelBuilder.Entity("MoneyKey.Domain.Models.Job", b =>
+                {
+                    b.Navigation("TimeEntries");
+                });
+
             modelBuilder.Entity("MoneyKey.Domain.Models.Project", b =>
                 {
                     b.Navigation("ReceiptBatches");
@@ -1321,6 +2027,11 @@ namespace MoneyKey.DAL.Migrations
             modelBuilder.Entity("MoneyKey.Domain.Models.Transaction", b =>
                 {
                     b.Navigation("KonteringRows");
+                });
+
+            modelBuilder.Entity("MoneyKey.Domain.Models.UserList", b =>
+                {
+                    b.Navigation("Items");
                 });
 #pragma warning restore 612, 618
         }

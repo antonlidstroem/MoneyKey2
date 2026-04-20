@@ -25,6 +25,17 @@ public class BudgetDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<AuditLog>             AuditLogs              => Set<AuditLog>();
     public DbSet<AppSetting>           AppSettings            => Set<AppSetting>();
     public DbSet<SystemSetting>        SystemSettings         => Set<SystemSetting>();
+    public DbSet<UserSubscription>     UserSubscriptions      => Set<UserSubscription>();
+    public DbSet<Loan>                 Loans                  => Set<Loan>();
+    public DbSet<Insurance>            Insurances             => Set<Insurance>();
+    public DbSet<SickLeaveEntry>       SickLeaveEntries       => Set<SickLeaveEntry>();
+    public DbSet<BudgetTarget>         BudgetTargets          => Set<BudgetTarget>();
+    public DbSet<CategoryAccountMapping> CategoryAccountMappings => Set<CategoryAccountMapping>();
+    public DbSet<BudgetInvitation>     BudgetInvitations      => Set<BudgetInvitation>();
+    public DbSet<UserList>             UserLists              => Set<UserList>();
+    public DbSet<ListItem>             ListItems              => Set<ListItem>();
+    public DbSet<Job>                  Jobs                   => Set<Job>();
+    public DbSet<TimeEntry>            TimeEntries            => Set<TimeEntry>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -168,7 +179,128 @@ public class BudgetDbContext : IdentityDbContext<ApplicationUser>
             new Category { Id = 12, Name = "Milersättning",      Type = TransactionType.Income,  IsSystemCategory = true }
         );
 
-        // ── Seed receipt batch categories ───────────────────────────────────
+        mb.Entity<UserList>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Tags).HasMaxLength(500);
+            // BudgetId is nullable — null when Scope = Personal
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId)
+             .IsRequired(false).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.Items).WithOne(i => i.List).HasForeignKey(i => i.ListId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<ListItem>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Text).HasMaxLength(500).IsRequired();
+        });
+
+        mb.Entity<SystemSetting>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Key).HasMaxLength(200).IsRequired();
+            e.HasIndex(x => x.Key).IsUnique();
+        });
+
+        mb.Entity<UserList>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Tags).HasMaxLength(500);
+            // BudgetId is nullable — null when Scope = Personal
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId)
+             .IsRequired(false).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.Items).WithOne(i => i.List).HasForeignKey(i => i.ListId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<ListItem>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Text).HasMaxLength(500).IsRequired();
+        });
+        mb.Entity<Job>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.GrossAmount).HasColumnType("decimal(18,2)");
+            e.Property(x => x.HourlyRate).HasColumnType("decimal(10,2)");
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Project).WithMany().HasForeignKey(x => x.ProjectId).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+            e.HasMany(x => x.TimeEntries).WithOne(t => t.Job).HasForeignKey(t => t.JobId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        mb.Entity<TimeEntry>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.HourlyRateOverride).HasColumnType("decimal(10,2)");
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.LinkedTransaction).WithMany().HasForeignKey(x => x.LinkedTransactionId).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        mb.Entity<UserSubscription>(e =>
+        {
+            e.HasKey(x => x.UserId);
+            e.Property(x => x.AdminNotes).HasMaxLength(1000);
+            e.Property(x => x.PaymentRef).HasMaxLength(200);
+        });
+
+        mb.Entity<BudgetInvitation>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<Loan>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.OriginalAmount).HasColumnType("decimal(18,2)");
+            e.Property(x => x.CurrentBalance).HasColumnType("decimal(18,2)");
+            e.Property(x => x.InterestRate).HasColumnType("decimal(6,4)");
+            e.Property(x => x.MonthlyPayment).HasColumnType("decimal(18,2)");
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId).OnDelete(DeleteBehavior.Cascade);
+            e.Ignore(x => x.EffectiveMonthlyRate);
+            e.Ignore(x => x.TotalInterestEstimate);
+        });
+
+        mb.Entity<Insurance>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.PremiumAmount).HasColumnType("decimal(18,2)");
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId).OnDelete(DeleteBehavior.Cascade);
+            e.Ignore(x => x.MonthlyCost);
+        });
+
+        mb.Entity<SickLeaveEntry>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.AnnualSgi).HasColumnType("decimal(18,2)");
+            e.Property(x => x.GrossMonthlySalary).HasColumnType("decimal(18,2)");
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId).OnDelete(DeleteBehavior.Cascade);
+            e.Ignore(x => x.TotalDays); e.Ignore(x => x.KarensDays);
+            e.Ignore(x => x.EmployerDays); e.Ignore(x => x.FkDays);
+            e.Ignore(x => x.GrossDailyFromSalary); e.Ignore(x => x.EmployerSickPay);
+            e.Ignore(x => x.FkSickPay); e.Ignore(x => x.TotalBenefit); e.Ignore(x => x.LostIncome);
+        });
+
+        mb.Entity<BudgetTarget>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.TargetAmount).HasColumnType("decimal(18,2)");
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Category).WithMany().HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.BudgetId, x.CategoryId, x.Year, x.Month }).IsUnique();
+        });
+
+        mb.Entity<CategoryAccountMapping>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.BasAccount).HasMaxLength(20);
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Category).WithMany().HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.BudgetId, x.CategoryId }).IsUnique();
+        });
+
         mb.Entity<ReceiptBatchCategory>().HasData(
             new ReceiptBatchCategory { Id = 1, Name = "Resor & Transport",      IconName = "directions_car", SortOrder = 1, Description = "Tåg, flyg, hotell, parkering, taxi" },
             new ReceiptBatchCategory { Id = 2, Name = "Representation",         IconName = "restaurant",     SortOrder = 2, Description = "Kundluncher, middag, presentkort" },
@@ -178,5 +310,22 @@ public class BudgetDbContext : IdentityDbContext<ApplicationUser>
             new ReceiptBatchCategory { Id = 6, Name = "Tjänster & Konsulting",  IconName = "handshake",      SortOrder = 6, Description = "Externa tjänster, prenumerationer" },
             new ReceiptBatchCategory { Id = 7, Name = "Övrigt",                 IconName = "more_horiz",     SortOrder = 7, Description = "Utlägg som inte passar annan kategori" }
         );
+
+        // ── UserList + ListItem ─────────────────────────────────────────────
+        mb.Entity<UserList>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Tags).HasMaxLength(500);
+            // BudgetId is nullable — null when Scope = Personal
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId)
+             .IsRequired(false).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.Items).WithOne(i => i.List).HasForeignKey(i => i.ListId).OnDelete(DeleteBehavior.Cascade);
+        });
+        mb.Entity<ListItem>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Text).HasMaxLength(500).IsRequired();
+        });
     }
 }

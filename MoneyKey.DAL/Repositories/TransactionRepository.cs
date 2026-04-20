@@ -30,6 +30,8 @@ public class TransactionRepository : ITransactionRepository
         if (q.ProjectId.HasValue) query = query.Where(t => t.ProjectId == q.ProjectId.Value);
         if (q.Type.HasValue)      query = query.Where(t => t.Type == q.Type.Value);
         if (q.IsActive.HasValue)  query = query.Where(t => t.IsActive == q.IsActive.Value);
+        // Exclude auto-generated linked transactions so Milersättning/VAB don't appear twice
+        if (q.ExcludeLinked)      query = query.Where(t => t.MilersattningEntryId == null && t.VabEntryId == null);
 
         var total = await query.CountAsync();
 

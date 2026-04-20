@@ -1,3 +1,5 @@
+using MoneyKey.DAL.Repositories.Interfaces;
+using MoneyKey.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MoneyKey.API.Services;
@@ -19,8 +21,12 @@ public class BudgetsController : BaseApiController
     private readonly IConfiguration           _cfg;
 
     public BudgetsController(IBudgetRepository repo, ICategoryRepository cats,
-        BudgetAuthorizationService auth, IEmailService email, IConfiguration cfg)
-    { _repo = repo; _cats = cats; _auth = auth; _email = email; _cfg = cfg; }
+        BudgetAuthorizationService auth, IEmailService email, IConfiguration cfg,
+        IUserSubscriptionRepository subRepo)
+    {
+        _repo = repo; _cats = cats; _auth = auth; _email = email; _cfg = cfg; _subRepo = subRepo;
+    }
+    private readonly IUserSubscriptionRepository _subRepo;
 
     [HttpGet]
     public async Task<IActionResult> GetMyBudgets()
@@ -38,6 +44,15 @@ public class BudgetsController : BaseApiController
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateBudgetDto dto)
     {
+        // Enforce subscription budget limit
+        var sub       = await _subRepo.GetAsync(UserId) ?? new() { UserId = UserId };
+        var existing   = await _repo.GetForUserAsync(UserId);
+        // B3 fix: only count active budgets the user owns (not just has membership in)
+        var ownedActive = existing.Count(b => b.IsActive && b.OwnerId == UserId);
+        var maxBudgets  = sub.IsAdmin ? int.MaxValue : SubscriptionLimits.MaxBudgets(sub.Tier);
+        if (ownedActive >= maxBudgets)
+            return BadRequest(new { Message = $"Din plan ({SubscriptionLimits.TierLabel(sub.Tier)}) tillåter max {maxBudgets} budgetar. Uppgradera för att skapa fler." });
+
         var budget = await _repo.CreateAsync(new Budget { Name = dto.Name, Description = dto.Description, OwnerId = UserId });
         await _repo.AddMemberAsync(new BudgetMembership { BudgetId = budget.Id, UserId = UserId, Role = BudgetMemberRole.Owner, AcceptedAt = DateTime.UtcNow });
         return CreatedAtAction(nameof(GetMyBudgets), new BudgetDto(budget.Id, budget.Name, budget.Description, budget.IsActive, budget.CreatedAt, BudgetMemberRole.Owner));
@@ -119,5 +134,27 @@ public class BudgetsController : BaseApiController
     {
         if (!await _auth.HasRoleAsync(budgetId, UserId, BudgetMemberRole.Viewer)) return Forbid();
         return Ok(await _cats.GetForBudgetAsync(budgetId));
+    }
+
+    // ── Feature flags ─────────────────────────────────────────────────────────
+
+    /// <summary>Returns the list of feature keys that are DISABLED for this budget.</summary>
+    [HttpGet("{budgetId:int}/features/disabled")]
+    public async Task<IActionResult> GetDisabledFeatures(int budgetId)
+    {
+        if (!await _auth.HasRoleAsync(budgetId, UserId, BudgetMemberRole.Viewer)) return Forbid();
+        var keys = await _repo.GetDisabledFeaturesAsync(budgetId);
+        return Ok(keys);
+    }
+
+    [HttpPatch("{budgetId:int}/features/{feature}")]
+    public async Task<IActionResult> SetFeature(int budgetId, string feature, [FromBody] SetFeatureDto dto)
+    {
+        if (!await _auth.HasRoleAsync(budgetId, UserId, BudgetMemberRole.Owner)) return Forbid();
+        if (dto.Enabled)
+            await _repo.EnableFeatureAsync(budgetId, feature);
+        else
+            await _repo.DisableFeatureAsync(budgetId, feature);
+        return Ok();
     }
 }
