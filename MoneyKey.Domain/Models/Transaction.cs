@@ -21,6 +21,9 @@ public class Transaction
     public bool      HasKontering         { get; set; } = false;
     public int?      MilersattningEntryId { get; set; }
     public int?      VabEntryId           { get; set; }
+    // ── Receipt tracking ─────────────────────────────────────────────────────
+    public ReceiptStatus ReceiptStatus   { get; set; } = ReceiptStatus.NotRequired;
+    public string?       WaivedReason    { get; set; }
     public string?   CreatedByUserId      { get; set; }
     public string?   UpdatedByUserId      { get; set; }
     public DateTime  CreatedAt            { get; set; } = DateTime.UtcNow;

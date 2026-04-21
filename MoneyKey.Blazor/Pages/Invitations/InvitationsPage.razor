@@ -1,0 +1,117 @@
+@page "/invitations"
+@attribute [Authorize]
+@inject InvitationApiService InvSvc
+@inject BudgetState BudgetState
+@inject ToastService Toast
+@inject NavigationManager Nav
+
+<div class="desktop-page-wrapper">
+    <div class="page-header"><span class="page-title">Inbjudningar</span></div>
+    <div class="page-content">
+        @if (_loading) { <div style="text-align:center;padding:48px"><div class="spinner"></div></div> }
+        else if (!_invitations.Any())
+        {
+            <div style="text-align:center;padding:64px;color:var(--color-muted)">
+                <span class="material-icons" style="font-size:3rem;display:block;margin-bottom:12px;opacity:.35">mail_outline</span>
+                Inga väntande inbjudningar.
+            </div>
+        }
+        else
+        {
+            @foreach (var inv in _invitations)
+            {
+                var i = inv;
+                <div class="card" style="margin-bottom:12px;max-width:520px">
+                    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+                        <div>
+                            <div style="font-weight:600;font-size:.95rem">@inv.BudgetName</div>
+                            <div style="font-size:.82rem;color:var(--color-muted);margin-top:2px">
+                                Inbjuden av <strong>@inv.InvitedByName</strong> · Roll: <strong>@SwedishRole(inv.Role)</strong>
+                            </div>
+                            <div style="font-size:.76rem;color:var(--color-muted);margin-top:2px">
+                                Skickad @inv.CreatedAt.ToString("d MMM yyyy") · Går ut @inv.ExpiresAt.ToString("d MMM yyyy")
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:8px">
+                        <button class="btn btn-primary btn-sm" @onclick="() => AcceptAsync(i)" disabled="@_busy">
+                            <span class="material-icons" style="font-size:.85rem">check</span> Acceptera
+                        </button>
+                        <button class="btn btn-secondary btn-sm" @onclick="() => DeclineAsync(i)" disabled="@_busy">
+                            <span class="material-icons" style="font-size:.85rem">close</span> Avböj
+                        </button>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<div class="mobile-page-shell">
+    <div class="mobile-topbar"><span class="mobile-title">Inbjudningar</span></div>
+    <div class="mobile-page-scroll">
+        @foreach (var inv in _invitations)
+        {
+            var i = inv;
+            <div class="mobile-entry-card">
+                <div style="font-weight:500;margin-bottom:4px">@inv.BudgetName</div>
+                <div style="font-size:.8rem;color:var(--color-muted);margin-bottom:8px">
+                    Av @inv.InvitedByName · @SwedishRole(inv.Role) · Går ut @inv.ExpiresAt.ToString("d/M")
+                </div>
+                <div style="display:flex;gap:8px">
+                    <button class="btn btn-primary btn-sm" @onclick="() => AcceptAsync(i)">Acceptera</button>
+                    <button class="btn btn-secondary btn-sm" @onclick="() => DeclineAsync(i)">Avböj</button>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<InvitationDto> _invitations = new();
+    private bool _loading = true, _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _invitations = await InvSvc.GetPendingAsync() ?? new();
+        _loading     = false;
+    }
+
+    private async Task AcceptAsync(InvitationDto inv)
+    {
+        _busy = true;
+        try
+        {
+            await InvSvc.AcceptAsync(inv.Id);
+            _invitations.Remove(inv);
+            BudgetState.SetPendingInvitations(BudgetState.PendingInvitations - 1);
+            Toast.Success($"Du är nu med i \"{inv.BudgetName}\"!");
+            Nav.NavigateTo("/"); // reload budgets via MainLayout
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private async Task DeclineAsync(InvitationDto inv)
+    {
+        _busy = true;
+        try
+        {
+            await InvSvc.DeclineAsync(inv.Id);
+            _invitations.Remove(inv);
+            BudgetState.SetPendingInvitations(BudgetState.PendingInvitations - 1);
+            Toast.Success("Inbjudan avböjd.");
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+        finally { _busy = false; }
+    }
+
+    private static string SwedishRole(BudgetMemberRole r) => r switch
+    {
+        BudgetMemberRole.Owner   => "Ägare",
+        BudgetMemberRole.Editor  => "Redigerare",
+        BudgetMemberRole.Viewer  => "Läsare",
+        BudgetMemberRole.Auditor => "Revisor",
+        _ => r.ToString()
+    };
+}

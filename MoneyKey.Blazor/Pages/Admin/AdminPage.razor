@@ -1,0 +1,333 @@
+@page "/admin"
+@attribute [Authorize]
+@implements IDisposable
+@inject AdminApiService AdminSvc
+@inject SubscriptionApiService SubSvc
+@inject ToastService Toast
+@inject BudgetState BudgetState
+@inject NavigationManager Nav
+
+@if (!BudgetState.IsSystemAdmin)
+{
+    <RedirectToLogin />
+    return;
+}
+
+<div class="desktop-page-wrapper">
+    <div class="page-header">
+        <span class="page-title" style="color:var(--color-expense)">
+            <span class="material-icons" style="vertical-align:middle;margin-right:4px">admin_panel_settings</span>
+            SuperAdmin
+        </span>
+    </div>
+
+    <!-- Tab bar -->
+    <div style="display:flex;gap:6px;padding:0 24px 12px;border-bottom:.5px solid var(--color-border)">
+        <button class="btn btn-sm @(_tab == 0 ? "btn-primary" : "btn-secondary")" @onclick="() => SetTab(0)">Statistik</button>
+        <button class="btn btn-sm @(_tab == 1 ? "btn-primary" : "btn-secondary")" @onclick="() => SetTab(1)">Användare</button>
+        <button class="btn btn-sm @(_tab == 2 ? "btn-primary" : "btn-secondary")" @onclick="() => SetTab(2)">SignalR</button>
+    </div>
+
+    <div class="page-content">
+
+        <!-- ═══ TAB 0: Stats ══════════════════════════════════════════════════ -->
+        @if (_tab == 0)
+        {
+            @if (_stats == null) { <div style="text-align:center;padding:48px"><div class="spinner"></div></div> }
+            else
+            {
+                <div class="card-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+                    <div class="kpi-card"><div class="kpi-label">Totalt användare</div><div class="kpi-value">@_stats.Total</div></div>
+                    <div class="kpi-card"><div class="kpi-label">Betalda</div><div class="kpi-value income">@_stats.Paid</div></div>
+                    <div class="kpi-card"><div class="kpi-label">Utgångna</div><div class="kpi-value expense">@_stats.Expired</div></div>
+                    <div class="kpi-card"><div class="kpi-label">Admins</div><div class="kpi-value" style="color:#F9A825">@_stats.Admins</div></div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">SignalR</div>
+                        <div class="kpi-value @(_stats.SignalREnabled ? "income" : "expense")">@(_stats.SignalREnabled ? "PÅ" : "AV")</div>
+                    </div>
+                </div>
+                <div class="card" style="margin-top:16px">
+                    <div class="card-title">Prenumerationsfördelning</div>
+                    @foreach (var (tier, count) in _stats.TierCounts.OrderBy(x => x.Key))
+                    {
+                        var pct = _stats.Total > 0 ? count * 100 / _stats.Total : 0;
+                        <div style="margin-bottom:10px">
+                            <div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:3px">
+                                <span>@tier</span><span>@count (@pct%)</span>
+                            </div>
+                            <div style="height:6px;background:var(--color-border);border-radius:3px;overflow:hidden">
+                                <div style="height:100%;width:@pct%;background:var(--color-primary);border-radius:3px"></div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        }
+
+        <!-- ═══ TAB 1: Users ═════════════════════════════════════════════════ -->
+        @if (_tab == 1)
+        {
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+                <input class="form-control" style="max-width:300px" @value="_search" @bind:event="oninput"
+                       @oninput="OnSearchChange" placeholder="Sök e-post eller smeknamn..." />
+            </div>
+            @if (_usersLoading) { <div style="text-align:center;padding:40px"><div class="spinner"></div></div> }
+            else
+            {
+                <div class="grid-container">
+                    <table style="width:100%;border-collapse:collapse" class="quickgrid">
+                        <thead>
+                            <tr>
+                                <th>Smeknamn</th><th>E-post</th><th>Plan</th>
+                                <th>Betald t.o.m.</th><th>Budgetar</th><th>Admin</th><th style="width:40px"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!_users.Any()) { <tr><td colspan="7" style="text-align:center;padding:24px;color:var(--color-muted)">Inga användare hittades.</td></tr> }
+                            @foreach (var u in _users)
+                            {
+                                var user = u;
+                                <tr>
+                                    <td style="font-weight:500">@u.DisplayName</td>
+                                    <td style="font-size:.82rem;color:var(--color-muted)">@u.Email</td>
+                                    <td>
+                                        <span class="badge @TierBadge(u.Tier)" style="font-size:.72rem">@u.TierLabel</span>
+                                    </td>
+                                    <td style="font-size:.82rem">
+                                        @if (u.PaidUntil.HasValue)
+                                        {
+                                            <span style="color:@(u.PaidUntil < DateTime.Today ? "var(--color-expense)" : "var(--color-income)")">
+                                                @u.PaidUntil.Value.ToString("yyyy-MM-dd")
+                                            </span>
+                                        }
+                                        else { <span style="color:var(--color-muted)">–</span> }
+                                    </td>
+                                    <td style="font-size:.82rem;text-align:center">@u.BudgetCount</td>
+                                    <td style="text-align:center">
+                                        @if (u.IsAdmin) { <span class="material-icons" style="font-size:.9rem;color:#F9A825">star</span> }
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-ghost btn-icon btn-sm" title="Redigera" @onclick="() => OpenEditUser(user)">
+                                            <span class="material-icons" style="font-size:.85rem">edit</span>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                @if (_totalUsers > 50)
+                {
+                    <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">
+                        <button class="btn btn-secondary btn-sm" disabled="@(_page <= 1)" @onclick="PrevPage">← Föregående</button>
+                        <span style="font-size:.85rem;color:var(--color-muted);align-self:center">Sida @_page</span>
+                        <button class="btn btn-secondary btn-sm" disabled="@(_users.Count < 50)" @onclick="NextPage">Nästa →</button>
+                    </div>
+                }
+            }
+        }
+
+        <!-- ═══ TAB 2: SignalR ════════════════════════════════════════════════ -->
+        @if (_tab == 2)
+        {
+            <div class="card" style="max-width:420px">
+                <div class="card-title">SignalR realtidsuppdateringar</div>
+                @if (_signalRLoading) { <div class="spinner"></div> }
+                else
+                {
+                    <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px">
+                        <span class="material-icons" style="font-size:2rem;color:@(_signalREnabled ? "var(--color-income)" : "var(--color-muted)")">
+                            @(_signalREnabled ? "wifi" : "wifi_off")
+                        </span>
+                        <div>
+                            <div style="font-weight:600">Status: @(_signalREnabled ? "Aktiverat" : "Inaktiverat")</div>
+                            <div style="font-size:.82rem;color:var(--color-muted)">
+                                @(_signalREnabled
+                                    ? "Realtidsuppdateringar är aktiva. Alla budgetmedlemmar ser ändringar direkt."
+                                    : "SignalR är avstängt. Ändringar kräver manuell sidladdning.")
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn @(_signalREnabled ? "btn-secondary" : "btn-primary") btn-sm" @onclick="ToggleSignalRAsync">
+                        <span class="material-icons" style="font-size:.9rem">@(_signalREnabled ? "toggle_off" : "toggle_on")</span>
+                        @(_signalREnabled ? "Stäng av" : "Aktivera")
+                    </button>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Edit user modal -->
+@if (_editUser != null)
+{
+    <div class="modal-overlay" @onclick="() => _editUser = null" @onkeydown='e => { if (e.Key == "Escape") _editUser = null; }'>
+        <div class="modal" style="max-width:480px" @onclick:stopPropagation>
+            <div class="modal-header">
+                <span class="modal-title">Redigera @_editUser.DisplayName</span>
+                <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => _editUser = null"><span class="material-icons">close</span></button>
+            </div>
+            <div class="modal-body">
+                <div style="font-size:.82rem;color:var(--color-muted);margin-bottom:12px">@_editUser.Email · Registrerad @_editUser.CreatedAt.ToString("yyyy-MM-dd")</div>
+
+                <div class="form-group">
+                    <label class="form-label">Prenumerationsplan</label>
+                    <select class="form-control" @bind="_editTier">
+                        @foreach (var t in Enum.GetValues<SubscriptionTier>())
+                        { <option value="@t">@SubscriptionLimits.TierLabel(t)</option> }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Betald till och med</label>
+                    <input class="form-control" type="date"
+                           value="@(_editPaidUntil?.ToString("yyyy-MM-dd") ?? "")"
+                           @onchange='e => { var s = e.Value?.ToString(); _editPaidUntil = string.IsNullOrEmpty(s) ? null : DateTime.TryParse(s, out var d) ? d : _editPaidUntil; }' />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Betalningsreferens</label>
+                    <input class="form-control" @bind="_editPayRef" placeholder="T.ex. Stripe-id, Swish-ref..." />
+                </div>
+                <label style="display:flex;align-items:center;gap:8px;font-size:.875rem;cursor:pointer;margin-bottom:10px">
+                    <input type="checkbox" @bind="_editIsAdmin" />
+                    <span>SuperAdmin <span style="font-size:.75rem;color:var(--color-muted)">(kan administrera alla användare)</span></span>
+                </label>
+                <div class="form-group">
+                    <label class="form-label">Admin-anteckningar</label>
+                    <textarea class="form-control" rows="3" @bind="_editNotes" placeholder="Intern anteckning..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="() => _editUser = null">Avbryt</button>
+                <button class="btn btn-primary" @onclick="SaveUserAsync" disabled="@_saving">
+                    @if (_saving) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> } Spara
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private int     _tab       = 0;
+    private bool    _usersLoading, _signalRLoading, _saving;
+    private string  _search    = "";
+    private int     _page      = 1;
+    private int     _totalUsers;
+    private bool    _signalREnabled;
+
+    private AdminStatsResult?    _stats;
+    private List<AdminUserDto>   _users   = new();
+    private AdminUserDto?        _editUser;
+    private SubscriptionTier     _editTier;
+    private DateTime?            _editPaidUntil;
+    private string?              _editPayRef, _editNotes;
+    private bool                 _editIsAdmin;
+
+    private System.Threading.Timer? _debounce;
+
+    public void Dispose() => _debounce?.Dispose();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await SetTab(0);
+    }
+
+    private async Task SetTab(int t)
+    {
+        _tab = t;
+        if (t == 0 && _stats == null)    await LoadStatsAsync();
+        if (t == 1 && !_users.Any())     await LoadUsersAsync();
+        if (t == 2) await LoadSignalRAsync();
+    }
+
+    private async Task LoadStatsAsync()
+    {
+        try { _stats = await AdminSvc.GetStatsAsync(); }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        _usersLoading = true; StateHasChanged();
+        try
+        {
+            var r       = await AdminSvc.GetUsersAsync(_search.Length >= 2 ? _search : null, _page);
+            _users      = r?.Users ?? new();
+            _totalUsers = r?.Total ?? 0;
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+        finally { _usersLoading = false; }
+    }
+
+    private async Task LoadSignalRAsync()
+    {
+        _signalRLoading = true; StateHasChanged();
+        try { var r = await AdminSvc.GetSignalRStatusAsync(); _signalREnabled = r?.Enabled ?? false; }
+        catch { }
+        finally { _signalRLoading = false; }
+    }
+
+    private void OnSearchChange(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? "";
+        _debounce?.Dispose();
+        _debounce = new System.Threading.Timer(async _ =>
+        {
+            _page = 1;
+            await InvokeAsync(async () => { await LoadUsersAsync(); StateHasChanged(); });
+        }, null, 400, System.Threading.Timeout.Infinite);
+    }
+
+    private async Task PrevPage() { if (_page > 1) { _page--; await LoadUsersAsync(); } }
+    private async Task NextPage() { _page++; await LoadUsersAsync(); }
+
+    private void OpenEditUser(AdminUserDto u)
+    {
+        _editUser      = u;
+        _editTier      = u.Tier;
+        _editPaidUntil = u.PaidUntil;
+        _editPayRef    = null;
+        _editNotes     = u.AdminNotes;
+        _editIsAdmin   = u.IsAdmin;
+    }
+
+    private async Task SaveUserAsync()
+    {
+        if (_editUser == null) return;
+        _saving = true;
+        try
+        {
+            await AdminSvc.UpdateSubscriptionAsync(_editUser.UserId, new UpdateSubscriptionDto
+            {
+                Tier = _editTier, PaidUntil = _editPaidUntil, PaymentRef = _editPayRef,
+                IsAdmin = _editIsAdmin, AdminNotes = _editNotes
+            });
+            Toast.Success($"{_editUser.DisplayName} uppdaterad.");
+            _editUser = null; _stats = null;
+            await LoadUsersAsync();
+            await LoadStatsAsync();
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+        finally { _saving = false; }
+    }
+
+    private async Task ToggleSignalRAsync()
+    {
+        try
+        {
+            await AdminSvc.ToggleSignalRAsync(!_signalREnabled);
+            _signalREnabled = !_signalREnabled;
+            Toast.Success(_signalREnabled ? "SignalR aktiverat." : "SignalR inaktiverat.");
+            _stats = null; await LoadStatsAsync();
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private static string TierBadge(SubscriptionTier t) => t switch
+    {
+        SubscriptionTier.Free       => "badge-muted",
+        SubscriptionTier.Plus       => "badge",
+        SubscriptionTier.Pro        => "badge-income",
+        SubscriptionTier.Enterprise => "badge-primary",
+        _ => "badge-muted"
+    };
+}

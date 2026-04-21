@@ -16,7 +16,7 @@ public class MilersattningService
     /// Skatteverket standard rate 2024 = 0.25 kr/km (25 öre/km) for private car.
     /// Tax-free limit is 2.50 kr/km. Values above 0.25 are employer supplements.
     /// </summary>
-    public const decimal SkatteverketStandardRate = 0.25m;
+    public const decimal SkatteverketStandardRate = 2.5m;
 
     public MilersattningService(IMilersattningRepository repo, ITransactionRepository txRepo, IAppSettingRepository settings)
     { _repo = repo; _txRepo = txRepo; _settings = settings; }

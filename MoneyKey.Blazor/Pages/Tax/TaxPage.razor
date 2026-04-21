@@ -1,0 +1,147 @@
+@page "/tax"
+@attribute [Authorize]
+@inject HttpClient Http
+@inject BudgetState BudgetState
+
+<div class="desktop-page-wrapper">
+    <div class="page-header"><span class="page-title">Skattekalkylator</span></div>
+    <div class="page-content" style="max-width:700px">
+        <div class="card">
+            <div class="card-title"><span class="material-icons">calculate</span> Beräkna skatt 2025</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Bruttoinkomst (kr/år)</label>
+                    <input class="form-control" type="number" step="1000" @bind="_gross" @oninput="ClearResult" placeholder="T.ex. 540000" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Kommunalskatt (%)</label>
+                    <input class="form-control" type="number" step="0.1" @bind="_munRate" @oninput="ClearResult" placeholder="32.0" />
+                    <div style="font-size:.75rem;color:var(--color-muted);margin-top:2px">Rikssnitt ≈ 32%. Kolla din kommuns skattesats på skatteverket.se.</div>
+                </div>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:.875rem;cursor:pointer;margin-bottom:12px">
+                <input type="checkbox" @bind="_isFreelancer" @oninput="ClearResult" />
+                Egenföretagare (F-skatt) — inkludera egenavgifter
+            </label>
+            <button class="btn btn-primary" @onclick="CalculateAsync" disabled="@(_calculating || _gross <= 0)">
+                @if (_calculating) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
+                else { <span class="material-icons" style="font-size:.9rem">calculate</span> }
+                Beräkna
+            </button>
+        </div>
+
+        @if (_result != null)
+        {
+            <div class="card" style="margin-top:16px">
+                <div class="card-title">Resultat — @_result.TaxYear</div>
+                <div class="card-grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:16px">
+                    <div class="kpi-card">
+                        <div class="kpi-label">Bruttoinkomst</div>
+                        <div class="kpi-value">@_result.GrossIncome.ToString("N0") kr</div>
+                    </div>
+                    <div class="kpi-card" style="border-left:3px solid var(--color-income)">
+                        <div class="kpi-label">Nettoinkomst</div>
+                        <div class="kpi-value income">@_result.NetIncome.ToString("N0") kr</div>
+                    </div>
+                    <div class="kpi-card" style="border-left:3px solid var(--color-expense)">
+                        <div class="kpi-label">Total skatt</div>
+                        <div class="kpi-value expense">@_result.TotalTax.ToString("N0") kr</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Effektiv skattesats</div>
+                        <div class="kpi-value">@_result.EffectiveTaxRate.ToString("N1")%</div>
+                    </div>
+                </div>
+
+                <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+                    <tbody>
+                        @Row("Grundavdrag",       _result.BasicDeduction,  "-")
+                        @Row("Beskattningsbar inkomst", _result.TaxableIncome, "")
+                        @Row("Kommunalskatt",     _result.MunicipalTax,    "kr")
+                        @if (_result.StateTax > 0) { @Row("Statlig skatt (20%)", _result.StateTax, "kr") }
+                        @Row("Jobbskatteavdrag",  -_result.JobTaxCredit,   "kr")
+                        @Row("Total inkomstskatt",_result.TotalTax,        "kr")
+                        @if (_result.SocialFees > 0) { @Row("Egenavgifter (~29%)", _result.SocialFees, "kr") }
+                    </tbody>
+                </table>
+
+                <div style="margin-top:16px;padding:10px 14px;background:var(--color-bg);border-radius:8px;font-size:.8rem;color:var(--color-muted)">
+                    <strong>Obs:</strong> Beräkningarna är approximativa och baserade på 2025 års regler.
+                    Jobbskatteavdraget beräknas förenklat. Använd Skatteverkets egna räknare för exakt deklarationsunderlag.
+                </div>
+            </div>
+
+            <!-- Per-month breakdown -->
+            <div class="card" style="margin-top:16px">
+                <div class="card-title">Månadsöversikt</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;text-align:center">
+                    <div><div style="font-size:.75rem;color:var(--color-muted)">Brutto/mån</div><div style="font-weight:600">@((_result.GrossIncome / 12).ToString("N0")) kr</div></div>
+                    <div><div style="font-size:.75rem;color:var(--color-muted)">Skatt/mån</div><div style="font-weight:600;color:var(--color-expense)">@((_result.TotalTax / 12).ToString("N0")) kr</div></div>
+                    @if (_result.SocialFees > 0)
+                    {
+                        <div><div style="font-size:.75rem;color:var(--color-muted)">Avgifter/mån</div><div style="font-weight:600;color:var(--color-expense)">@((_result.SocialFees / 12).ToString("N0")) kr</div></div>
+                    }
+                    <div><div style="font-size:.75rem;color:var(--color-muted)">Netto/mån</div><div style="font-weight:600;color:var(--color-income)">@((_result.NetIncome / 12).ToString("N0")) kr</div></div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<div class="mobile-page-shell">
+    <div class="mobile-topbar"><span class="mobile-title">Skattekalkylator</span></div>
+    <div class="mobile-page-scroll">
+        <div class="mobile-entry-card">
+            <div class="form-group"><label class="form-label">Bruttoinkomst (kr/år)</label><input class="form-control" type="number" @bind="_gross" placeholder="T.ex. 540000" /></div>
+            <div class="form-group"><label class="form-label">Kommunalskatt (%)</label><input class="form-control" type="number" @bind="_munRate" placeholder="32.0" /></div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:.875rem;cursor:pointer;margin-bottom:12px"><input type="checkbox" @bind="_isFreelancer" /> Egenföretagare</label>
+            <button class="btn btn-primary btn-sm" style="width:100%" @onclick="CalculateAsync">Beräkna</button>
+        </div>
+        @if (_result != null)
+        {
+            <div class="mobile-entry-card">
+                <div style="font-weight:600;margin-bottom:8px">Resultat @_result.TaxYear</div>
+                <div style="font-size:.85rem;line-height:1.8">
+                    <div>Nettoinkomst: <strong style="color:var(--color-income)">@_result.NetIncome.ToString("N0") kr</strong></div>
+                    <div>Total skatt: <strong style="color:var(--color-expense)">@_result.TotalTax.ToString("N0") kr</strong></div>
+                    <div>Effektiv skatt: <strong>@_result.EffectiveTaxRate.ToString("N1")%</strong></div>
+                    <div>Netto/mån: <strong style="color:var(--color-income)">@((_result.NetIncome / 12).ToString("N0")) kr</strong></div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private decimal _gross;
+    private decimal _munRate = 32.0m;
+    private bool _isFreelancer;
+    private bool _calculating;
+    private TaxCalculationResultDto? _result;
+
+    private void ClearResult(ChangeEventArgs _) => _result = null;
+
+    private async Task CalculateAsync()
+    {
+        _calculating = true;
+        try
+        {
+            var req = new TaxCalculationRequestDto { GrossIncome = _gross, MunicipalTaxRate = _munRate, IsFreelancer = _isFreelancer };
+            var resp = await Http.PostAsJsonAsync("api/tax/calculate", req);
+            if (resp.IsSuccessStatusCode)
+                _result = await resp.Content.ReadFromJsonAsync<TaxCalculationResultDto>();
+        }
+        catch { }
+        finally { _calculating = false; }
+    }
+
+    private RenderFragment Row(string label, decimal value, string unit) => builder =>
+    {
+        builder.OpenElement(0, "tr");
+        builder.AddAttribute(1, "style", "border-bottom:.5px solid var(--color-border)");
+        builder.OpenElement(2, "td"); builder.AddAttribute(3, "style", "padding:6px 0;color:var(--color-muted)"); builder.AddContent(4, label); builder.CloseElement();
+        var color = value < 0 ? "color:var(--color-income)" : value > 0 && unit == "kr" ? "color:var(--color-expense)" : "";
+        builder.OpenElement(5, "td"); builder.AddAttribute(6, "style", $"text-align:right;font-weight:600;{color}"); builder.AddContent(7, $"{value.ToString("N0")} kr"); builder.CloseElement();
+        builder.CloseElement();
+    };
+}

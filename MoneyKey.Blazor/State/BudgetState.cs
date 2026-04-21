@@ -1,4 +1,5 @@
 using MoneyKey.Core.DTOs.Budget;
+using MoneyKey.Core.DTOs.Subscription;
 using MoneyKey.Domain.Enums;
 
 namespace MoneyKey.Blazor.State;
@@ -64,6 +65,61 @@ public class BudgetState
             var idx = MyBudgets.IndexOf(b);
             MyBudgets[idx] = new BudgetDto(b.Id, newName, b.Description, b.IsActive, b.CreatedAt, b.MyRole);
         }
+        StateChanged?.Invoke();
+    }
+
+
+    // ── Subscription / user info ──────────────────────────────────────────────
+    public string           DisplayName       { get; private set; } = string.Empty;
+    public SubscriptionTier Tier              { get; private set; } = SubscriptionTier.Free;
+    public bool             IsSystemAdmin     { get; private set; }
+    public int              MaxBudgets        { get; private set; } = 2;
+    public int              MaxMembers        { get; private set; } = 1;
+    public int              UsedBudgets       { get; private set; }
+
+    public void SetSubscription(SubscriptionDto s)
+    {
+        DisplayName   = s.DisplayName;
+        Tier          = s.Tier;
+        IsSystemAdmin = s.IsAdmin;
+        MaxBudgets    = s.MaxBudgets == int.MaxValue ? 9999 : s.MaxBudgets;
+        MaxMembers    = s.MaxMembers == int.MaxValue ? 9999 : s.MaxMembers;
+        UsedBudgets   = s.UsedBudgets;
+        StateChanged?.Invoke();
+    }
+
+    // ── Pending invitations badge ─────────────────────────────────────────────
+    public int PendingInvitations { get; private set; }
+    public void SetPendingInvitations(int count) { PendingInvitations = count; StateChanged?.Invoke(); }
+
+    // ── Live timer state ────────────────────────────────────────────────────────
+    public int?      TimerJobId       { get; private set; }
+    public string?   TimerJobName     { get; private set; }
+    public DateTime? TimerStartedAt   { get; private set; }
+    public bool      IsTimerRunning   => TimerStartedAt.HasValue;
+
+    public void StartTimer(int jobId, string jobName)
+    {
+        TimerJobId     = jobId;
+        TimerJobName   = jobName;
+        TimerStartedAt = DateTime.Now;
+        StateChanged?.Invoke();
+    }
+
+    public (int minutes, int jobId, string jobName, DateTime start) StopTimer()
+    {
+        var start   = TimerStartedAt ?? DateTime.Now;
+        var minutes = (int)(DateTime.Now - start).TotalMinutes;
+        var jobId   = TimerJobId ?? 0;
+        var name    = TimerJobName ?? "";
+        TimerStartedAt = null; TimerJobId = null; TimerJobName = null;
+        StateChanged?.Invoke();
+        return (minutes, jobId, name, start);
+    }
+
+    public void CancelTimer()
+    {
+        TimerStartedAt = null; TimerJobId = null; TimerJobName = null;
         StateChanged?.Invoke();
     }
 }

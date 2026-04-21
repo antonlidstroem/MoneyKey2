@@ -1,0 +1,223 @@
+@page "/insurance"
+@attribute [Authorize]
+@implements IDisposable
+@using MoneyKey.Blazor.Components.Shared
+@inject InsuranceApiService InsSvc
+@inject ToastService Toast
+@inject BudgetState BudgetState
+
+<div class="desktop-page-wrapper">
+    <div class="page-header">
+        <span class="page-title">Försäkringar</span>
+        @if (BudgetState.CanEdit)
+        {
+            <div class="header-actions">
+                <button class="btn btn-primary btn-sm" @onclick="OpenCreate">
+                    <span class="material-icons" style="font-size:.9rem">add</span> Ny försäkring
+                </button>
+            </div>
+        }
+    </div>
+    <div class="page-content">
+        @if (_loading) { <div style="text-align:center;padding:48px"><div class="spinner"></div></div> }
+        else if (!_items.Any())
+        {
+            <div style="text-align:center;padding:64px;color:var(--color-muted)">
+                <span class="material-icons" style="font-size:3rem;display:block;margin-bottom:12px;opacity:.35">security</span>
+                Inga försäkringar registrerade.
+            </div>
+        }
+        else
+        {
+            <div class="card-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:16px">
+                <div class="kpi-card">
+                    <div class="kpi-label">Total/mån</div>
+                    <div class="kpi-value expense">@_items.Where(i => i.IsActive).Sum(i => i.MonthlyCost).ToString("N0") kr</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Total/år</div>
+                    <div class="kpi-value expense">@(_items.Where(i => i.IsActive).Sum(i => i.MonthlyCost) * 12).ToString("N0") kr</div>
+                </div>
+                @{
+                    var renewing = _items.Count(i => i.IsActive && i.RenewalSoon);
+                }
+                @if (renewing > 0)
+                {
+                    <div class="kpi-card" style="border-left:3px solid #F9A825">
+                        <div class="kpi-label">Förnyas snart</div>
+                        <div class="kpi-value" style="color:#F9A825">@renewing st</div>
+                    </div>
+                }
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+                @foreach (var ins in _items)
+                {
+                    var item = ins;
+                    <div class="card @(ins.RenewalSoon ? "border-warning" : "")">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+                            <div>
+                                <div style="font-weight:600;font-size:.92rem">@ins.Name</div>
+                                <div style="font-size:.78rem;color:var(--color-muted)">@ins.TypeLabel@(ins.Provider != null ? $" · {ins.Provider}" : "")</div>
+                            </div>
+                            <div style="display:flex;gap:4px;align-items:center">
+                                @if (ins.RenewalSoon) { <span class="material-icons" style="color:#F9A825;font-size:.9rem" title="Förnyas inom 30 dagar">warning</span> }
+                                @if (BudgetState.CanEdit)
+                                {
+                                    <button class="btn btn-ghost btn-icon btn-sm" @onclick="@(() => OpenEdit(item))"><span class="material-icons" style="font-size:.85rem">edit</span></button>
+                                    <button class="btn btn-ghost btn-icon btn-sm" @onclick="@(() => ConfirmDeleteAsync(item))"><span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span></button>
+                                }
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:.82rem">
+                            <div><span style="color:var(--color-muted)">Premie:</span> <strong>@ins.PremiumAmount.ToString("N0") kr</strong> @ins.PayPeriodLabel.ToLower()</div>
+                            <div><span style="color:var(--color-muted)">/mån:</span> <strong style="color:var(--color-expense)">@ins.MonthlyCost.ToString("N0") kr</strong></div>
+                        </div>
+                        @if (ins.RenewalDate.HasValue)
+                        {
+                            <div style="margin-top:6px;font-size:.76rem;color:@(ins.RenewalSoon ? "#F9A825" : "var(--color-muted)")">
+                                Förnyas: @ins.RenewalDate.Value.ToString("yyyy-MM-dd")
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<div class="mobile-page-shell">
+    <div class="mobile-topbar">
+        <span class="mobile-title">Försäkringar</span>
+        @if (BudgetState.CanEdit) { <button class="mobile-icon-btn" @onclick="OpenCreate"><span class="material-icons">add</span></button> }
+    </div>
+    <div class="mobile-page-scroll">
+        @foreach (var ins in _items)
+        {
+            var item = ins;
+            <div class="mobile-entry-card">
+                <div style="display:flex;justify-content:space-between">
+                    <div><div style="font-weight:500">@ins.Name</div><div class="mobile-entry-card-meta">@ins.TypeLabel · @ins.Provider</div></div>
+                    <div style="text-align:right">
+                        <div style="font-weight:600;color:var(--color-expense)">@ins.MonthlyCost.ToString("N0") kr/mån</div>
+                        @if (ins.RenewalSoon) { <span style="font-size:.72rem;color:#F9A825">Förnyas snart</span> }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+    @if (BudgetState.CanEdit) { <button class="mobile-fab" @onclick="OpenCreate"><span class="material-icons">add</span></button> }
+</div>
+
+@if (_showModal)
+{
+    <div class="modal-overlay" @onclick="@(() => _showModal = false)">
+        <div class="modal" style="max-width:480px" @onclick:stopPropagation>
+            <div class="modal-header">
+                <span class="modal-title">@(_editItem == null ? "Ny försäkring" : "Redigera")</span>
+                <button class="btn btn-ghost btn-icon btn-sm" @onclick="@(() => _showModal = false)"><span class="material-icons">close</span></button>
+            </div>
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(_err)) { <div style="background:var(--color-expense-bg);color:var(--color-expense);padding:8px 12px;border-radius:8px;font-size:.85rem;margin-bottom:10px">@_err</div> }
+                <div class="form-group"><label class="form-label">Namn *</label><input class="form-control" @bind="_name" placeholder="T.ex. Hemförsäkring Folksam" /></div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Typ</label>
+                        <select class="form-control" @bind="_insType">
+                            @foreach (var t in Enum.GetValues<InsuranceType>())
+                            { <option value="@t">@SwIns(t)</option> }
+                        </select>
+                    </div>
+                    <div class="form-group"><label class="form-label">Bolag</label><input class="form-control" @bind="_provider" /></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">Premie (kr)</label><input class="form-control" type="number" @bind="_premium" /></div>
+                    <div class="form-group">
+                        <label class="form-label">Betalperiod</label>
+                        <select class="form-control" @bind="_payPeriod">
+                            <option value="@InsurancePayPeriod.Monthly">Månadsvis</option>
+                            <option value="@InsurancePayPeriod.Quarterly">Kvartalsvis</option>
+                            <option value="@InsurancePayPeriod.Yearly">Årsvis</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">Startdatum</label><input class="form-control" type="date" value="@_startDate.ToString("yyyy-MM-dd")" @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _startDate = d; }' /></div>
+                    <div class="form-group">
+                        <label class="form-label">Förnyelsedatum</label>
+                        <input class="form-control" type="date" value="@(_renewDate?.ToString("yyyy-MM-dd") ?? "")"
+                               @onchange='e => { var s = e.Value?.ToString(); _renewDate = string.IsNullOrEmpty(s) ? null : DateTime.TryParse(s, out var d) ? d : _renewDate; }' />
+                    </div>
+                </div>
+                <div class="form-group"><label class="form-label">Policynummer</label><input class="form-control" @bind="_policy" /></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="@(() => _showModal = false)">Avbryt</button>
+                <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                    @if (_saving) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> } Spara
+                </button>
+            </div>
+        </div>
+    </div>
+}
+<ConfirmDialog @ref="_confirm" Title="Ta bort försäkring" Message="Ta bort denna försäkring?" />
+
+@code {
+    private List<InsuranceDto> _items = new();
+    private bool _loading = true, _showModal, _saving;
+    private string _err = "", _name = "", _provider = "", _policy = "";
+    private InsuranceType _insType = InsuranceType.Home;
+    private InsurancePayPeriod _payPeriod = InsurancePayPeriod.Monthly;
+    private decimal _premium;
+    private DateTime _startDate = DateTime.Today;
+    private DateTime? _renewDate;
+    private InsuranceDto? _editItem;
+    private ConfirmDialog? _confirm;
+
+    protected override async Task OnInitializedAsync() { BudgetState.StateChanged += Refresh; await ReloadAsync(); }
+    public void Dispose() => BudgetState.StateChanged -= Refresh;
+    private void Refresh() => InvokeAsync(async () => { await ReloadAsync(); StateHasChanged(); });
+
+    private async Task ReloadAsync() {
+        if (BudgetState.ActiveBudgetId <= 0) { _loading = false; return; }
+        _loading = true; _items = await InsSvc.GetAllAsync(BudgetState.ActiveBudgetId) ?? new(); _loading = false;
+    }
+
+    private void OpenCreate() {
+        _editItem = null; _err = ""; _name = ""; _provider = ""; _policy = "";
+        _insType = InsuranceType.Home; _payPeriod = InsurancePayPeriod.Monthly;
+        _premium = 0; _startDate = DateTime.Today; _renewDate = null; _showModal = true;
+    }
+    private void OpenEdit(InsuranceDto i) {
+        _editItem = i; _err = ""; _name = i.Name; _provider = i.Provider ?? ""; _policy = i.PolicyNumber ?? "";
+        _insType = i.InsuranceType; _payPeriod = i.PayPeriod; _premium = i.PremiumAmount;
+        _startDate = i.StartDate; _renewDate = i.RenewalDate; _showModal = true;
+    }
+
+    private async Task SaveAsync() {
+        if (string.IsNullOrWhiteSpace(_name)) { _err = "Ange ett namn."; return; }
+        _saving = true; _err = "";
+        try {
+            var dto = new CreateInsuranceDto { InsuranceType = _insType, Name = _name.Trim(),
+                Provider = _provider.Length > 0 ? _provider : null, PremiumAmount = _premium,
+                PayPeriod = _payPeriod, StartDate = _startDate, RenewalDate = _renewDate,
+                PolicyNumber = _policy.Length > 0 ? _policy : null };
+            if (_editItem == null) await InsSvc.CreateAsync(BudgetState.ActiveBudgetId, dto);
+            else await InsSvc.UpdateAsync(BudgetState.ActiveBudgetId, _editItem.Id, dto);
+            Toast.Success("Sparat."); _showModal = false; await ReloadAsync();
+        } catch (Exception ex) { _err = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task ConfirmDeleteAsync(InsuranceDto i) {
+        if (_confirm is null || !await _confirm.ShowAsync()) return;
+        try { await InsSvc.DeleteAsync(BudgetState.ActiveBudgetId, i.Id); await ReloadAsync(); }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private static string SwIns(InsuranceType t) => t switch {
+        InsuranceType.Home => "Hemförsäkring", InsuranceType.Car => "Bilförsäkring",
+        InsuranceType.Life => "Livförsäkring", InsuranceType.Accident => "Olycksfallsförsäkring",
+        InsuranceType.IncomeLoss => "Inkomstförsäkring", InsuranceType.Pension => "Pensionsförsäkring",
+        InsuranceType.Health => "Sjukvårdsförsäkring", _ => "Övrigt" };
+}

@@ -6,8 +6,15 @@
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--color-bg)">
     <div style="width:100%;max-width:380px;padding:24px">
         <div style="text-align:center;margin-bottom:32px">
-            <h1 style="font-size:1.8rem;font-weight:700;color:var(--color-primary)">MoneyKey</h1>
-            <p style="color:var(--color-muted);font-size:.9rem;margin-top:4px">Logga in på ditt konto</p>
+            <img src="images/moneykey-logo.png"
+                 alt="MoneyKey"
+                 style="max-width: 30%; height: auto; display: block; margin: 20px auto 0 auto;" />
+           
+                 <div class="sidebar-logo" style="text-align: center;">
+                <h1 style="font-size:1.8rem;font-weight:700;color: black; margin: 0;">Money<span>Key</span></h1>
+                
+                <p style="color:var(--color-muted);font-size:.9rem;margin-top:4px">Logga in på ditt konto</p>
+            </div>
         </div>
         <div class="card">
             @if (!string.IsNullOrEmpty(_error))
