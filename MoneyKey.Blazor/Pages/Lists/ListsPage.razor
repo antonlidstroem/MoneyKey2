@@ -1,45 +1,50 @@
 @page "/lists"
 @attribute [Authorize]
 @implements IDisposable
+@using MoneyKey.Blazor.Components.Shared
 @inject ListApiService ListSvc
 @inject ToastService Toast
 @inject BudgetState BudgetState
-@inject NavigationManager Nav
 @inject IJSRuntime JS
 
-<!-- ═══ Desktop wrapper ════════════════════════════════════════════════════ -->
+<!-- ═══ Desktop ════════════════════════════════════════════════════════════ -->
 <div class="desktop-page-wrapper">
     <div class="page-header">
         <span class="page-title">Listor &amp; Anteckningar</span>
         @if (BudgetState.CanEdit)
         {
             <div class="header-actions">
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <BudgetScopeSelector @bind-SelectedIds="_scopeIds" OnChanged="ReloadAsync" />
-            
-                <button class="btn btn-secondary btn-sm" @onclick="() => OpenCreate(false)">
-                    <span class="material-icons" style="font-size:.9rem">checklist</span> Ny lista
-                </button>
-                <button class="btn btn-primary btn-sm" @onclick="() => OpenCreate(true)">
-                    <span class="material-icons" style="font-size:.9rem">sticky_note_2</span> Ny anteckning
-                </button>
-            </div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                    <BudgetScopeSelector @bind-SelectedIds="_scopeIds" OnChanged="ReloadAsync" />
+                    
+                    <button class="btn btn-secondary btn-sm" @onclick="() => OpenCreate(false)">
+                        <span class="material-icons" style="font-size:.9rem">checklist</span> Ny lista
+                    </button>
+                    <button class="btn btn-primary btn-sm" @onclick="() => OpenCreate(true)">
+                        <span class="material-icons" style="font-size:.9rem">sticky_note_2</span> Ny anteckning
+                    </button>
+                </div>
+            </div> 
         }
     </div>
 
-    <!-- Filter chips -->
     <div style="display:flex;gap:8px;padding:0 24px 12px;flex-wrap:wrap">
-        <button class="btn btn-sm @(_tab == 0 ? "btn-primary" : "btn-secondary")" @onclick="() => _tab = 0">Alla</button>
-        <button class="btn btn-sm @(_tab == 1 ? "btn-primary" : "btn-secondary")" @onclick="() => _tab = 1">Listor</button>
-        <button class="btn btn-sm @(_tab == 2 ? "btn-primary" : "btn-secondary")" @onclick="() => _tab = 2">Anteckningar</button>
+        <button class="btn btn-sm @(_tab == 0 ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = 0)">Alla</button>
+        <button class="btn btn-sm @(_tab == 1 ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = 1)">Listor</button>
+        <button class="btn btn-sm @(_tab == 2 ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = 2)">Anteckningar</button>
     </div>
 
     <div class="page-content">
-        @if (_loading) { <div style="text-align:center;padding:48px"><div class="spinner"></div></div> }
+        @if (_loading)
+        {
+            <div style="text-align:center;padding:48px"><div class="spinner"></div></div>
+        }
         else if (!FilteredItems.Any())
         {
             <div style="text-align:center;padding:64px;color:var(--color-muted)">
-                <span class="material-icons" style="font-size:3rem;display:block;margin-bottom:12px;opacity:.35">@(_tab == 2 ? "sticky_note_2" : "checklist")</span>
+                <span class="material-icons" style="font-size:3rem;display:block;margin-bottom:12px;opacity:.35">
+                    @(_tab == 2 ? "sticky_note_2" : "checklist")
+                </span>
                 Inga @(_tab == 2 ? "anteckningar" : "listor") skapade ännu.
             </div>
         }
@@ -49,78 +54,83 @@
                 @foreach (var item in FilteredItems)
                 {
                     var it = item;
-                    if (it.IsNote)
+                    @if (it.IsNote)
                     {
-                        <!-- Note card -->
-                        <div class="card" style="cursor:pointer;transition:box-shadow .15s" @onclick="() => OpenNoteEdit(it)">
+                        <div class="card" style="cursor:pointer" @onclick="@(() => OpenNoteEdit(it))">
                             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
                                 <div style="font-weight:600;font-size:.92rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">
                                     <span class="material-icons" style="font-size:.9rem;vertical-align:middle;margin-right:4px;color:var(--color-muted)">sticky_note_2</span>@it.Name
                                 </div>
-                                @if (BudgetState.CanEdit) { <button class="btn btn-ghost btn-icon btn-sm" @onclick:stopPropagation @onclick="() => DeleteAsync(it)"><span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span></button> }
+                                @if (BudgetState.CanEdit)
+                                {
+                                    <button class="btn btn-ghost btn-icon btn-sm" @onclick:stopPropagation @onclick="@(() => DeleteAsync(it))">
+                                        <span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span>
+                                    </button>
+                                }
                             </div>
                             @if (!string.IsNullOrEmpty(it.Content))
                             {
-                                <div style="font-size:.83rem;color:var(--color-muted);white-space:pre-wrap;max-height:80px;overflow:hidden;mask-image:linear-gradient(to bottom,black 60%,transparent)">@it.Content</div>
+                                <div style="font-size:.83rem;color:var(--color-muted);white-space:pre-wrap;max-height:80px;overflow:hidden">@it.Content</div>
                             }
-                            @if (it.Tags?.Any() == true)
+                            @if (!string.IsNullOrEmpty(it.Tags))
                             {
                                 <div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap">
-                                    @foreach (var tag in it.Tags) { <span class="badge badge-muted" style="font-size:.68rem">@tag</span> }
+                                    @foreach (var tag in it.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                                    {
+                                        <span class="badge badge-muted" style="font-size:.68rem">@tag.Trim()</span>
+                                    }
                                 </div>
                             }
                         </div>
                     }
                     else
                     {
-                        <!-- Checklist card -->
                         <div class="card">
                             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
                                 <div style="font-weight:600;font-size:.92rem">
                                     <span class="material-icons" style="font-size:.9rem;vertical-align:middle;margin-right:4px;color:var(--color-muted)">checklist</span>@it.Name
                                 </div>
-                                <div style="display:flex;gap:4px">
-                                    @if (BudgetState.CanEdit) { <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => DeleteAsync(it)"><span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span></button> }
-                                </div>
-                            </div>
-
-                            @if (it.Items?.Any() == true)
-                            {
-                                <!-- Progress bar -->
-                                var done = it.Items.Count(x => x.IsChecked);
-                                var pct  = it.Items.Count > 0 ? done * 100 / it.Items.Count : 0;
-                                <div style="height:4px;background:var(--color-border);border-radius:2px;margin-bottom:8px;overflow:hidden">
-                                    <div style="height:100%;width:@pct%;background:var(--color-income);border-radius:2px;transition:width .2s"></div>
-                                </div>
-                                <div style="font-size:.75rem;color:var(--color-muted);margin-bottom:8px">@done / @it.Items.Count klart</div>
-
-                                @foreach (var listItem in it.Items.Take(6))
+                                @if (BudgetState.CanEdit)
                                 {
-                                    var li = listItem;
+                                    <button class="btn btn-ghost btn-icon btn-sm" @onclick="@(() => DeleteAsync(it))">
+                                        <span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span>
+                                    </button>
+                                }
+                            </div>
+                            @if (it.Items.Any())
+                            {
+                                var done = it.Items.Count(x => x.IsChecked);
+                                var total = it.Items.Count;
+                                var pct   = total > 0 ? done * 100 / total : 0;
+                                <div style="height:4px;background:var(--color-border);border-radius:2px;margin-bottom:8px;overflow:hidden">
+                                    <div style="height:100%;width:@(pct)%;background:var(--color-income);border-radius:2px;transition:width .2s"></div>
+                                </div>
+                                <div style="font-size:.75rem;color:var(--color-muted);margin-bottom:8px">@done / @total klart</div>
+                                @foreach (var li in it.Items.Take(6))
+                                {
+                                    var listItem = li;
                                     <div style="display:flex;align-items:center;gap:8px;padding:3px 0;min-height:26px">
-                                        <input type="checkbox" checked="@li.IsChecked"
-                                               @onchange="() => ToggleItemOptimistic(it, li)"
+                                        <input type="checkbox" checked="@listItem.IsChecked"
+                                               @onchange="@(() => ToggleItemOptimistic(it, listItem))"
                                                style="accent-color:var(--color-income);flex-shrink:0" />
-                                        <span style="font-size:.85rem;@(li.IsChecked ? "text-decoration:line-through;color:var(--color-muted)" : "")">@li.Text</span>
+                                        <span style="font-size:.85rem;@(listItem.IsChecked ? "text-decoration:line-through;color:var(--color-muted)" : "")">@listItem.Text</span>
                                     </div>
                                 }
-                                @if (it.Items.Count > 6)
-                                { <div style="font-size:.76rem;color:var(--color-muted);margin-top:4px">+ @(it.Items.Count - 6) till...</div> }
+                                @if (total > 6)
+                                {
+                                    <div style="font-size:.76rem;color:var(--color-muted);margin-top:4px">+ @(total - 6) till...</div>
+                                }
                             }
-
-                            <!-- Inline add item with Enter support -->
                             @if (BudgetState.CanEdit)
                             {
-                                <div style="display:flex;gap:6px;margin-top:10px;align-items:center" id="add-row-@it.Id">
+                                <div style="display:flex;gap:6px;margin-top:10px;align-items:center">
                                     <input class="form-control" style="flex:1;padding:5px 8px;font-size:.82rem"
                                            id="new-item-@it.Id"
                                            placeholder="Lägg till objekt..."
-                                           @bind="_newItemText[it.Id]"
-                                           @bind:event="oninput"
-                                           @onkeydown="e => OnListItemKeyDown(e, it)" />
-                                    <button class="btn btn-ghost btn-icon btn-sm"
-                                            @onclick="() => AddItemAndFocus(it)"
-                                            title="Lägg till (Enter)">
+                                           value="@GetNewItemText(it.Id)"
+                                           @oninput="@(e => SetNewItemText(it.Id, e.Value?.ToString() ?? ""))"
+                                           @onkeydown="@(e => OnListItemKeyDown(e, it))" />
+                                    <button class="btn btn-ghost btn-icon btn-sm" @onclick="@(() => AddItemAndFocus(it))">
                                         <span class="material-icons" style="font-size:.9rem">add</span>
                                     </button>
                                 </div>
@@ -133,43 +143,55 @@
     </div>
 </div>
 
-<!-- ═══ Mobile shell ═══════════════════════════════════════════════════════ -->
+<!-- ═══ Mobile ═══════════════════════════════════════════════════════════════ -->
 <div class="mobile-page-shell">
     <div class="mobile-topbar">
         <span class="mobile-title">Listor</span>
         @if (BudgetState.CanEdit)
         {
             <div style="display:flex;gap:6px">
-                <button class="mobile-icon-btn" title="Ny lista" @onclick="() => OpenCreate(false)"><span class="material-icons">checklist</span></button>
-                <button class="mobile-icon-btn" title="Ny anteckning" @onclick="() => OpenCreate(true)"><span class="material-icons">sticky_note_2</span></button>
+                <button class="mobile-icon-btn" @onclick="@(() => OpenCreate(false))"><span class="material-icons">checklist</span></button>
+                <button class="mobile-icon-btn" @onclick="@(() => OpenCreate(true))"><span class="material-icons">sticky_note_2</span></button>
             </div>
         }
     </div>
     <div class="mobile-chips" style="border-bottom:.5px solid var(--color-border)">
-        <button class="mobile-chip @(_tab == 0 ? "active" : "")" @onclick="() => _tab = 0">Alla</button>
-        <button class="mobile-chip @(_tab == 1 ? "active" : "")" @onclick="() => _tab = 1">Listor</button>
-        <button class="mobile-chip @(_tab == 2 ? "active" : "")" @onclick="() => _tab = 2">Anteckningar</button>
+        <button class="mobile-chip @(_tab == 0 ? "active" : "")" @onclick="@(() => _tab = 0)">Alla</button>
+        <button class="mobile-chip @(_tab == 1 ? "active" : "")" @onclick="@(() => _tab = 1)">Listor</button>
+        <button class="mobile-chip @(_tab == 2 ? "active" : "")" @onclick="@(() => _tab = 2)">Ant.</button>
     </div>
     <div class="mobile-page-scroll">
-        @if (_loading) { <div style="text-align:center;padding:40px"><div class="spinner"></div></div> }
+        @if (_loading)
+        {
+            <div style="text-align:center;padding:40px"><div class="spinner"></div></div>
+        }
         else
         {
             @foreach (var it in FilteredItems)
             {
                 var item = it;
-                <div class="mobile-entry-card @(it.IsNote ? "" : "")">
-                    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">
+                <div class="mobile-entry-card">
+                    <div style="display:flex;align-items:flex-start;justify-content:space-between">
                         <div style="font-weight:500;font-size:.9rem">
-                            <span class="material-icons" style="font-size:.85rem;vertical-align:middle;color:var(--color-muted);margin-right:3px">@(it.IsNote ? "sticky_note_2" : "checklist")</span>@it.Name
+                            <span class="material-icons" style="font-size:.85rem;vertical-align:middle;color:var(--color-muted);margin-right:3px">
+                                @(it.IsNote ? "sticky_note_2" : "checklist")
+                            </span>@it.Name
                         </div>
-                        @if (BudgetState.CanEdit) { <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => DeleteAsync(item)"><span class="material-icons" style="font-size:.82rem;color:var(--color-expense)">delete</span></button> }
+                        @if (BudgetState.CanEdit)
+                        {
+                            <button class="btn btn-ghost btn-icon btn-sm" @onclick="@(() => DeleteAsync(item))">
+                                <span class="material-icons" style="font-size:.82rem;color:var(--color-expense)">delete</span>
+                            </button>
+                        }
                     </div>
                     @if (it.IsNote && !string.IsNullOrEmpty(it.Content))
-                    { <div style="font-size:.8rem;color:var(--color-muted);overflow:hidden;max-height:40px">@it.Content</div> }
-                    @if (!it.IsNote && it.Items?.Any() == true)
+                    {
+                        <div style="font-size:.8rem;color:var(--color-muted);overflow:hidden;max-height:40px;margin-top:4px">@it.Content</div>
+                    }
+                    @if (!it.IsNote && it.Items.Any())
                     {
                         var done = it.Items.Count(x => x.IsChecked);
-                        <div style="font-size:.75rem;color:var(--color-muted)">@done / @it.Items.Count klart</div>
+                        <div style="font-size:.75rem;color:var(--color-muted);margin-top:4px">@done / @it.Items.Count klart</div>
                     }
                 </div>
             }
@@ -180,17 +202,23 @@
 <!-- ═══ Create modal ════════════════════════════════════════════════════════ -->
 @if (_showCreate)
 {
-    <div class="modal-overlay" @onclick="() => _showCreate = false" @onkeydown="OnModalKeyDown">
+    <div class="modal-overlay" @onclick="@(() => _showCreate = false)" @onkeydown="OnCreateKeyDown">
         <div class="modal" style="max-width:460px" @onclick:stopPropagation>
             <div class="modal-header">
                 <span class="modal-title">@(_isNote ? "Ny anteckning" : "Ny lista")</span>
-                <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => _showCreate = false"><span class="material-icons">close</span></button>
+                <button class="btn btn-ghost btn-icon btn-sm" @onclick="@(() => _showCreate = false)">
+                    <span class="material-icons">close</span>
+                </button>
             </div>
             <div class="modal-body">
-                @if (!string.IsNullOrEmpty(_error)) { <div style="background:var(--color-expense-bg);color:var(--color-expense);padding:8px 12px;border-radius:8px;font-size:.85rem;margin-bottom:10px">@_error</div> }
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <div style="background:var(--color-expense-bg);color:var(--color-expense);padding:8px 12px;border-radius:8px;font-size:.85rem;margin-bottom:10px">@_error</div>
+                }
                 <div class="form-group">
                     <label class="form-label">Namn *</label>
-                    <input id="create-list-name" class="form-control" @bind="_newName" placeholder="@(_isNote ? "T.ex. Mötesanteckningar..." : "T.ex. Inköpslista...")" />
+                    <input id="create-list-name" class="form-control" @bind="_newName"
+                           placeholder="@(_isNote ? "T.ex. Mötesanteckningar..." : "T.ex. Inköpslista...")" />
                 </div>
                 @if (_isNote)
                 {
@@ -205,9 +233,10 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" @onclick="() => _showCreate = false">Avbryt</button>
+                <button class="btn btn-secondary" @onclick="@(() => _showCreate = false)">Avbryt</button>
                 <button class="btn btn-primary" @onclick="CreateAsync" disabled="@_saving">
-                    @if (_saving) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> } Skapa
+                    @if (_saving) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
+                    Skapa
                 </button>
             </div>
         </div>
@@ -217,11 +246,13 @@
 <!-- ═══ Note edit modal ════════════════════════════════════════════════════ -->
 @if (_editNote != null)
 {
-    <div class="modal-overlay" @onclick="CloseNoteEdit" @onkeydown="OnModalKeyDown">
+    <div class="modal-overlay" @onclick="CloseNoteEdit" @onkeydown="OnNoteEditKeyDown">
         <div class="modal" style="max-width:560px" @onclick:stopPropagation>
             <div class="modal-header">
                 <span class="modal-title">@_editNote.Name</span>
-                <button class="btn btn-ghost btn-icon btn-sm" @onclick="CloseNoteEdit"><span class="material-icons">close</span></button>
+                <button class="btn btn-ghost btn-icon btn-sm" @onclick="CloseNoteEdit">
+                    <span class="material-icons">close</span>
+                </button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -230,9 +261,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Innehåll</label>
-                    <textarea class="form-control" rows="8" style="resize:vertical"
-                              @bind="_editNoteContent"
-                              @bind:event="oninput"></textarea>
+                    <textarea class="form-control" rows="8" style="resize:vertical" @bind="_editNoteContent"></textarea>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Taggar</label>
@@ -242,7 +271,8 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" @onclick="CloseNoteEdit">Stäng</button>
                 <button class="btn btn-primary" @onclick="SaveNoteAsync" disabled="@_saving">
-                    @if (_saving) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> } Spara
+                    @if (_saving) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
+                    Spara
                 </button>
             </div>
         </div>
@@ -253,6 +283,7 @@
 
 @code {
     private List<UserListDto> _all     = new();
+    private List<int>           _scopeIds = new();
     private int               _tab     = 0;
     private bool              _loading = true;
     private bool              _showCreate, _isNote, _saving;
@@ -264,11 +295,6 @@
     // Note edit
     private UserListDto? _editNote;
     private string _editNoteName = "", _editNoteContent = "", _editNoteTags = "";
-
-    // Inline list item inputs — one per list card
-    private Dictionary<int, string> _newItemText = new();
-
-    private ConfirmDialog? _confirm;
 
     private IEnumerable<UserListDto> FilteredItems => _tab switch
     {
@@ -287,24 +313,34 @@
     public void Dispose() => BudgetState.StateChanged -= OnStateChanged;
 
     private void OnStateChanged() => InvokeAsync(async () =>
-    { try { await ReloadAsync(); } catch (Exception ex) { Toast.Error(ex.Message); } StateHasChanged(); });
+    {
+        try { await ReloadAsync(); } catch (Exception ex) { Toast.Error(ex.Message); }
+        StateHasChanged();
+    });
+
+    private void OnScopeChanged(List<int> ids) => _scopeIds = ids;
 
     private async Task ReloadAsync()
     {
         if (BudgetState.ActiveBudgetId <= 0) { _loading = false; return; }
         _loading = true;
         _all = await ListSvc.GetAllAsync(BudgetState.ActiveBudgetId) ?? new();
-        // Ensure _newItemText has a slot for every list
         foreach (var l in _all.Where(x => !x.IsNote))
             _newItemText.TryAdd(l.Id, "");
         _loading = false;
     }
 
-    // ── Enter key in list item add input ──────────────────────────────────────
+    private string GetNewItemText(int listId) =>
+        _newItemText.TryGetValue(listId, out var t) ? t : "";
+
+    private void SetNewItemText(int listId, string value)
+    {
+        _newItemText[listId] = value;
+    }
+
     private async Task OnListItemKeyDown(KeyboardEventArgs e, UserListDto list)
     {
         if (e.Key == "Enter") await AddItemAndFocus(list);
-        // Escape closes by blurring — no special handling needed
     }
 
     private async Task AddItemAndFocus(UserListDto list)
@@ -312,7 +348,6 @@
         if (!_newItemText.TryGetValue(list.Id, out var text) || string.IsNullOrWhiteSpace(text)) return;
         try
         {
-            // Optimistic add — show immediately
             var tempItem = new ListItemDto { Id = -1, Text = text.Trim(), IsChecked = false, Order = list.Items?.Count ?? 0 };
             list.Items ??= new();
             list.Items.Add(tempItem);
@@ -320,43 +355,53 @@
             StateHasChanged();
             await JS.InvokeVoidAsync("focusElement", $"#new-item-{list.Id}");
 
-            // Fire to server
-            await ListSvc.AddItemAsync(list.Id, BudgetState.ActiveBudgetId, text.Trim());
-            // Reload to get real ID
-            var updated = await ListSvc.GetByIdAsync(list.Id, BudgetState.ActiveBudgetId);
+            // FIX: BudgetId kommer FÖRST i din service-definition
+            await ListSvc.AddItemAsync(BudgetState.ActiveBudgetId, list.Id, new CreateListItemDto(text.Trim()));
+
+            // FIX: BudgetId kommer FÖRST i din service-definition
+            var updated = await ListSvc.GetByIdAsync(BudgetState.ActiveBudgetId, list.Id);
             if (updated != null)
             {
                 var idx = _all.FindIndex(x => x.Id == list.Id);
-                if (idx >= 0) _all[idx] = updated;
-                StateHasChanged();
+                if (idx >= 0) { _all[idx] = updated; StateHasChanged(); }
             }
         }
-        catch (Exception ex) { Toast.Error(ex.Message); }
+        catch (Exception ex)
+        {
+            list.Items.Remove(temp);
+            Toast.Error(ex.Message);
+            StateHasChanged();
+        }
     }
 
-    // ── Optimistic checkbox toggle ────────────────────────────────────────────
-    private void ToggleItemOptimistic(UserListDto list, ListItemDto item)
+    private void ToggleItemOptimistic(UserListDto list, ListItemDto listItem)
     {
-        item.IsChecked = !item.IsChecked; // immediate visual feedback
+        listItem.IsChecked = !listItem.IsChecked;
         StateHasChanged();
         _ = Task.Run(async () =>
         {
-            try { await ListSvc.ToggleItemAsync(list.Id, item.Id, BudgetState.ActiveBudgetId, item.IsChecked); }
+            try
+            {
+                await ListSvc.ToggleItemAsync(BudgetState.ActiveBudgetId, list.Id, listItem.Id);
+            }
             catch
             {
-                item.IsChecked = !item.IsChecked; // revert on error
+                listItem.IsChecked = !listItem.IsChecked;
                 await InvokeAsync(StateHasChanged);
             }
         });
     }
 
-    // ── Escape closes modals ─────────────────────────────────────────────────
-    private void OnModalKeyDown(KeyboardEventArgs e)
+    private void OnCreateKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Escape") { _showCreate = false; _editNote = null; }
+        if (e.Key == "Escape") _showCreate = false;
     }
 
-    // ── Create ────────────────────────────────────────────────────────────────
+    private void OnNoteEditKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") _editNote = null;
+    }
+
     private void OpenCreate(bool isNote)
     {
         _isNote = isNote; _newName = ""; _newContent = ""; _newTags = ""; _error = "";
@@ -369,18 +414,17 @@
         _saving = true; _error = "";
         try
         {
-            var tags = _newTags.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                               .Select(t => t.Trim()).Where(t => t.Length > 0).ToList();
-            var dto  = new CreateListDto
-            {
-                Name       = _newName.Trim(),
-                ListType   = _isNote ? ListType.Note : ListType.Checklist,
-                Content    = _isNote ? _newContent : null,
-                Tags       = tags,
-                Scope      = EntryScope.BudgetSpecific,
-                Visibility = EntryVisibility.Private,
-                BudgetId   = BudgetState.ActiveBudgetId
-            };
+            var tagsString = string.IsNullOrWhiteSpace(_newTags) ? null : _newTags;
+
+            var dto = new CreateListDto(
+                Name: _newName.Trim(),
+                ListType: _isNote ? ListType.Note : ListType.CheckList, // Kontrollera stavning!
+                BudgetId: BudgetState.ActiveBudgetId,
+                Description: null,
+                Content: _isNote ? _newContent : null,
+                Tags: tagsString
+            );
+
             await ListSvc.CreateAsync(BudgetState.ActiveBudgetId, dto);
             Toast.Success(_isNote ? "Anteckning skapad." : "Lista skapad.");
             _showCreate = false;
@@ -390,13 +434,12 @@
         finally { _saving = false; }
     }
 
-    // ── Note edit ─────────────────────────────────────────────────────────────
     private void OpenNoteEdit(UserListDto note)
     {
-        _editNote        = note;
-        _editNoteName    = note.Name;
+        _editNote = note;
+        _editNoteName = note.Name;
         _editNoteContent = note.Content ?? "";
-        _editNoteTags    = string.Join(", ", note.Tags ?? new());
+        _editNoteTags = note.Tags ?? "";
     }
 
     private void CloseNoteEdit() => _editNote = null;
@@ -407,19 +450,21 @@
         _saving = true;
         try
         {
-            var tags = _editNoteTags.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                                    .Select(t => t.Trim()).Where(t => t.Length > 0).ToList();
-            var dto  = new CreateListDto
-            {
-                Name       = _editNoteName.Trim(),
-                ListType   = ListType.Note,
-                Content    = _editNoteContent,
-                Tags       = tags,
-                Scope      = _editNote.Scope,
-                Visibility = _editNote.Visibility,
-                BudgetId   = BudgetState.ActiveBudgetId
-            };
-            await ListSvc.UpdateAsync(_editNote.Id, BudgetState.ActiveBudgetId, dto);
+            // Genom att namnge parametrarna slipper vi gissa ordningen och kompilatorn blir glad
+            var dto = new CreateListDto(
+                Name: _editNoteName.Trim(),
+                ListType: ListType.Note,
+                BudgetId: BudgetState.ActiveBudgetId,
+                Description: _editNote.Description,
+                Content: _editNoteContent,
+                Tags: _editNoteTags,
+                Scope: _editNote.Scope,
+                Visibility: _editNote.Visibility
+            );
+
+            // FIX: BudgetId först, sen listId
+            await ListSvc.UpdateAsync(BudgetState.ActiveBudgetId, _editNote.Id, dto);
+
             Toast.Success("Anteckning sparad.");
             _editNote = null;
             await ReloadAsync();
@@ -428,13 +473,12 @@
         finally { _saving = false; }
     }
 
-    // ── Delete ────────────────────────────────────────────────────────────────
     private async Task DeleteAsync(UserListDto item)
     {
-        if (_confirm == null || !await _confirm.ShowAsync()) return;
+        if (_confirm is null || !await _confirm.ShowAsync()) return;
         try
         {
-            await ListSvc.DeleteAsync(item.Id, BudgetState.ActiveBudgetId);
+            await ListSvc.DeleteAsync(BudgetState.ActiveBudgetId, item.Id);
             Toast.Success("Borttaget.");
             await ReloadAsync();
         }

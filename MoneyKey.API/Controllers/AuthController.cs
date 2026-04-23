@@ -19,39 +19,51 @@ public class AuthController : BaseApiController
 {
     private readonly UserManager<ApplicationUser> _users;
     private readonly IUserSubscriptionRepository _subRepo;
-    private readonly TokenService                 _tokens;
-    private readonly BudgetDbContext              _db;
+    private readonly TokenService _tokens;
+    private readonly BudgetDbContext _db;
     private const string CookieName = "mk_refresh";
 
-    public AuthController(UserManager<ApplicationUser> users, TokenService tokens, BudgetDbContext db)
+    public AuthController(
+        UserManager<ApplicationUser> users,
+        IUserSubscriptionRepository subRepo,
+        TokenService tokens,
+        BudgetDbContext db)
     {
-        _users  = users;
+        _users = users;
+        _subRepo = subRepo;
         _tokens = tokens;
-        _db     = db;
+        _db = db;
     }
 
     [HttpPost("register")]
     [EnableRateLimiting("AuthPolicy")]
     public async Task<IActionResult> Register([FromBody] RegisterDto dto)
     {
-        var user   = new ApplicationUser { UserName = dto.Email, Email = dto.Email,
-                                  FirstName = dto.FirstName, LastName = dto.LastName,
-                                  DisplayName = dto.DisplayName.Trim() };
+        var user = new ApplicationUser
+        {
+            UserName = dto.Email,
+            Email = dto.Email,
+            FirstName = dto.FirstName,
+            LastName = dto.LastName,
+            DisplayName = dto.DisplayName.Trim()
+        };
         var result = await _users.CreateAsync(user, dto.Password);
-        if (!result.Succeeded) return BadRequest(new { Errors = result.Errors.Select(e => e.Description) });
+        if (!result.Succeeded)
+            return BadRequest(new { Errors = result.Errors.Select(e => e.Description) });
 
         // Auto-create Free subscription for new users
-        await _subRepo.UpsertAsync(new MoneyKey.Domain.Models.UserSubscription { UserId = user.Id });
+        await _subRepo.UpsertAsync(new UserSubscription { UserId = user.Id });
 
-        // FIX MEDIUM-4: Create Budget AND BudgetMembership in a single SaveChanges so
-        // no orphaned budget can exist without its owner membership if the second write fails.
         var budget = new Budget { Name = $"{dto.FirstName}s budget", OwnerId = user.Id };
         _db.Budgets.Add(budget);
-        // EF will resolve budget.Id after the add because BudgetMembership is added to
-        // the same context — both are saved atomically in one round-trip.
-        var membership = new BudgetMembership { BudgetId = 0, UserId = user.Id, Role = BudgetMemberRole.Owner, AcceptedAt = DateTime.UtcNow };
+        var membership = new BudgetMembership
+        {
+            BudgetId = 0,
+            UserId = user.Id,
+            Role = BudgetMemberRole.Owner,
+            AcceptedAt = DateTime.UtcNow
+        };
         _db.BudgetMemberships.Add(membership);
-        // Link via navigation so EF assigns budget.Id before inserting membership
         membership.Budget = budget;
         await _db.SaveChangesAsync();
 
@@ -72,13 +84,12 @@ public class AuthController : BaseApiController
     public async Task<IActionResult> Refresh()
     {
         var raw = Request.Cookies[CookieName];
-        if (string.IsNullOrEmpty(raw)) return Unauthorized(new { Message = "Refresh token saknas." });
+        if (string.IsNullOrEmpty(raw))
+            return Unauthorized(new { Message = "Refresh token saknas." });
 
-        // FIX SECURITY-1: Validate and revoke in a single atomic DB operation to prevent
-        // the token-replay race condition where two concurrent requests both pass
-        // ValidateRefreshTokenAsync before either has called RevokeRefreshTokenAsync.
         var token = await _tokens.ValidateAndRevokeRefreshTokenAsync(raw);
-        if (token == null) return Unauthorized(new { Message = "Ogiltig eller utgången session." });
+        if (token == null)
+            return Unauthorized(new { Message = "Ogiltig eller utgången session." });
 
         var user = await _users.FindByIdAsync(token.UserId);
         if (user == null) return Unauthorized();
@@ -100,7 +111,8 @@ public class AuthController : BaseApiController
     {
         var user = await _users.FindByIdAsync(UserId);
         if (user == null) return NotFound();
-        return Ok(new UserDto(user.Id, user.Email!, user.FirstName, user.LastName, await GetMembershipsAsync(user.Id)));
+        return Ok(new UserDto(user.Id, user.Email!, user.FirstName, user.LastName,
+            await GetMembershipsAsync(user.Id)));
     }
 
     [HttpPost("accept-invite")]
@@ -118,34 +130,58 @@ public class AuthController : BaseApiController
             return BadRequest(new { Message = "Ogiltig eller redan använd inbjudningslänk." });
 
         var alreadyMember = await _db.BudgetMemberships
-            .AnyAsync(m => m.BudgetId == membership.BudgetId && m.UserId == UserId && m.Id != membership.Id);
+            .AnyAsync(m => m.BudgetId == membership.BudgetId
+                        && m.UserId == UserId
+                        && m.Id != membership.Id);
         if (alreadyMember)
             return BadRequest(new { Message = "Du är redan medlem i denna budget." });
 
-        membership.UserId     = UserId;
+        membership.UserId = UserId;
         membership.AcceptedAt = DateTime.UtcNow;
         membership.InviteToken = null;
         await _db.SaveChangesAsync();
 
-        var user        = await _users.FindByIdAsync(UserId);
+        var user = await _users.FindByIdAsync(UserId);
         if (user == null) return Unauthorized();
         var memberships = await GetMembershipsAsync(UserId);
-        var access      = _tokens.GenerateAccessToken(user, memberships);
+        var access = _tokens.GenerateAccessToken(user, memberships);
 
-        return Ok(new AuthResultDto(access, new UserDto(user.Id, user.Email!, user.FirstName, user.LastName, memberships)));
+        return Ok(new AuthResultDto(access,
+            new UserDto(user.Id, user.Email!, user.FirstName, user.LastName, memberships)));
+    }
+
+    [Authorize]
+    [HttpDelete("account")]
+    public async Task<IActionResult> DeleteAccount(
+        [FromServices] MoneyKey.Core.Services.AccountDeletionService svc)
+    {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+        try
+        {
+            await svc.DeleteAccountAsync(userId);
+            return Ok(new { Message = "Ditt konto och all persondata har raderats." });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Message = $"Radering misslyckades: {ex.Message}" });
+        }
     }
 
     private async Task<IActionResult> IssueTokensAsync(ApplicationUser user)
     {
-        var memberships    = await GetMembershipsAsync(user.Id);
-        var access         = _tokens.GenerateAccessToken(user, memberships);
-        var (raw, _)       = await _tokens.GenerateRefreshTokenAsync(user.Id);
+        var memberships = await GetMembershipsAsync(user.Id);
+        var access = _tokens.GenerateAccessToken(user, memberships);
+        var (raw, _) = await _tokens.GenerateRefreshTokenAsync(user.Id);
         Response.Cookies.Append(CookieName, raw, new CookieOptions
         {
-            HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict,
-            Expires  = DateTimeOffset.UtcNow.AddDays(30)
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.Strict,
+            Expires = DateTimeOffset.UtcNow.AddDays(30)
         });
-        return Ok(new AuthResultDto(access, new UserDto(user.Id, user.Email!, user.FirstName, user.LastName, memberships)));
+        return Ok(new AuthResultDto(access,
+            new UserDto(user.Id, user.Email!, user.FirstName, user.LastName, memberships)));
     }
 
     private async Task<List<BudgetMembershipDto>> GetMembershipsAsync(string userId) =>

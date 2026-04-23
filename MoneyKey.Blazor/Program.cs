@@ -47,6 +47,10 @@ builder.Services.AddScoped<JobApiService>();
 builder.Services.AddScoped<TimeEntryApiService>();
 builder.Services.AddScoped<SubscriptionApiService>();
 builder.Services.AddScoped<InvitationApiService>();
+builder.Services.AddScoped<LoanApiService>();
+builder.Services.AddScoped<InsuranceApiService>();
+builder.Services.AddScoped<SickLeaveApiService>();
+builder.Services.AddScoped<BudgetTargetApiService>();
 builder.Services.AddSingleton<ToastService>();
 
 builder.Services.AddScoped<BudgetState>();

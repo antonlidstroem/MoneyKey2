@@ -1,4 +1,5 @@
 using MoneyKey.Core.DTOs.Budget;
+using MoneyKey.Core.DTOs.Subscription;
 using MoneyKey.Domain.Enums;
 
 namespace MoneyKey.Blazor.State;

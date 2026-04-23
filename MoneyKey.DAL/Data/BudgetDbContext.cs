@@ -26,6 +26,11 @@ public class BudgetDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<AppSetting>           AppSettings            => Set<AppSetting>();
     public DbSet<SystemSetting>        SystemSettings         => Set<SystemSetting>();
     public DbSet<UserSubscription>     UserSubscriptions      => Set<UserSubscription>();
+    public DbSet<Loan>                 Loans                  => Set<Loan>();
+    public DbSet<Insurance>            Insurances             => Set<Insurance>();
+    public DbSet<SickLeaveEntry>       SickLeaveEntries       => Set<SickLeaveEntry>();
+    public DbSet<BudgetTarget>         BudgetTargets          => Set<BudgetTarget>();
+    public DbSet<CategoryAccountMapping> CategoryAccountMappings => Set<CategoryAccountMapping>();
     public DbSet<BudgetInvitation>     BudgetInvitations      => Set<BudgetInvitation>();
     public DbSet<UserList>             UserLists              => Set<UserList>();
     public DbSet<ListItem>             ListItems              => Set<ListItem>();
@@ -244,6 +249,56 @@ public class BudgetDbContext : IdentityDbContext<ApplicationUser>
         {
             e.HasKey(x => x.Id);
             e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<Loan>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.OriginalAmount).HasColumnType("decimal(18,2)");
+            e.Property(x => x.CurrentBalance).HasColumnType("decimal(18,2)");
+            e.Property(x => x.InterestRate).HasColumnType("decimal(6,4)");
+            e.Property(x => x.MonthlyPayment).HasColumnType("decimal(18,2)");
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId).OnDelete(DeleteBehavior.Cascade);
+            e.Ignore(x => x.EffectiveMonthlyRate);
+            e.Ignore(x => x.TotalInterestEstimate);
+        });
+
+        mb.Entity<Insurance>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.PremiumAmount).HasColumnType("decimal(18,2)");
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId).OnDelete(DeleteBehavior.Cascade);
+            e.Ignore(x => x.MonthlyCost);
+        });
+
+        mb.Entity<SickLeaveEntry>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.AnnualSgi).HasColumnType("decimal(18,2)");
+            e.Property(x => x.GrossMonthlySalary).HasColumnType("decimal(18,2)");
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId).OnDelete(DeleteBehavior.Cascade);
+            e.Ignore(x => x.TotalDays); e.Ignore(x => x.KarensDays);
+            e.Ignore(x => x.EmployerDays); e.Ignore(x => x.FkDays);
+            e.Ignore(x => x.GrossDailyFromSalary); e.Ignore(x => x.EmployerSickPay);
+            e.Ignore(x => x.FkSickPay); e.Ignore(x => x.TotalBenefit); e.Ignore(x => x.LostIncome);
+        });
+
+        mb.Entity<BudgetTarget>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.TargetAmount).HasColumnType("decimal(18,2)");
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Category).WithMany().HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.BudgetId, x.CategoryId, x.Year, x.Month }).IsUnique();
+        });
+
+        mb.Entity<CategoryAccountMapping>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.BasAccount).HasMaxLength(20);
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Category).WithMany().HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.BudgetId, x.CategoryId }).IsUnique();
         });
 
         mb.Entity<ReceiptBatchCategory>().HasData(

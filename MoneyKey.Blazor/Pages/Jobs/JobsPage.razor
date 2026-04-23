@@ -4,6 +4,7 @@
 @inject JobApiService JobSvc
 @inject ToastService Toast
 @inject BudgetState BudgetState
+@using MoneyKey.Blazor.Components.Shared
 
 <div class="desktop-page-wrapper">
     <div class="page-header">
@@ -119,7 +120,7 @@
 <!-- Create/Edit modal -->
 @if (_showModal)
 {
-    <div class="modal-overlay" @onclick="() => _showModal = false" @onkeydown="e => { if (e.Key == \"Escape\") _showModal = false; }">
+    <div class="modal-overlay" @onclick="() => _showModal = false" @onkeydown="CloseJobModalOnEscape">
         <div class="modal" style="max-width:500px" @onclick:stopPropagation>
             <div class="modal-header">
                 <span class="modal-title">@(_editJob == null ? "Ny inkomstkälla" : "Redigera inkomstkälla")</span>
@@ -253,4 +254,9 @@
         JobPayType.Monthly => "Månadsanställd", JobPayType.Yearly => "Årsanställd",
         JobPayType.Hourly => "Timbaserad", JobPayType.ProjectFixed => "Projektbaserad", _ => t.ToString()
     };
+    private void CloseJobModalOnEscape(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") _showModal = false;
+    }
+
 }

@@ -13,7 +13,12 @@
 
 <div class="app-shell">
     <aside class="sidebar">
-        <div class="sidebar-logo"><h1>Money<span>Key</span></h1></div>
+        <img src="images/moneykey-logo.png"
+             alt="MoneyKey"
+             style="max-width: 30%; height: auto; display: block; margin: 20px auto 0 auto;" />
+        <div class="sidebar-logo" style="text-align: center;">
+            <h1>Money<span>Key</span></h1>
+        </div>
 
         <div class="budget-switcher">
             <select @onchange="OnBudgetChanged" value="@BudgetState.ActiveBudgetId">
@@ -89,6 +94,27 @@
                     <span class="material-icons">receipt_long</span> Kvittounderlag
                 </NavLink>
             }
+            @if (BudgetState.IsFeatureEnabled("Loans"))
+            {
+                <NavLink class="nav-item" href="/loans">
+                    <span class="material-icons">account_balance</span> Lån
+                </NavLink>
+            }
+            @if (BudgetState.IsFeatureEnabled("Insurance"))
+            {
+                <NavLink class="nav-item" href="/insurance">
+                    <span class="material-icons">security</span> Försäkringar
+                </NavLink>
+            }
+            @if (BudgetState.IsFeatureEnabled("SickLeave"))
+            {
+                <NavLink class="nav-item" href="/sickleave">
+                    <span class="material-icons">sick</span> Sjukfrånvaro
+                </NavLink>
+            }
+            <NavLink class="nav-item" href="/tax">
+                <span class="material-icons">calculate</span> Skattekalkyl
+            </NavLink>
         </nav>
 
         <nav class="nav-section">
@@ -184,6 +210,10 @@
             <a class="more-nav-item" href="/lists"         @onclick='() => _morOpen = false'><span class="material-icons">checklist</span> Listor</a>
             <a class="more-nav-item" href="/timetracking"  @onclick='() => _morOpen = false'><span class="material-icons">schedule</span> Tidrapportering</a>
             <a class="more-nav-item" href="/receipts"      @onclick='() => _morOpen = false'><span class="material-icons">receipt_long</span> Kvittounderlag</a>
+            <a class="more-nav-item" href="/loans"         @onclick='() => _morOpen = false'><span class="material-icons">account_balance</span> Lån</a>
+            <a class="more-nav-item" href="/insurance"     @onclick='() => _morOpen = false'><span class="material-icons">security</span> Försäkringar</a>
+            <a class="more-nav-item" href="/sickleave"     @onclick='() => _morOpen = false'><span class="material-icons">sick</span> Sjukfrånvaro</a>
+            <a class="more-nav-item" href="/tax"           @onclick='() => _morOpen = false'><span class="material-icons">calculate</span> Skattekalkyl</a>
             <a class="more-nav-item" href="/reports"       @onclick='() => _morOpen = false'><span class="material-icons">bar_chart</span> Export &amp; Import</a>
             @if (BudgetState.IsOwner)
             { <a class="more-nav-item" href="/settings" @onclick='() => _morOpen = false'><span class="material-icons">settings</span> Inställningar</a> }

@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -52,11 +53,19 @@ public class AdminController : BaseApiController
         if (!await IsAdminAsync()) return Forbid();
         var rows  = await _subs.GetAllForAdminAsync(search, page, 50);
         var total = await _subs.CountAsync();
+        // B7 fix: batch-load all users in one query instead of N+1
+        var userIds   = rows.Select(r => r.UserId).ToList();
+        var usersList = await _users.Users.Where(u => userIds.Contains(u.Id)).ToListAsync();
+        var usersMap  = usersList.ToDictionary(u => u.Id);
+        // Batch budget counts
+        var budgetCounts = new Dictionary<string,int>();
+        foreach (var uid in userIds)
+            budgetCounts[uid] = (await _budgets.GetForUserAsync(uid)).Count;
         var dtos  = new List<AdminUserDto>();
         foreach (var (userId, email, displayName, sub) in rows)
         {
-            var user        = await _users.FindByIdAsync(userId);
-            var budgetCount = (await _budgets.GetForUserAsync(userId)).Count;
+            usersMap.TryGetValue(userId, out var user);
+            var budgetCount = budgetCounts.GetValueOrDefault(userId, 0);
             dtos.Add(new AdminUserDto
             {
                 UserId      = userId,
@@ -90,8 +99,11 @@ public class AdminController : BaseApiController
             IsAdmin    = dto.IsAdmin,
             AdminNotes = dto.AdminNotes
         });
-        var user = await _users.FindByIdAsync(userId);
-        return Ok(SubscriptionController.ToDto(sub, user?.DisplayName ?? "", 0));
+        // S3: Audit trail — log every admin subscription change
+        var targetUser = await _users.FindByIdAsync(userId);
+        var adminUser  = await _users.FindByIdAsync(UserId);
+        Console.WriteLine($"[AUDIT] Admin {adminUser?.Email ?? UserId} updated subscription for {targetUser?.Email ?? userId}: Tier={dto.Tier}, IsAdmin={dto.IsAdmin} at {DateTime.UtcNow:O}");
+        return Ok(SubscriptionController.ToDto(sub, targetUser?.DisplayName ?? "", 0));
     }
 
     [HttpGet("stats")]

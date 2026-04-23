@@ -15,4 +15,6 @@ public class Category
     public bool    IsSystemCategory { get; set; } = true;
     public int?    BudgetId         { get; set; }
     public string? IconName         { get; set; }
+    /// <summary>When true, transactions in this category default to ReceiptStatus.Required.</summary>
+    public bool    IsReceiptRequired { get; set; }
 }
