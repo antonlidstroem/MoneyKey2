@@ -2,25 +2,32 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.Extensions.Configuration;
 using MoneyKey.Core.DTOs.Auth;
 
 namespace MoneyKey.Blazor.Services.Auth;
 
 public class JwtAuthenticationStateProvider : AuthenticationStateProvider
 {
-    private static string?  _accessToken;
+    private static string? _accessToken;
     private static UserDto? _currentUser;
 
+    /// <summary>
+    /// Dedicated HTTP client for auth endpoints (login, refresh, logout).
+    /// This client does NOT use AuthorizationMessageHandler to avoid
+    /// circular refresh loops when the access token is expired.
+    /// It is registered as "MoneyKeyAuth" in Program.cs without the handler.
+    /// </summary>
     private readonly HttpClient _authClient;
 
-    public JwtAuthenticationStateProvider(IConfiguration config)
+    public JwtAuthenticationStateProvider(IHttpClientFactory httpClientFactory)
     {
-        var apiBase  = config["ApiBaseUrl"] ?? "https://localhost:7000";
-        _authClient  = new HttpClient { BaseAddress = new Uri(apiBase) };
+        // "MoneyKeyAuth" is a named client registered without AuthorizationMessageHandler.
+        // It shares the same BaseAddress as the main API client but sends credentials
+        // (cookies) correctly for cross-origin requests in Blazor WASM.
+        _authClient = httpClientFactory.CreateClient("MoneyKeyAuth");
     }
 
-    public static string?  AccessToken => _accessToken;
+    public static string? AccessToken => _accessToken;
     public static UserDto? CurrentUser => _currentUser;
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
@@ -34,10 +41,14 @@ public class JwtAuthenticationStateProvider : AuthenticationStateProvider
             if (r.IsSuccessStatusCode)
             {
                 var result = await r.Content.ReadFromJsonAsync<AuthResultDto>();
-                if (result != null) { SetToken(result.AccessToken, result.User); return Build(result.AccessToken); }
+                if (result != null)
+                {
+                    SetToken(result.AccessToken, result.User);
+                    return Build(result.AccessToken);
+                }
             }
         }
-        catch { }
+        catch { /* Network error — fall through to anonymous */ }
 
         ClearToken();
         return Anonymous();
@@ -62,7 +73,7 @@ public class JwtAuthenticationStateProvider : AuthenticationStateProvider
         try
         {
             var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
-            var id  = new ClaimsIdentity(jwt.Claims, "jwt");
+            var id = new ClaimsIdentity(jwt.Claims, "jwt");
             return new AuthenticationState(new ClaimsPrincipal(id));
         }
         catch { return Anonymous(); }
@@ -81,7 +92,6 @@ public class JwtAuthenticationStateProvider : AuthenticationStateProvider
         catch { return true; }
     }
 
-    
     public UserDto? GetCurrentUser() => _currentUser;
 
     public Task LogoutAsync()

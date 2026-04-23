@@ -7,11 +7,15 @@ public class ImportApiService : ApiServiceBase
 {
     public ImportApiService(HttpClient http) : base(http) { }
 
-    public async Task<ImportSessionDto?> PreviewAsync(int budgetId, Stream stream, string fileName, string bankProfile)
+    /// <summary>
+    /// Uploads a CSV file for preview. Column detection is automatic —
+    /// no bank profile selection required.
+    /// </summary>
+    public async Task<ImportSessionDto?> PreviewAsync(int budgetId, Stream stream, string fileName)
     {
         using var content = new MultipartFormDataContent();
         content.Add(new StreamContent(stream), "file", fileName);
-        var r = await Http.PostAsync($"api/budgets/{budgetId}/import/preview?bankProfile={bankProfile}", content);
+        var r = await Http.PostAsync($"api/budgets/{budgetId}/import/preview", content);
         r.EnsureSuccessStatusCode();
         return await r.Content.ReadFromJsonAsync<ImportSessionDto>();
     }

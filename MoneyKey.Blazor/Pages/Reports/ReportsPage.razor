@@ -12,29 +12,46 @@
 <div class="page-header"><span class="page-title">Export &amp; Import</span></div>
 
 <div class="page-content" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
+
+    <!-- Export PDF/Excel -->
     <div class="card">
         <div class="card-title"><span class="material-icons">download</span> Exportera</div>
-        <p style="font-size:.875rem;color:var(--color-muted);margin-bottom:14px">Exporterar aktuellt journal-filter som PDF eller Excel.</p>
+        <p style="font-size:.875rem;color:var(--color-muted);margin-bottom:14px">
+            Exporterar aktuellt journal-filter som PDF eller Excel.
+        </p>
         <div style="display:flex;gap:10px">
             <button class="btn btn-secondary" @onclick="ExportPdfAsync" disabled="@_exporting">
-                @if (_exporting) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
-                else { <span class="material-icons" style="font-size:.9rem">picture_as_pdf</span> }
+                @if (_exporting)
+                {
+                    <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>
+                }
+                else
+                {
+
+                    <span class="material-icons" style="font-size:.9rem">picture_as_pdf</span>
+                }
                 PDF
             </button>
             <button class="btn btn-secondary" @onclick="ExportExcelAsync" disabled="@_exporting">
-                @if (_exporting) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
-                else { <span class="material-icons" style="font-size:.9rem">table_view</span> }
+                @if (_exporting)
+                {
+                    <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>
+                }
+                else
+                {
+
+                    <span class="material-icons" style="font-size:.9rem">table_view</span>
+                }
                 Excel (4 flikar)
             </button>
         </div>
     </div>
 
-
-    <!-- SIE4 Bokföringsexport -->
+    <!-- SIE4 Export -->
     <div class="card">
         <div class="card-title"><span class="material-icons">account_tree</span> SIE4 Bokföringsexport</div>
         <p style="font-size:.875rem;color:var(--color-muted);margin-bottom:14px">
-            Exporterar transaktioner i SIE4-format som kan importeras i Bokio, Fortnox, Visma och andra bokföringssystem.
+            Exporterar transaktioner i SIE4-format för Bokio, Fortnox, Visma m.fl.
         </p>
         <div class="form-row">
             <div class="form-group">
@@ -49,51 +66,86 @@
                 <label class="form-label">År</label>
                 <select class="form-control" @bind="_sieYear">
                     @for (var y = DateTime.Today.Year; y >= DateTime.Today.Year - 3; y--)
-                    { var yr = y; <option value="@yr">@yr</option> }
+                    {
+                        var yr = y;
+                        <option value="@yr">@yr</option>
+                    }
                 </select>
             </div>
         </div>
         <button class="btn btn-secondary" @onclick="ExportSieAsync" disabled="@_exporting">
-            @if (_exporting) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
-            else { <span class="material-icons" style="font-size:.9rem">download</span> }
+            @if (_exporting)
+            {
+                <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>
+            }
+            else
+            {
+
+                <span class="material-icons" style="font-size:.9rem">download</span>
+            }
             Ladda ned SIE4-fil (.se)
         </button>
-        <div style="margin-top:8px;font-size:.76rem;color:var(--color-muted)">
-            Filen kan importeras direkt i Bokio, Fortnox eller Visma utan att kräva kontoinloggning.
-        </div>
     </div>
 
-        @if (BudgetState.CanEdit)
+    <!-- CSV Import -->
+    @if (BudgetState.CanEdit)
     {
         <div class="card">
             <div class="card-title"><span class="material-icons">upload</span> Importera CSV</div>
-            <div class="form-group">
-                <label class="form-label">Bankformat</label>
-                <select class="form-control" @bind="_bank">
-                    <option value="SEB">SEB</option>
-                    <option value="Swedbank">Swedbank</option>
-                    <option value="Handelsbanken">Handelsbanken</option>
-                </select>
-            </div>
+            <p style="font-size:.875rem;color:var(--color-muted);margin-bottom:14px">
+                Ladda upp en CSV-exportfil från din bank. Kolumner identifieras automatiskt.
+                Datum, belopp och beskrivning plockas upp från vanliga kolumnnamn (svenska och engelska).
+            </p>
             <div class="form-group">
                 <label class="form-label">CSV-fil</label>
                 <InputFile OnChange="OnFile" accept=".csv,.txt" class="form-control" />
             </div>
+
+            @if (!string.IsNullOrEmpty(_importError))
+            {
+                <div style="background:var(--color-expense-bg);color:var(--color-expense);padding:8px 12px;
+                                    border-radius:8px;font-size:.85rem;margin-bottom:10px">
+                    @_importError
+                </div>
+            }
+
             @if (_preview != null)
             {
                 <div style="margin-top:12px">
-                    <p style="font-size:.85rem;color:var(--color-muted);margin-bottom:8px">@_preview.TotalRows rader funna · @_preview.DuplicateCount eventuella dubletter</p>
+                    <p style="font-size:.85rem;color:var(--color-muted);margin-bottom:8px">
+                        @_preview.TotalRows rader hittades ·
+                        @_preview.DuplicateCount eventuella dubletter (avmarkerade automatiskt)
+                    </p>
                     <div style="max-height:240px;overflow-y:auto;border:1px solid var(--color-border);border-radius:8px">
                         <table style="width:100%;border-collapse:collapse;font-size:.8rem">
-                            <thead style="background:var(--color-bg)"><tr><th style="padding:6px 10px">✓</th><th>Datum</th><th style="text-align:right">Belopp</th><th>Beskrivning</th></tr></thead>
+                            <thead style="background:var(--color-bg)">
+                                <tr>
+                                    <th style="padding:6px 10px">✓</th>
+                                    <th>Datum</th>
+                                    <th style="text-align:right">Belopp</th>
+                                    <th>Beskrivning</th>
+                                </tr>
+                            </thead>
                             <tbody>
-                                @foreach (var r in _preview.Rows) {
+                                @foreach (var r in _preview.Rows)
+                                {
                                     var row = r;
                                     <tr style="@(row.IsDuplicate ? "opacity:.5" : "")">
-                                        <td style="padding:4px 10px"><input type="checkbox" @bind="row.Selected" /></td>
+                                        <td style="padding:4px 10px">
+                                            <input type="checkbox" @bind="row.Selected" />
+                                        </td>
                                         <td style="padding:4px 10px">@row.Date.ToString("yyyy-MM-dd")</td>
-                                        <td style="text-align:right;padding:4px 10px;color:@(row.Amount>=0?"var(--color-income)":"var(--color-expense)")">@row.Amount.ToString("N2")</td>
-                                        <td style="padding:4px 10px">@row.Description @(row.IsDuplicate ? "(dublett?)" : "")</td>
+                                        <td style="text-align:right;padding:4px 10px;
+                                                               color:@(row.Amount >= 0 ? "var(--color-income)" : "var(--color-expense)")">
+                                            @row.Amount.ToString("N2")
+                                        </td>
+                                        <td style="padding:4px 10px">
+                                            @row.Description
+                                            @if (row.IsDuplicate)
+                                            {
+                                                <span style="color:var(--color-muted)"> (möjlig dublett)</span>
+                                            }
+                                        </td>
                                     </tr>
                                 }
                             </tbody>
@@ -101,10 +153,15 @@
                     </div>
                     <div style="margin-top:10px;display:flex;gap:8px">
                         <button class="btn btn-primary btn-sm" @onclick="ConfirmImport" disabled="@_importing">
-                            @if (_importing) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
+                            @if (_importing)
+                            {
+                                <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>
+                            }
                             Importera valda (@_preview.Rows.Count(r => r.Selected) st)
                         </button>
-                        <button class="btn btn-ghost btn-sm" @onclick='() => _preview = null'>Avbryt</button>
+                        <button class="btn btn-ghost btn-sm" @onclick='() => { _preview = null; _importError = ""; }'>
+                            Avbryt
+                        </button>
                     </div>
                 </div>
             }
@@ -113,12 +170,11 @@
 </div>
 
 @code {
-    private string _bank = "SEB";
     private ImportPreviewDto? _preview;
     private string? _sessionId;
+    private string _importError = "";
     private bool _importing, _exporting;
 
-    // FIX: missing SIE export fields
     private string _sieCompany = "Budget";
     private string? _sieOrgNr;
     private int _sieYear = DateTime.Today.Year;
@@ -156,7 +212,6 @@
         finally { _exporting = false; }
     }
 
-    // FIX: add missing ExportSieAsync
     private async Task ExportSieAsync()
     {
         if (BudgetState.ActiveBudgetId <= 0) return;
@@ -179,10 +234,26 @@
 
     private async Task OnFile(InputFileChangeEventArgs e)
     {
+        _importError = "";
+        _preview = null;
+        _sessionId = null;
         var file = e.File;
-        await using var stream = file.OpenReadStream(10 * 1024 * 1024);
-        var session = await ImportSvc.PreviewAsync(BudgetState.ActiveBudgetId, stream, file.Name, _bank);
-        if (session != null) { _preview = session.Preview; _sessionId = session.SessionId; }
+        try
+        {
+            await using var stream = file.OpenReadStream(10 * 1024 * 1024);
+            var session = await ImportSvc.PreviewAsync(BudgetState.ActiveBudgetId, stream, file.Name);
+            if (session != null)
+            {
+                _preview = session.Preview;
+                _sessionId = session.SessionId;
+                if (_preview.TotalRows == 0)
+                    _importError = "Inga rader kunde tolkas. Kontrollera att filen är en CSV med datum, belopp och beskrivning.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _importError = $"Kunde inte läsa filen: {ex.Message}";
+        }
     }
 
     private async Task ConfirmImport()
@@ -195,7 +266,7 @@
             var count = await ImportSvc.ConfirmAsync(BudgetState.ActiveBudgetId,
                 new ConfirmImportDto(selected, 3, _sessionId));
             Toast.Success($"{count} transaktioner importerade.");
-            _preview = null; _sessionId = null;
+            _preview = null; _sessionId = null; _importError = "";
         }
         catch (Exception ex) { Toast.Error($"Import misslyckades: {ex.Message}"); }
         finally { _importing = false; }
