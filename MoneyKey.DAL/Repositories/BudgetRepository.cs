@@ -11,6 +11,7 @@ public class BudgetRepository : IBudgetRepository
     private readonly BudgetDbContext _db;
     public BudgetRepository(BudgetDbContext db) => _db = db;
 
+    // FIX LOW-2: Filter out nulls in case of orphaned membership rows (no matching Budget).
     public async Task<List<Budget>> GetForUserAsync(string userId) =>
         await _db.BudgetMemberships
             .Where(m => m.UserId == userId && m.AcceptedAt != null)
@@ -22,8 +23,8 @@ public class BudgetRepository : IBudgetRepository
     public async Task<Budget?> GetByIdAsync(int id) =>
         await _db.Budgets.Include(b => b.Memberships).FirstOrDefaultAsync(b => b.Id == id);
 
-    public async Task<Budget> CreateAsync(Budget b) { _db.Budgets.Add(b); await _db.SaveChangesAsync(); return b; }
-    public async Task<Budget> UpdateAsync(Budget b) { _db.Budgets.Update(b); await _db.SaveChangesAsync(); return b; }
+    public async Task<Budget> CreateAsync(Budget b)  { _db.Budgets.Add(b); await _db.SaveChangesAsync(); return b; }
+    public async Task<Budget> UpdateAsync(Budget b)  { _db.Budgets.Update(b); await _db.SaveChangesAsync(); return b; }
 
     public async Task DeleteAsync(int id)
     {
@@ -34,6 +35,10 @@ public class BudgetRepository : IBudgetRepository
     public async Task<BudgetMembership?> GetMembershipAsync(int budgetId, string userId) =>
         await _db.BudgetMemberships.FirstOrDefaultAsync(m => m.BudgetId == budgetId && m.UserId == userId);
 
+    /// <summary>
+    /// Returns a pending (not-yet-accepted) invite for the given email on the given budget.
+    /// UserId stores the invitee email as a placeholder until AcceptInvite overwrites it.
+    /// </summary>
     public async Task<BudgetMembership?> GetPendingInviteAsync(int budgetId, string email) =>
         await _db.BudgetMemberships
             .FirstOrDefaultAsync(m => m.BudgetId == budgetId
@@ -67,16 +72,12 @@ public class BudgetRepository : IBudgetRepository
         await _db.BudgetMemberships.Include(m => m.Budget)
             .FirstOrDefaultAsync(m => m.InviteToken == token && m.AcceptedAt == null);
 
-    // ── Missing implementation added here ─────────────────────────────────────
-    public async Task<List<BudgetMembership>> GetMembersAsync(int budgetId) =>
-        await _db.BudgetMemberships
-            .Where(m => m.BudgetId == budgetId && m.AcceptedAt != null)
-            .ToListAsync();
-
     // ── Feature flags ─────────────────────────────────────────────────────────
+    // Stored in AppSettings with Key = "Feature_<feature>" and Value = "disabled".
+
     public async Task<List<string>> GetDisabledFeaturesAsync(int budgetId)
     {
-        var prefix = "Feature_";
+        var prefix  = "Feature_";
         var settings = await _db.AppSettings
             .Where(s => s.BudgetId == budgetId && s.Key.StartsWith(prefix) && s.Value == "disabled")
             .ToListAsync();
@@ -85,7 +86,7 @@ public class BudgetRepository : IBudgetRepository
 
     public async Task DisableFeatureAsync(int budgetId, string feature)
     {
-        var key = $"Feature_{feature}";
+        var key     = $"Feature_{feature}";
         var setting = await _db.AppSettings.FirstOrDefaultAsync(s => s.BudgetId == budgetId && s.Key == key);
         if (setting == null)
             _db.AppSettings.Add(new AppSetting { BudgetId = budgetId, Key = key, Value = "disabled" });
@@ -96,8 +97,17 @@ public class BudgetRepository : IBudgetRepository
 
     public async Task EnableFeatureAsync(int budgetId, string feature)
     {
-        var key = $"Feature_{feature}";
+        var key     = $"Feature_{feature}";
         var setting = await _db.AppSettings.FirstOrDefaultAsync(s => s.BudgetId == budgetId && s.Key == key);
         if (setting != null) { _db.AppSettings.Remove(setting); await _db.SaveChangesAsync(); }
     }
+    public async Task<List<BudgetMembership>> GetMembersAsync(int budgetId) =>
+        await _db.Set<BudgetMembership>().Where(m => m.BudgetId == budgetId && m.AcceptedAt != null).ToListAsync();
+
+    public async Task<BudgetMembership?> GetMembershipAsync(int budgetId, string userId) =>
+        await _db.Set<BudgetMembership>().FirstOrDefaultAsync(m => m.BudgetId == budgetId && m.UserId == userId);
+
+    public async Task UpdateMemberAsync(BudgetMembership m)
+    { _db.Set<BudgetMembership>().Update(m); await _db.SaveChangesAsync(); }
+
 }

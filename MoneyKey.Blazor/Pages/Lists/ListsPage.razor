@@ -6,7 +6,6 @@
 @inject BudgetState BudgetState
 @inject NavigationManager Nav
 @inject IJSRuntime JS
-@using MoneyKey.Blazor.Components.Shared
 
 <!-- ═══ Desktop wrapper ════════════════════════════════════════════════════ -->
 <div class="desktop-page-wrapper">
@@ -15,19 +14,18 @@
         @if (BudgetState.CanEdit)
         {
             <div class="header-actions">
-                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-                    <BudgetScopeSelector @bind-SelectedIds="_scopeIds" OnChanged="ReloadAsync" />
-                    
-                    <button class="btn btn-secondary btn-sm" @onclick="() => OpenCreate(false)">
-                        <span class="material-icons" style="font-size:.9rem">checklist</span> Ny lista
-                    </button>
-                    <button class="btn btn-primary btn-sm" @onclick="() => OpenCreate(true)">
-                        <span class="material-icons" style="font-size:.9rem">sticky_note_2</span> Ny anteckning
-                    </button>
-                </div>
-            </div> 
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <BudgetScopeSelector @bind-SelectedIds="_scopeIds" OnChanged="ReloadAsync" />
+            
+                <button class="btn btn-secondary btn-sm" @onclick="() => OpenCreate(false)">
+                    <span class="material-icons" style="font-size:.9rem">checklist</span> Ny lista
+                </button>
+                <button class="btn btn-primary btn-sm" @onclick="() => OpenCreate(true)">
+                    <span class="material-icons" style="font-size:.9rem">sticky_note_2</span> Ny anteckning
+                </button>
+            </div>
         }
-    </div> 
+    </div>
 
     <!-- Filter chips -->
     <div style="display:flex;gap:8px;padding:0 24px 12px;flex-wrap:wrap">
@@ -255,7 +253,6 @@
 
 @code {
     private List<UserListDto> _all     = new();
-    private List<int>           _scopeIds = new();
     private int               _tab     = 0;
     private bool              _loading = true;
     private bool              _showCreate, _isNote, _saving;
@@ -315,6 +312,7 @@
         if (!_newItemText.TryGetValue(list.Id, out var text) || string.IsNullOrWhiteSpace(text)) return;
         try
         {
+            // Optimistic add — show immediately
             var tempItem = new ListItemDto { Id = -1, Text = text.Trim(), IsChecked = false, Order = list.Items?.Count ?? 0 };
             list.Items ??= new();
             list.Items.Add(tempItem);
@@ -322,11 +320,10 @@
             StateHasChanged();
             await JS.InvokeVoidAsync("focusElement", $"#new-item-{list.Id}");
 
-            // FIX: BudgetId kommer FÖRST i din service-definition
-            await ListSvc.AddItemAsync(BudgetState.ActiveBudgetId, list.Id, new CreateListItemDto(text.Trim()));
-
-            // FIX: BudgetId kommer FÖRST i din service-definition
-            var updated = await ListSvc.GetByIdAsync(BudgetState.ActiveBudgetId, list.Id);
+            // Fire to server
+            await ListSvc.AddItemAsync(list.Id, BudgetState.ActiveBudgetId, text.Trim());
+            // Reload to get real ID
+            var updated = await ListSvc.GetByIdAsync(list.Id, BudgetState.ActiveBudgetId);
             if (updated != null)
             {
                 var idx = _all.FindIndex(x => x.Id == list.Id);
@@ -372,17 +369,18 @@
         _saving = true; _error = "";
         try
         {
-            var tagsString = string.IsNullOrWhiteSpace(_newTags) ? null : _newTags;
-
-            var dto = new CreateListDto(
-                Name: _newName.Trim(),
-                ListType: _isNote ? ListType.Note : ListType.CheckList, // Kontrollera stavning!
-                BudgetId: BudgetState.ActiveBudgetId,
-                Description: null,
-                Content: _isNote ? _newContent : null,
-                Tags: tagsString
-            );
-
+            var tags = _newTags.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                               .Select(t => t.Trim()).Where(t => t.Length > 0).ToList();
+            var dto  = new CreateListDto
+            {
+                Name       = _newName.Trim(),
+                ListType   = _isNote ? ListType.Note : ListType.Checklist,
+                Content    = _isNote ? _newContent : null,
+                Tags       = tags,
+                Scope      = EntryScope.BudgetSpecific,
+                Visibility = EntryVisibility.Private,
+                BudgetId   = BudgetState.ActiveBudgetId
+            };
             await ListSvc.CreateAsync(BudgetState.ActiveBudgetId, dto);
             Toast.Success(_isNote ? "Anteckning skapad." : "Lista skapad.");
             _showCreate = false;
@@ -409,21 +407,19 @@
         _saving = true;
         try
         {
-            // Genom att namnge parametrarna slipper vi gissa ordningen och kompilatorn blir glad
-            var dto = new CreateListDto(
-                Name: _editNoteName.Trim(),
-                ListType: ListType.Note,
-                BudgetId: BudgetState.ActiveBudgetId,
-                Description: _editNote.Description,
-                Content: _editNoteContent,
-                Tags: _editNoteTags,
-                Scope: _editNote.Scope,
-                Visibility: _editNote.Visibility
-            );
-
-            // FIX: BudgetId först, sen listId
-            await ListSvc.UpdateAsync(BudgetState.ActiveBudgetId, _editNote.Id, dto);
-
+            var tags = _editNoteTags.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                    .Select(t => t.Trim()).Where(t => t.Length > 0).ToList();
+            var dto  = new CreateListDto
+            {
+                Name       = _editNoteName.Trim(),
+                ListType   = ListType.Note,
+                Content    = _editNoteContent,
+                Tags       = tags,
+                Scope      = _editNote.Scope,
+                Visibility = _editNote.Visibility,
+                BudgetId   = BudgetState.ActiveBudgetId
+            };
+            await ListSvc.UpdateAsync(_editNote.Id, BudgetState.ActiveBudgetId, dto);
             Toast.Success("Anteckning sparad.");
             _editNote = null;
             await ReloadAsync();
