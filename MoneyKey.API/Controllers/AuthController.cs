@@ -51,7 +51,6 @@ public class AuthController : BaseApiController
         if (!result.Succeeded)
             return BadRequest(new { Errors = result.Errors.Select(e => e.Description) });
 
-        // Auto-create Free subscription for new users
         await _subRepo.UpsertAsync(new UserSubscription { UserId = user.Id });
 
         var budget = new Budget { Name = $"{dto.FirstName}s budget", OwnerId = user.Id };
@@ -101,7 +100,13 @@ public class AuthController : BaseApiController
     public async Task<IActionResult> Logout()
     {
         await _tokens.RevokeAllRefreshTokensAsync(UserId);
-        Response.Cookies.Delete(CookieName);
+        // SameSite=None required for cross-origin cookie deletion (Azure SWA + App Service)
+        Response.Cookies.Delete(CookieName, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.None
+        });
         return Ok(new { Message = "Utloggad." });
     }
 
@@ -173,13 +178,18 @@ public class AuthController : BaseApiController
         var memberships = await GetMembershipsAsync(user.Id);
         var access = _tokens.GenerateAccessToken(user, memberships);
         var (raw, _) = await _tokens.GenerateRefreshTokenAsync(user.Id);
+
+        // SameSite=None is required for cross-origin cookie usage (Azure Static Web Apps
+        // served from a different domain than the API on Azure App Service).
+        // Secure=true is mandatory when SameSite=None.
         Response.Cookies.Append(CookieName, raw, new CookieOptions
         {
             HttpOnly = true,
             Secure = true,
-            SameSite = SameSiteMode.Strict,
+            SameSite = SameSiteMode.None,
             Expires = DateTimeOffset.UtcNow.AddDays(30)
         });
+
         return Ok(new AuthResultDto(access,
             new UserDto(user.Id, user.Email!, user.FirstName, user.LastName, memberships)));
     }

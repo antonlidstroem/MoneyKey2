@@ -10,9 +10,15 @@ public class CategoryRepository : ICategoryRepository
     private readonly BudgetDbContext _db;
     public CategoryRepository(BudgetDbContext db) => _db = db;
 
+    /// <summary>
+    /// Returns categories available for user selection in transaction forms.
+    /// System categories with IsUserSelectable=false (e.g. Löneinbetalning) are excluded.
+    /// Budget-specific custom categories are always included.
+    /// </summary>
     public async Task<List<Category>> GetForBudgetAsync(int budgetId) =>
         await _db.Categories
-            .Where(c => c.IsSystemCategory || c.BudgetId == budgetId)
+            .Where(c => (c.IsSystemCategory && c.IsUserSelectable)
+                     || (!c.IsSystemCategory && c.BudgetId == budgetId))
             .OrderBy(c => c.Type).ThenBy(c => c.Name)
             .ToListAsync();
 
