@@ -375,13 +375,14 @@
         if (BudgetState.ActiveBudgetId <= 0) return;
         try
         {
-            var svc = Http.BaseAddress != null
-                ? new ListApiService(Http)
-                : null;
-            // Use injected service via workaround
             _lists = await ListApiServiceInstance.GetAllAsync(BudgetState.ActiveBudgetId) ?? new();
         }
-        catch { _lists = new(); }
+        catch (Exception ex)
+        {
+            // Logga felet synligt i konsolen — annars sväljs det tyst
+            Console.WriteLine($"[JournalPage] LoadListsAsync misslyckades: {ex.Message}");
+            _lists = new();
+        }
     }
 
     [Inject] private ListApiService ListApiServiceInstance { get; set; } = null!;
