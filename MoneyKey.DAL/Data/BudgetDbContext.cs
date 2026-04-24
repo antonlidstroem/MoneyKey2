@@ -10,32 +10,32 @@ public class BudgetDbContext : IdentityDbContext<ApplicationUser>
 {
     public BudgetDbContext(DbContextOptions<BudgetDbContext> options) : base(options) { }
 
-    public DbSet<Budget>               Budgets                => Set<Budget>();
-    public DbSet<BudgetMembership>     BudgetMemberships      => Set<BudgetMembership>();
-    public DbSet<Category>             Categories             => Set<Category>();
-    public DbSet<Transaction>          Transactions           => Set<Transaction>();
-    public DbSet<Project>              Projects               => Set<Project>();
-    public DbSet<KonteringRow>         KonteringRows          => Set<KonteringRow>();
-    public DbSet<MilersattningEntry>   MilersattningEntries   => Set<MilersattningEntry>();
-    public DbSet<VabEntry>             VabEntries             => Set<VabEntry>();
-    public DbSet<ReceiptBatch>         ReceiptBatches         => Set<ReceiptBatch>();
-    public DbSet<ReceiptLine>          ReceiptLines           => Set<ReceiptLine>();
+    public DbSet<Budget> Budgets => Set<Budget>();
+    public DbSet<BudgetMembership> BudgetMemberships => Set<BudgetMembership>();
+    public DbSet<Category> Categories => Set<Category>();
+    public DbSet<Transaction> Transactions => Set<Transaction>();
+    public DbSet<Project> Projects => Set<Project>();
+    public DbSet<KonteringRow> KonteringRows => Set<KonteringRow>();
+    public DbSet<MilersattningEntry> MilersattningEntries => Set<MilersattningEntry>();
+    public DbSet<VabEntry> VabEntries => Set<VabEntry>();
+    public DbSet<ReceiptBatch> ReceiptBatches => Set<ReceiptBatch>();
+    public DbSet<ReceiptLine> ReceiptLines => Set<ReceiptLine>();
     public DbSet<ReceiptBatchCategory> ReceiptBatchCategories => Set<ReceiptBatchCategory>();
-    public DbSet<RefreshToken>         RefreshTokens          => Set<RefreshToken>();
-    public DbSet<AuditLog>             AuditLogs              => Set<AuditLog>();
-    public DbSet<AppSetting>           AppSettings            => Set<AppSetting>();
-    public DbSet<SystemSetting>        SystemSettings         => Set<SystemSetting>();
-    public DbSet<UserSubscription>     UserSubscriptions      => Set<UserSubscription>();
-    public DbSet<Loan>                 Loans                  => Set<Loan>();
-    public DbSet<Insurance>            Insurances             => Set<Insurance>();
-    public DbSet<SickLeaveEntry>       SickLeaveEntries       => Set<SickLeaveEntry>();
-    public DbSet<BudgetTarget>         BudgetTargets          => Set<BudgetTarget>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<AppSetting> AppSettings => Set<AppSetting>();
+    public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
+    public DbSet<UserSubscription> UserSubscriptions => Set<UserSubscription>();
+    public DbSet<Loan> Loans => Set<Loan>();
+    public DbSet<Insurance> Insurances => Set<Insurance>();
+    public DbSet<SickLeaveEntry> SickLeaveEntries => Set<SickLeaveEntry>();
+    public DbSet<BudgetTarget> BudgetTargets => Set<BudgetTarget>();
     public DbSet<CategoryAccountMapping> CategoryAccountMappings => Set<CategoryAccountMapping>();
-    public DbSet<BudgetInvitation>     BudgetInvitations      => Set<BudgetInvitation>();
-    public DbSet<UserList>             UserLists              => Set<UserList>();
-    public DbSet<ListItem>             ListItems              => Set<ListItem>();
-    public DbSet<Job>                  Jobs                   => Set<Job>();
-    public DbSet<TimeEntry>            TimeEntries            => Set<TimeEntry>();
+    public DbSet<BudgetInvitation> BudgetInvitations => Set<BudgetInvitation>();
+    public DbSet<UserList> UserLists => Set<UserList>();
+    public DbSet<ListItem> ListItems => Set<ListItem>();
+    public DbSet<Job> Jobs => Set<Job>();
+    public DbSet<TimeEntry> TimeEntries => Set<TimeEntry>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -61,6 +61,7 @@ public class BudgetDbContext : IdentityDbContext<ApplicationUser>
         {
             e.HasKey(x => x.Id);
             e.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            e.Property(x => x.IsUserSelectable).HasDefaultValue(true);
         });
 
         mb.Entity<Transaction>(e =>
@@ -163,28 +164,11 @@ public class BudgetDbContext : IdentityDbContext<ApplicationUser>
             e.Property(x => x.Value).IsRequired();
         });
 
-        // ── Seed system categories ──────────────────────────────────────────
-        mb.Entity<Category>().HasData(
-            new Category { Id = 1,  Name = "Mat",                Type = TransactionType.Expense, IsSystemCategory = true },
-            new Category { Id = 2,  Name = "Hus & drift",        Type = TransactionType.Expense, IsSystemCategory = true },
-            new Category { Id = 3,  Name = "Transport",          Type = TransactionType.Expense, IsSystemCategory = true },
-            new Category { Id = 4,  Name = "Fritid",             Type = TransactionType.Expense, IsSystemCategory = true },
-            new Category { Id = 5,  Name = "Barn",               Type = TransactionType.Expense, IsSystemCategory = true },
-            new Category { Id = 6,  Name = "Streaming-tjänster", Type = TransactionType.Expense, IsSystemCategory = true },
-            new Category { Id = 7,  Name = "SaaS-produkter",     Type = TransactionType.Expense, IsSystemCategory = true },
-            new Category { Id = 8,  Name = "Lön",                Type = TransactionType.Income,  IsSystemCategory = true, ToggleGrossNet = true, DefaultRate = 30, AdjustmentType = AdjustmentType.Deduction },
-            new Category { Id = 9,  Name = "Bidrag",             Type = TransactionType.Income,  IsSystemCategory = true },
-            new Category { Id = 10, Name = "Hobbyverksamhet",    Type = TransactionType.Income,  IsSystemCategory = true },
-            new Category { Id = 11, Name = "VAB/Sjukfrånvaro",   Type = TransactionType.Expense, IsSystemCategory = true, HasEndDate = true, ToggleGrossNet = true, DefaultRate = 80, AdjustmentType = AdjustmentType.Deduction },
-            new Category { Id = 12, Name = "Milersättning",      Type = TransactionType.Income,  IsSystemCategory = true }
-        );
-
         mb.Entity<UserList>(e =>
         {
             e.HasKey(x => x.Id);
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
             e.Property(x => x.Tags).HasMaxLength(500);
-            // BudgetId is nullable — null when Scope = Personal
             e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId)
              .IsRequired(false).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Items).WithOne(i => i.List).HasForeignKey(i => i.ListId).OnDelete(DeleteBehavior.Cascade);
@@ -196,29 +180,6 @@ public class BudgetDbContext : IdentityDbContext<ApplicationUser>
             e.Property(x => x.Text).HasMaxLength(500).IsRequired();
         });
 
-        mb.Entity<SystemSetting>(e =>
-        {
-            e.HasKey(x => x.Id);
-            e.Property(x => x.Key).HasMaxLength(200).IsRequired();
-            e.HasIndex(x => x.Key).IsUnique();
-        });
-
-        mb.Entity<UserList>(e =>
-        {
-            e.HasKey(x => x.Id);
-            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
-            e.Property(x => x.Tags).HasMaxLength(500);
-            // BudgetId is nullable — null when Scope = Personal
-            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId)
-             .IsRequired(false).OnDelete(DeleteBehavior.Cascade);
-            e.HasMany(x => x.Items).WithOne(i => i.List).HasForeignKey(i => i.ListId).OnDelete(DeleteBehavior.Cascade);
-        });
-
-        mb.Entity<ListItem>(e =>
-        {
-            e.HasKey(x => x.Id);
-            e.Property(x => x.Text).HasMaxLength(500).IsRequired();
-        });
         mb.Entity<Job>(e =>
         {
             e.HasKey(x => x.Id);
@@ -301,31 +262,35 @@ public class BudgetDbContext : IdentityDbContext<ApplicationUser>
             e.HasIndex(x => new { x.BudgetId, x.CategoryId }).IsUnique();
         });
 
-        mb.Entity<ReceiptBatchCategory>().HasData(
-            new ReceiptBatchCategory { Id = 1, Name = "Resor & Transport",      IconName = "directions_car", SortOrder = 1, Description = "Tåg, flyg, hotell, parkering, taxi" },
-            new ReceiptBatchCategory { Id = 2, Name = "Representation",         IconName = "restaurant",     SortOrder = 2, Description = "Kundluncher, middag, presentkort" },
-            new ReceiptBatchCategory { Id = 3, Name = "Kontor & Förbrukning",   IconName = "shopping_bag",   SortOrder = 3, Description = "Papper, pennor, rengöring" },
-            new ReceiptBatchCategory { Id = 4, Name = "IT & Utrustning",        IconName = "devices",        SortOrder = 4, Description = "Kablar, tillbehör, mjukvara" },
-            new ReceiptBatchCategory { Id = 5, Name = "Utbildning & Konferens", IconName = "school",         SortOrder = 5, Description = "Kurser, litteratur, konferensavgifter" },
-            new ReceiptBatchCategory { Id = 6, Name = "Tjänster & Konsulting",  IconName = "handshake",      SortOrder = 6, Description = "Externa tjänster, prenumerationer" },
-            new ReceiptBatchCategory { Id = 7, Name = "Övrigt",                 IconName = "more_horiz",     SortOrder = 7, Description = "Utlägg som inte passar annan kategori" }
+        // ── Seed: System categories ─────────────────────────────────────────
+        // Id=8 (Löneinbetalning) is IsUserSelectable=false — created automatically
+        // by the payroll posting flow. Users add income sources via the Job system.
+        mb.Entity<Category>().HasData(
+            new Category { Id = 1, Name = "Mat", Type = TransactionType.Expense, IsSystemCategory = true, IsUserSelectable = true },
+            new Category { Id = 2, Name = "Hus & drift", Type = TransactionType.Expense, IsSystemCategory = true, IsUserSelectable = true },
+            new Category { Id = 3, Name = "Transport", Type = TransactionType.Expense, IsSystemCategory = true, IsUserSelectable = true },
+            new Category { Id = 4, Name = "Fritid", Type = TransactionType.Expense, IsSystemCategory = true, IsUserSelectable = true },
+            new Category { Id = 5, Name = "Barn", Type = TransactionType.Expense, IsSystemCategory = true, IsUserSelectable = true },
+            new Category { Id = 6, Name = "Streaming-tjänster", Type = TransactionType.Expense, IsSystemCategory = true, IsUserSelectable = true },
+            new Category { Id = 7, Name = "SaaS-produkter", Type = TransactionType.Expense, IsSystemCategory = true, IsUserSelectable = true },
+            // Id=8: system-only category for auto-generated salary transactions from payroll posting.
+            // IsUserSelectable=false means it will NOT appear in transaction category dropdowns.
+            new Category { Id = 8, Name = "Löneinbetalning", Type = TransactionType.Income, IsSystemCategory = true, IsUserSelectable = false },
+            new Category { Id = 9, Name = "Bidrag", Type = TransactionType.Income, IsSystemCategory = true, IsUserSelectable = true },
+            new Category { Id = 10, Name = "Hobbyverksamhet", Type = TransactionType.Income, IsSystemCategory = true, IsUserSelectable = true },
+            new Category { Id = 11, Name = "VAB/Sjukfrånvaro", Type = TransactionType.Expense, IsSystemCategory = true, IsUserSelectable = true, HasEndDate = true, ToggleGrossNet = true, DefaultRate = 80, AdjustmentType = AdjustmentType.Deduction },
+            new Category { Id = 12, Name = "Milersättning", Type = TransactionType.Income, IsSystemCategory = true, IsUserSelectable = true }
         );
 
-        // ── UserList + ListItem ─────────────────────────────────────────────
-        mb.Entity<UserList>(e =>
-        {
-            e.HasKey(x => x.Id);
-            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
-            e.Property(x => x.Tags).HasMaxLength(500);
-            // BudgetId is nullable — null when Scope = Personal
-            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId)
-             .IsRequired(false).OnDelete(DeleteBehavior.Cascade);
-            e.HasMany(x => x.Items).WithOne(i => i.List).HasForeignKey(i => i.ListId).OnDelete(DeleteBehavior.Cascade);
-        });
-        mb.Entity<ListItem>(e =>
-        {
-            e.HasKey(x => x.Id);
-            e.Property(x => x.Text).HasMaxLength(500).IsRequired();
-        });
+        // ── Seed: Receipt batch categories ─────────────────────────────────
+        mb.Entity<ReceiptBatchCategory>().HasData(
+            new ReceiptBatchCategory { Id = 1, Name = "Resor & Transport", IconName = "directions_car", SortOrder = 1, Description = "Tåg, flyg, hotell, parkering, taxi" },
+            new ReceiptBatchCategory { Id = 2, Name = "Representation", IconName = "restaurant", SortOrder = 2, Description = "Kundluncher, middag, presentkort" },
+            new ReceiptBatchCategory { Id = 3, Name = "Kontor & Förbrukning", IconName = "shopping_bag", SortOrder = 3, Description = "Papper, pennor, rengöring" },
+            new ReceiptBatchCategory { Id = 4, Name = "IT & Utrustning", IconName = "devices", SortOrder = 4, Description = "Kablar, tillbehör, mjukvara" },
+            new ReceiptBatchCategory { Id = 5, Name = "Utbildning & Konferens", IconName = "school", SortOrder = 5, Description = "Kurser, litteratur, konferensavgifter" },
+            new ReceiptBatchCategory { Id = 6, Name = "Tjänster & Konsulting", IconName = "handshake", SortOrder = 6, Description = "Externa tjänster, prenumerationer" },
+            new ReceiptBatchCategory { Id = 7, Name = "Övrigt", IconName = "more_horiz", SortOrder = 7, Description = "Utlägg som inte passar annan kategori" }
+        );
     }
 }

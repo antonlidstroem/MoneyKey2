@@ -4,17 +4,23 @@ namespace MoneyKey.Domain.Models;
 
 public class Category
 {
-    public int     Id               { get; set; }
-    public string  Name             { get; set; } = string.Empty;
-    public TransactionType Type     { get; set; }
-    public bool    ToggleGrossNet   { get; set; } = false;
-    public int?    DefaultRate      { get; set; }
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public TransactionType Type { get; set; }
+    public bool ToggleGrossNet { get; set; } = false;
+    public int? DefaultRate { get; set; }
     public AdjustmentType? AdjustmentType { get; set; }
-    public string? Description      { get; set; }
-    public bool    HasEndDate       { get; set; } = false;
-    public bool    IsSystemCategory { get; set; } = true;
-    public int?    BudgetId         { get; set; }
-    public string? IconName         { get; set; }
+    public string? Description { get; set; }
+    public bool HasEndDate { get; set; } = false;
+    public bool IsSystemCategory { get; set; } = true;
+    public int? BudgetId { get; set; }
+    public string? IconName { get; set; }
     /// <summary>When true, transactions in this category default to ReceiptStatus.Required.</summary>
-    public bool    IsReceiptRequired { get; set; }
+    public bool IsReceiptRequired { get; set; }
+    /// <summary>
+    /// When false the category is managed by the system only and will not
+    /// appear in user-facing category dropdowns. Used for auto-generated
+    /// categories such as Löneinbetalning (created by the payroll posting flow).
+    /// </summary>
+    public bool IsUserSelectable { get; set; } = true;
 }

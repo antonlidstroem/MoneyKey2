@@ -12,27 +12,29 @@ namespace MoneyKey.API.Controllers;
 [Authorize, Route("api/budgets/{budgetId:int}/import")]
 public class ImportController : BaseApiController
 {
-    private readonly ImportService              _svc;
+    private readonly ImportService _svc;
     private readonly BudgetAuthorizationService _auth;
-    private readonly IHubContext<BudgetHub>     _hub;
-    private readonly SignalRFeatureService      _signalRFeature;
+    private readonly IHubContext<BudgetHub> _hub;
+    private readonly SignalRFeatureService _signalRFeature;
 
     public ImportController(ImportService svc, BudgetAuthorizationService auth,
         IHubContext<BudgetHub> hub, SignalRFeatureService signalRFeature)
     { _svc = svc; _auth = auth; _hub = hub; _signalRFeature = signalRFeature; }
 
-    [HttpGet("profiles")]
-    public IActionResult GetProfiles() =>
-        Ok(ImportService.GetProfiles().Select(p => p.BankName));
-
+    /// <summary>
+    /// Parses an uploaded CSV file, auto-detects columns, and returns a preview
+    /// of the rows found along with a session ID for confirming the import.
+    /// No bank profiles — column detection is automatic.
+    /// </summary>
     [HttpPost("preview")]
     [RequestSizeLimit(10 * 1024 * 1024)]
-    public async Task<IActionResult> Preview(int budgetId, IFormFile file, [FromQuery] string bankProfile = "SEB")
+    public async Task<IActionResult> Preview(int budgetId, IFormFile file)
     {
         if (!await _auth.HasRoleAsync(budgetId, UserId, BudgetMemberRole.Editor)) return Forbid();
         if (file == null || file.Length == 0) return BadRequest("Ingen fil uppladdad.");
+
         await using var stream = file.OpenReadStream();
-        var session = await _svc.PreviewAsync(stream, bankProfile, budgetId, UserId);
+        var session = await _svc.PreviewAsync(stream, budgetId, UserId);
         return Ok(session);
     }
 

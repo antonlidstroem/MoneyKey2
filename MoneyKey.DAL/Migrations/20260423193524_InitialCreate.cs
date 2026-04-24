@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace MoneyKey.DAL.Migrations
 {
     /// <inheritdoc />
-    public partial class init : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -361,7 +361,8 @@ namespace MoneyKey.DAL.Migrations
                     IsSystemCategory = table.Column<bool>(type: "bit", nullable: false),
                     BudgetId = table.Column<int>(type: "int", nullable: true),
                     IconName = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    IsReceiptRequired = table.Column<bool>(type: "bit", nullable: false)
+                    IsReceiptRequired = table.Column<bool>(type: "bit", nullable: false),
+                    IsUserSelectable = table.Column<bool>(type: "bit", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
                 {
@@ -917,21 +918,32 @@ namespace MoneyKey.DAL.Migrations
 
             migrationBuilder.InsertData(
                 table: "Categories",
-                columns: new[] { "Id", "AdjustmentType", "BudgetId", "DefaultRate", "Description", "HasEndDate", "IconName", "IsReceiptRequired", "IsSystemCategory", "Name", "ToggleGrossNet", "Type" },
+                columns: new[] { "Id", "AdjustmentType", "BudgetId", "DefaultRate", "Description", "HasEndDate", "IconName", "IsReceiptRequired", "IsSystemCategory", "IsUserSelectable", "Name", "ToggleGrossNet", "Type" },
                 values: new object[,]
                 {
-                    { 1, null, null, null, null, false, null, false, true, "Mat", false, 1 },
-                    { 2, null, null, null, null, false, null, false, true, "Hus & drift", false, 1 },
-                    { 3, null, null, null, null, false, null, false, true, "Transport", false, 1 },
-                    { 4, null, null, null, null, false, null, false, true, "Fritid", false, 1 },
-                    { 5, null, null, null, null, false, null, false, true, "Barn", false, 1 },
-                    { 6, null, null, null, null, false, null, false, true, "Streaming-tjänster", false, 1 },
-                    { 7, null, null, null, null, false, null, false, true, "SaaS-produkter", false, 1 },
-                    { 8, 0, null, 30, null, false, null, false, true, "Lön", true, 0 },
-                    { 9, null, null, null, null, false, null, false, true, "Bidrag", false, 0 },
-                    { 10, null, null, null, null, false, null, false, true, "Hobbyverksamhet", false, 0 },
-                    { 11, 0, null, 80, null, true, null, false, true, "VAB/Sjukfrånvaro", true, 1 },
-                    { 12, null, null, null, null, false, null, false, true, "Milersättning", false, 0 }
+                    { 1, null, null, null, null, false, null, false, true, true, "Mat", false, 1 },
+                    { 2, null, null, null, null, false, null, false, true, true, "Hus & drift", false, 1 },
+                    { 3, null, null, null, null, false, null, false, true, true, "Transport", false, 1 },
+                    { 4, null, null, null, null, false, null, false, true, true, "Fritid", false, 1 },
+                    { 5, null, null, null, null, false, null, false, true, true, "Barn", false, 1 },
+                    { 6, null, null, null, null, false, null, false, true, true, "Streaming-tjänster", false, 1 },
+                    { 7, null, null, null, null, false, null, false, true, true, "SaaS-produkter", false, 1 }
+                });
+
+            migrationBuilder.InsertData(
+                table: "Categories",
+                columns: new[] { "Id", "AdjustmentType", "BudgetId", "DefaultRate", "Description", "HasEndDate", "IconName", "IsReceiptRequired", "IsSystemCategory", "Name", "ToggleGrossNet", "Type" },
+                values: new object[] { 8, null, null, null, null, false, null, false, true, "Löneinbetalning", false, 0 });
+
+            migrationBuilder.InsertData(
+                table: "Categories",
+                columns: new[] { "Id", "AdjustmentType", "BudgetId", "DefaultRate", "Description", "HasEndDate", "IconName", "IsReceiptRequired", "IsSystemCategory", "IsUserSelectable", "Name", "ToggleGrossNet", "Type" },
+                values: new object[,]
+                {
+                    { 9, null, null, null, null, false, null, false, true, true, "Bidrag", false, 0 },
+                    { 10, null, null, null, null, false, null, false, true, true, "Hobbyverksamhet", false, 0 },
+                    { 11, 0, null, 80, null, true, null, false, true, true, "VAB/Sjukfrånvaro", true, 1 },
+                    { 12, null, null, null, null, false, null, false, true, true, "Milersättning", false, 0 }
                 });
 
             migrationBuilder.InsertData(

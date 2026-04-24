@@ -13,7 +13,12 @@
 
 <div class="app-shell">
     <aside class="sidebar">
-        <div class="sidebar-logo"><h1>Money<span>Key</span></h1></div>
+        <img src="images/moneykey-logo.png"
+             alt="MoneyKey"
+             style="max-width: 30%; height: auto; display: block; margin: 20px auto 0 auto;" />
+        <div class="sidebar-logo" style="text-align: center;">
+            <h1>Money<span>Key</span></h1>
+        </div>
 
         <div class="budget-switcher">
             <select @onchange="OnBudgetChanged" value="@BudgetState.ActiveBudgetId">

@@ -492,6 +492,11 @@ namespace MoneyKey.DAL.Migrations
                     b.Property<bool>("IsSystemCategory")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsUserSelectable")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -516,6 +521,7 @@ namespace MoneyKey.DAL.Migrations
                             HasEndDate = false,
                             IsReceiptRequired = false,
                             IsSystemCategory = true,
+                            IsUserSelectable = true,
                             Name = "Mat",
                             ToggleGrossNet = false,
                             Type = 1
@@ -526,6 +532,7 @@ namespace MoneyKey.DAL.Migrations
                             HasEndDate = false,
                             IsReceiptRequired = false,
                             IsSystemCategory = true,
+                            IsUserSelectable = true,
                             Name = "Hus & drift",
                             ToggleGrossNet = false,
                             Type = 1
@@ -536,6 +543,7 @@ namespace MoneyKey.DAL.Migrations
                             HasEndDate = false,
                             IsReceiptRequired = false,
                             IsSystemCategory = true,
+                            IsUserSelectable = true,
                             Name = "Transport",
                             ToggleGrossNet = false,
                             Type = 1
@@ -546,6 +554,7 @@ namespace MoneyKey.DAL.Migrations
                             HasEndDate = false,
                             IsReceiptRequired = false,
                             IsSystemCategory = true,
+                            IsUserSelectable = true,
                             Name = "Fritid",
                             ToggleGrossNet = false,
                             Type = 1
@@ -556,6 +565,7 @@ namespace MoneyKey.DAL.Migrations
                             HasEndDate = false,
                             IsReceiptRequired = false,
                             IsSystemCategory = true,
+                            IsUserSelectable = true,
                             Name = "Barn",
                             ToggleGrossNet = false,
                             Type = 1
@@ -566,6 +576,7 @@ namespace MoneyKey.DAL.Migrations
                             HasEndDate = false,
                             IsReceiptRequired = false,
                             IsSystemCategory = true,
+                            IsUserSelectable = true,
                             Name = "Streaming-tjänster",
                             ToggleGrossNet = false,
                             Type = 1
@@ -576,6 +587,7 @@ namespace MoneyKey.DAL.Migrations
                             HasEndDate = false,
                             IsReceiptRequired = false,
                             IsSystemCategory = true,
+                            IsUserSelectable = true,
                             Name = "SaaS-produkter",
                             ToggleGrossNet = false,
                             Type = 1
@@ -583,13 +595,12 @@ namespace MoneyKey.DAL.Migrations
                         new
                         {
                             Id = 8,
-                            AdjustmentType = 0,
-                            DefaultRate = 30,
                             HasEndDate = false,
                             IsReceiptRequired = false,
                             IsSystemCategory = true,
-                            Name = "Lön",
-                            ToggleGrossNet = true,
+                            IsUserSelectable = false,
+                            Name = "Löneinbetalning",
+                            ToggleGrossNet = false,
                             Type = 0
                         },
                         new
@@ -598,6 +609,7 @@ namespace MoneyKey.DAL.Migrations
                             HasEndDate = false,
                             IsReceiptRequired = false,
                             IsSystemCategory = true,
+                            IsUserSelectable = true,
                             Name = "Bidrag",
                             ToggleGrossNet = false,
                             Type = 0
@@ -608,6 +620,7 @@ namespace MoneyKey.DAL.Migrations
                             HasEndDate = false,
                             IsReceiptRequired = false,
                             IsSystemCategory = true,
+                            IsUserSelectable = true,
                             Name = "Hobbyverksamhet",
                             ToggleGrossNet = false,
                             Type = 0
@@ -620,6 +633,7 @@ namespace MoneyKey.DAL.Migrations
                             HasEndDate = true,
                             IsReceiptRequired = false,
                             IsSystemCategory = true,
+                            IsUserSelectable = true,
                             Name = "VAB/Sjukfrånvaro",
                             ToggleGrossNet = true,
                             Type = 1
@@ -630,6 +644,7 @@ namespace MoneyKey.DAL.Migrations
                             HasEndDate = false,
                             IsReceiptRequired = false,
                             IsSystemCategory = true,
+                            IsUserSelectable = true,
                             Name = "Milersättning",
                             ToggleGrossNet = false,
                             Type = 0

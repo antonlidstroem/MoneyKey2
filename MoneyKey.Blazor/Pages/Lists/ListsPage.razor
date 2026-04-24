@@ -313,6 +313,8 @@
 
     private void OnStateChanged() => InvokeAsync(async () =>
     {
+        // Do not reload while the user is actively editing — it would destroy unsaved changes.
+        if (_editNote != null || _showCreate) return;
         try { await ReloadAsync(); } catch (Exception ex) { Toast.Error(ex.Message); }
         StateHasChanged();
     });
