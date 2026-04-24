@@ -19,7 +19,10 @@
         }
     </div>
     <div class="page-content">
-        @if (_loading) { <div style="text-align:center;padding:48px"><div class="spinner"></div></div> }
+        @if (_loading)
+        {
+            <div style="text-align:center;padding:48px"><div class="spinner"></div></div>
+        }
         else if (!_items.Any())
         {
             <div style="text-align:center;padding:64px;color:var(--color-muted)">
@@ -33,13 +36,19 @@
                 <table style="width:100%;border-collapse:collapse" class="quickgrid">
                     <thead>
                         <tr>
-                            <th>Från</th><th>Till</th><th style="text-align:right">Dagar</th>
-                            <th style="text-align:right">Karens</th><th style="text-align:right">Arbetsgivarperiod</th>
+                            <th>Från</th>
+                            <th>Till</th>
+                            <th style="text-align:right">Dagar</th>
+                            <th style="text-align:right">Karens</th>
+                            <th style="text-align:right">Arb.givarperiod</th>
                             <th style="text-align:right">FK-dagar</th>
                             <th style="text-align:right">Sjuklön</th>
                             <th style="text-align:right">FK-ersättning</th>
-                            <th style="text-align:right">Utebliven inkomst</th>
-                            @if (BudgetState.CanEdit) { <th style="width:40px"></th> }
+                            <th style="text-align:right">Utebliven ink.</th>
+                            @if (BudgetState.CanEdit)
+                            {
+                                <th style="width:80px"></th>
+                            }
                         </tr>
                     </thead>
                     <tbody>
@@ -58,7 +67,18 @@
                                 <td style="text-align:right;font-weight:600;color:var(--color-expense)">-@e.LostIncome.ToString("N0") kr</td>
                                 @if (BudgetState.CanEdit)
                                 {
-                                    <td><button class="btn btn-ghost btn-icon btn-sm" @onclick="@(() => ConfirmDeleteAsync(entry))"><span class="material-icons" style="font-size:.82rem;color:var(--color-expense)">delete</span></button></td>
+                                    <td>
+                                        <div style="display:flex;gap:2px">
+                                            <button class="btn btn-ghost btn-icon btn-sm" title="Redigera"
+                                                    @onclick="@(() => OpenEdit(entry))">
+                                                <span class="material-icons" style="font-size:.82rem">edit</span>
+                                            </button>
+                                            <button class="btn btn-ghost btn-icon btn-sm" title="Ta bort"
+                                                    @onclick="@(() => ConfirmDeleteAsync(entry))">
+                                                <span class="material-icons" style="font-size:.82rem;color:var(--color-expense)">delete</span>
+                                            </button>
+                                        </div>
+                                    </td>
                                 }
                             </tr>
                         }
@@ -67,13 +87,16 @@
                             <td style="text-align:right;font-size:.85rem;color:var(--color-income)">@_items.Sum(e => e.EmployerSickPay).ToString("N0") kr</td>
                             <td style="text-align:right;font-size:.85rem;color:var(--color-income)">@_items.Sum(e => e.FkSickPay).ToString("N0") kr</td>
                             <td style="text-align:right;color:var(--color-expense)">-@_items.Sum(e => e.LostIncome).ToString("N0") kr</td>
-                            @if (BudgetState.CanEdit) { <td></td> }
+                            @if (BudgetState.CanEdit)
+                            {
+                                <td></td>
+                            }
                         </tr>
                     </tbody>
                 </table>
             </div>
             <div class="card" style="margin-top:16px;font-size:.82rem;color:var(--color-muted)">
-                <strong>Beräkningsregler:</strong> Karensdag (dag 1) = ingen ersättning.
+                <strong>Beräkningsregler:</strong> Dag 1 = karensdag (ingen ersättning).
                 Dag 2–14 = arbetsgivaren betalar 80% av dagslön.
                 Dag 15+ = Försäkringskassan betalar 80% av SGI/365.
             </div>
@@ -81,10 +104,14 @@
     </div>
 </div>
 
+<!-- ═══ Mobile ═══════════════════════════════════════════════════════════════ -->
 <div class="mobile-page-shell">
     <div class="mobile-topbar">
         <span class="mobile-title">Sjukfrånvaro</span>
-        @if (BudgetState.CanEdit) { <button class="mobile-icon-btn" @onclick="OpenCreate"><span class="material-icons">add</span></button> }
+        @if (BudgetState.CanEdit)
+        {
+            <button class="mobile-icon-btn" @onclick="OpenCreate"><span class="material-icons">add</span></button>
+        }
     </div>
     <div class="mobile-page-scroll">
         @foreach (var e in _items)
@@ -101,46 +128,90 @@
                         <div style="font-size:.78rem;color:var(--color-expense)">-@e.LostIncome.ToString("N0") kr</div>
                     </div>
                 </div>
+                @if (BudgetState.CanEdit)
+                {
+                    <div style="display:flex;gap:6px;margin-top:6px">
+                        <button class="btn btn-secondary btn-sm" @onclick="@(() => OpenEdit(entry))">
+                            <span class="material-icons" style="font-size:.8rem">edit</span> Redigera
+                        </button>
+                        <button class="btn btn-ghost btn-sm" style="color:var(--color-expense)"
+                                @onclick="@(() => ConfirmDeleteAsync(entry))">
+                            <span class="material-icons" style="font-size:.8rem">delete</span>
+                        </button>
+                    </div>
+                }
             </div>
         }
     </div>
-    @if (BudgetState.CanEdit) { <button class="mobile-fab" @onclick="OpenCreate"><span class="material-icons">add</span></button> }
+    @if (BudgetState.CanEdit)
+    {
+        <button class="mobile-fab" @onclick="OpenCreate"><span class="material-icons">add</span></button>
+    }
 </div>
 
+<!-- ═══ Create / Edit modal ══════════════════════════════════════════════════ -->
 @if (_showModal)
 {
     <div class="modal-overlay" @onclick="@(() => _showModal = false)">
         <div class="modal" style="max-width:480px" @onclick:stopPropagation>
             <div class="modal-header">
-                <span class="modal-title">Ny sjukperiod</span>
-                <button class="btn btn-ghost btn-icon btn-sm" @onclick="@(() => _showModal = false)"><span class="material-icons">close</span></button>
+                <span class="modal-title">@(_editItem == null ? "Ny sjukperiod" : "Redigera sjukperiod")</span>
+                <button class="btn btn-ghost btn-icon btn-sm" @onclick="@(() => _showModal = false)">
+                    <span class="material-icons">close</span>
+                </button>
             </div>
             <div class="modal-body">
-                @if (!string.IsNullOrEmpty(_err)) { <div style="background:var(--color-expense-bg);color:var(--color-expense);padding:8px 12px;border-radius:8px;font-size:.85rem;margin-bottom:10px">@_err</div> }
-                <div class="form-row">
-                    <div class="form-group"><label class="form-label">Från</label><input class="form-control" type="date" value="@_start.ToString("yyyy-MM-dd")" @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _start = d; }' /></div>
-                    <div class="form-group"><label class="form-label">Till</label><input class="form-control" type="date" value="@_end.ToString("yyyy-MM-dd")" @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _end = d; }' /></div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group"><label class="form-label">Månadslön brutto (kr)</label><input class="form-control" type="number" @bind="_grossSalary" /></div>
-                    <div class="form-group"><label class="form-label">SGI (årsbelopp, kr)</label><input class="form-control" type="number" @bind="_sgi" /></div>
-                </div>
-                <div style="font-size:.8rem;color:var(--color-muted);margin-bottom:8px">
-                    SGI = Sjukpenninggrundande inkomst. Hittas på Försäkringskassans Mina sidor.
-                </div>
-                @if (_start <= _end)
+                @if (!string.IsNullOrEmpty(_err))
                 {
-                    var days     = (int)(_end - _start).TotalDays + 1;
-                    var daily    = _grossSalary * 12m / 365m;
-                    var empDays  = Math.Max(0, Math.Min(days - 1, 13));
-                    var fkDays   = Math.Max(0, days - 14);
-                    var empPay   = empDays * daily * 0.8m;
-                    var fkPay    = fkDays * (_sgi / 365m) * 0.8m;
-                    var lost     = days * daily - empPay - fkPay;
+                    <div style="background:var(--color-expense-bg);color:var(--color-expense);padding:8px 12px;border-radius:8px;font-size:.85rem;margin-bottom:10px">@_err</div>
+                }
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Från (första sjukdag) *</label>
+                        <input class="form-control" type="date" value="@_start.ToString("yyyy-MM-dd")"
+                               @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _start = d; }' />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Till (sista sjukdag) *</label>
+                        <input class="form-control" type="date" value="@_end.ToString("yyyy-MM-dd")"
+                               @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _end = d; }' />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Månadslön brutto (kr) *</label>
+                        <input class="form-control" type="number" step="1000" @bind="_grossSalary"
+                               placeholder="T.ex. 45000" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" title="Hittas på Försäkringskassans Mina sidor.">SGI (årsbelopp, kr)</label>
+                        <input class="form-control" type="number" step="1000" @bind="_sgi"
+                               placeholder="T.ex. 504000" />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Typ av sjukfrånvaro</label>
+                    <select class="form-control" @bind="_sickType">
+                        <option value="@SickLeaveType.SelfCertificate">Egenanmälan (dag 1–7)</option>
+                        <option value="@SickLeaveType.DoctorCertificate">Läkarintyg (dag 8+)</option>
+                    </select>
+                </div>
+                @if (_start <= _end && _grossSalary > 0)
+                {
+                    var days = (int)(_end - _start).TotalDays + 1;
+                    var daily = _grossSalary * 12m / 365m;
+                    var empDays = Math.Max(0, Math.Min(days - 1, 13));
+                    var fkDays = Math.Max(0, days - 14);
+                    var empPay = empDays * daily * 0.8m;
+                    var fkPay = fkDays * (_sgi / 365m) * 0.8m;
+                    var lost = days * daily - empPay - fkPay;
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 14px;font-size:.82rem;line-height:1.8">
-                        <div>Antal dagar: <strong>@days</strong> (varav 1 karensdag)</div>
-                        <div>Sjuklön (arbetsgivare): <strong style="color:var(--color-income)">@empPay.ToString("N0") kr</strong></div>
-                        <div>FK-ersättning: <strong style="color:var(--color-income)">@fkPay.ToString("N0") kr</strong></div>
+                        <div>Antal dagar: <strong>@days</strong> (varav 1 karensdag utan ersättning)</div>
+                        <div>Sjuklön (arbetsgivare dag 2–14): <strong style="color:var(--color-income)">@empPay.ToString("N0") kr</strong></div>
+                        @if (fkDays > 0)
+                        {
+                            <div>FK-ersättning (dag 15+, @fkDays dagar): <strong style="color:var(--color-income)">@fkPay.ToString("N0") kr</strong></div>
+                        }
                         <div>Utebliven inkomst: <strong style="color:var(--color-expense)">-@lost.ToString("N0") kr</strong></div>
                     </div>
                 }
@@ -148,51 +219,113 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" @onclick="@(() => _showModal = false)">Avbryt</button>
                 <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
-                    @if (_saving) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> } Spara
+                    @if (_saving)
+                    {
+                        <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>
+                    }
+                    @(_editItem == null ? "Skapa" : "Spara")
                 </button>
             </div>
         </div>
     </div>
 }
-<ConfirmDialog @ref="_confirm" Title="Ta bort sjukperiod" Message="Ta bort denna period?" />
+
+<ConfirmDialog @ref="_confirm" Title="Ta bort sjukperiod" Message="Ta bort denna sjukperiod?" />
 
 @code {
     private List<SickLeaveDto> _items = new();
     private bool _loading = true, _showModal, _saving;
     private string _err = "";
-    private DateTime _start = DateTime.Today, _end = DateTime.Today;
-    private decimal _grossSalary, _sgi;
+    private SickLeaveDto? _editItem;
+
+    // Form fields
+    private DateTime _start = DateTime.Today;
+    private DateTime _end = DateTime.Today;
+    private decimal _grossSalary;
+    private decimal _sgi;
+    private SickLeaveType _sickType = SickLeaveType.SelfCertificate;
+
     private ConfirmDialog? _confirm;
 
-    protected override async Task OnInitializedAsync() { BudgetState.StateChanged += Refresh; await ReloadAsync(); }
+    protected override async Task OnInitializedAsync()
+    {
+        BudgetState.StateChanged += Refresh;
+        await ReloadAsync();
+    }
+
     public void Dispose() => BudgetState.StateChanged -= Refresh;
-    private void Refresh() => InvokeAsync(async () => { await ReloadAsync(); StateHasChanged(); });
 
-    private async Task ReloadAsync() {
+    private void Refresh() => InvokeAsync(async () =>
+    {
+        if (_showModal) return;  // don't reload while modal is open
+        await ReloadAsync();
+        StateHasChanged();
+    });
+
+    private async Task ReloadAsync()
+    {
         if (BudgetState.ActiveBudgetId <= 0) { _loading = false; return; }
-        _loading = true; _items = await SickSvc.GetAllAsync(BudgetState.ActiveBudgetId) ?? new(); _loading = false;
+        _loading = true;
+        _items = await SickSvc.GetAllAsync(BudgetState.ActiveBudgetId) ?? new();
+        _loading = false;
     }
 
-    private void OpenCreate() {
-        _err = ""; _start = DateTime.Today; _end = DateTime.Today; _grossSalary = 0; _sgi = 0; _showModal = true;
+    private void OpenCreate()
+    {
+        _editItem = null; _err = "";
+        _start = DateTime.Today; _end = DateTime.Today;
+        _grossSalary = 0; _sgi = 0;
+        _sickType = SickLeaveType.SelfCertificate;
+        _showModal = true;
     }
 
-    private async Task SaveAsync() {
+    private void OpenEdit(SickLeaveDto e)
+    {
+        _editItem = e; _err = "";
+        _start = e.StartDate; _end = e.EndDate;
+        _grossSalary = e.GrossMonthlySalary; _sgi = e.AnnualSgi;
+        _sickType = e.SickLeaveType;
+        _showModal = true;
+    }
+
+    private async Task SaveAsync()
+    {
         if (_end < _start) { _err = "Slutdatum måste vara efter startdatum."; return; }
         if (_grossSalary <= 0) { _err = "Ange månadslön."; return; }
         _saving = true; _err = "";
-        try {
-            await SickSvc.CreateAsync(BudgetState.ActiveBudgetId, new CreateSickLeaveDto {
-                StartDate = _start, EndDate = _end, AnnualSgi = _sgi,
-                GrossMonthlySalary = _grossSalary, SickLeaveType = SickLeaveType.SelfCertificate });
-            Toast.Success("Sjukperiod sparad."); _showModal = false; await ReloadAsync();
-        } catch (Exception ex) { _err = ex.Message; }
+        try
+        {
+            var dto = new CreateSickLeaveDto
+            {
+                StartDate = _start,
+                EndDate = _end,
+                SickLeaveType = _sickType,
+                GrossMonthlySalary = _grossSalary,
+                AnnualSgi = _sgi
+            };
+
+            if (_editItem == null)
+                await SickSvc.CreateAsync(BudgetState.ActiveBudgetId, dto);
+            else
+                await SickSvc.UpdateAsync(BudgetState.ActiveBudgetId, _editItem.Id, dto);
+
+            Toast.Success(_editItem == null ? "Sjukperiod sparad." : "Sjukperiod uppdaterad.");
+            _showModal = false;
+            await ReloadAsync();
+        }
+        catch (Exception ex) { _err = ex.Message; }
         finally { _saving = false; }
     }
 
-    private async Task ConfirmDeleteAsync(SickLeaveDto e) {
+    private async Task ConfirmDeleteAsync(SickLeaveDto e)
+    {
         if (_confirm is null || !await _confirm.ShowAsync()) return;
-        try { await SickSvc.DeleteAsync(BudgetState.ActiveBudgetId, e.Id); await ReloadAsync(); }
+        try
+        {
+            await SickSvc.DeleteAsync(BudgetState.ActiveBudgetId, e.Id);
+            Toast.Success("Sjukperiod borttagen.");
+            await ReloadAsync();
+        }
         catch (Exception ex) { Toast.Error(ex.Message); }
     }
 }

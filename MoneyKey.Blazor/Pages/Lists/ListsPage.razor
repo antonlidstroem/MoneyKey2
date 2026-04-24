@@ -98,7 +98,7 @@
                             {
                                 var done = it.Items.Count(x => x.IsChecked);
                                 var total = it.Items.Count;
-                                var pct   = total > 0 ? done * 100 / total : 0;
+                                var pct = total > 0 ? done * 100 / total : 0;
                                 <div style="height:4px;background:var(--color-border);border-radius:2px;margin-bottom:8px;overflow:hidden">
                                     <div style="height:100%;width:@(pct)%;background:var(--color-income);border-radius:2px;transition:width .2s"></div>
                                 </div>
@@ -167,16 +167,16 @@
             @foreach (var it in FilteredItems)
             {
                 var item = it;
-                <div class="mobile-entry-card">
+                <div class="mobile-entry-card" @onclick="@(it.IsNote ? (Action)(() => OpenNoteEdit(item)) : () => { })">
                     <div style="display:flex;align-items:flex-start;justify-content:space-between">
-                        <div style="font-weight:500;font-size:.9rem">
+                        <div style="font-weight:500;font-size:.9rem;min-width:0;flex:1">
                             <span class="material-icons" style="font-size:.85rem;vertical-align:middle;color:var(--color-muted);margin-right:3px">
                                 @(it.IsNote ? "sticky_note_2" : "checklist")
                             </span>@it.Name
                         </div>
                         @if (BudgetState.CanEdit)
                         {
-                            <button class="btn btn-ghost btn-icon btn-sm" @onclick="@(() => DeleteAsync(item))">
+                            <button class="btn btn-ghost btn-icon btn-sm" @onclick:stopPropagation @onclick="@(() => DeleteAsync(item))">
                                 <span class="material-icons" style="font-size:.82rem;color:var(--color-expense)">delete</span>
                             </button>
                         }
@@ -232,7 +232,10 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" @onclick="@(() => _showCreate = false)">Avbryt</button>
                 <button class="btn btn-primary" @onclick="CreateAsync" disabled="@_saving">
-                    @if (_saving) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
+                    @if (_saving)
+                    {
+                        <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>
+                    }
                     Skapa
                 </button>
             </div>
@@ -268,7 +271,10 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" @onclick="CloseNoteEdit">Stäng</button>
                 <button class="btn btn-primary" @onclick="SaveNoteAsync" disabled="@_saving">
-                    @if (_saving) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
+                    @if (_saving)
+                    {
+                        <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>
+                    }
                     Spara
                 </button>
             </div>
@@ -279,19 +285,20 @@
 <ConfirmDialog @ref="_confirm" Title="Ta bort" Message="Vill du ta bort detta objekt permanent?" />
 
 @code {
-    private List<UserListDto>           _all          = new();
-    private List<int>                   _scopeIds     = new();
-    private int                         _tab          = 0;
-    private bool                        _loading      = true;
-    private bool                        _showCreate, _isNote, _saving;
-    private string                      _error        = "";
-    private Dictionary<int, string>     _newItemText  = new();
-    private ConfirmDialog?              _confirm;
+    private List<UserListDto> _all = new();
+    private List<int> _scopeIds = new();
+    private int _tab = 0;
+    private bool _loading = true;
+    private bool _showCreate, _isNote, _saving;
+    private string _error = "";
+    private Dictionary<int, string> _newItemText = new();
+    private ConfirmDialog? _confirm;
 
-    // Create form
+    // Create form fields
     private string _newName = "", _newContent = "", _newTags = "";
 
-    // Note edit
+    // Note edit fields — kept in separate variables so a background reload
+    // (OnStateChanged) cannot overwrite unsaved edits.
     private UserListDto? _editNote;
     private string _editNoteName = "", _editNoteContent = "", _editNoteTags = "";
 
@@ -313,7 +320,9 @@
 
     private void OnStateChanged() => InvokeAsync(async () =>
     {
-        // Do not reload while the user is actively editing — it would destroy unsaved changes.
+        // Guard: do not reload while the user is actively editing or creating.
+        // A background state change (e.g. SignalR event, budget switch) must not
+        // destroy unsaved work.
         if (_editNote != null || _showCreate) return;
         try { await ReloadAsync(); } catch (Exception ex) { Toast.Error(ex.Message); }
         StateHasChanged();
@@ -334,10 +343,7 @@
     private string GetNewItemText(int listId) =>
         _newItemText.TryGetValue(listId, out var t) ? t : "";
 
-    private void SetNewItemText(int listId, string value)
-    {
-        _newItemText[listId] = value;
-    }
+    private void SetNewItemText(int listId, string value) => _newItemText[listId] = value;
 
     private async Task OnListItemKeyDown(KeyboardEventArgs e, UserListDto list)
     {
@@ -349,7 +355,7 @@
         if (!_newItemText.TryGetValue(list.Id, out var text) || string.IsNullOrWhiteSpace(text)) return;
         var trimmed = text.Trim();
 
-        // Optimistic UI
+        // Optimistic UI: add placeholder item immediately
         var temp = new ListItemDto { Id = -1, Text = trimmed, IsChecked = false };
         list.Items.Add(temp);
         _newItemText[list.Id] = "";
@@ -380,10 +386,7 @@
         StateHasChanged();
         _ = Task.Run(async () =>
         {
-            try
-            {
-                await ListSvc.ToggleItemAsync(BudgetState.ActiveBudgetId, list.Id, listItem.Id);
-            }
+            try { await ListSvc.ToggleItemAsync(BudgetState.ActiveBudgetId, list.Id, listItem.Id); }
             catch
             {
                 listItem.IsChecked = !listItem.IsChecked;
@@ -392,15 +395,8 @@
         });
     }
 
-    private void OnCreateKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Escape") _showCreate = false;
-    }
-
-    private void OnNoteEditKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Escape") _editNote = null;
-    }
+    private void OnCreateKeyDown(KeyboardEventArgs e) { if (e.Key == "Escape") _showCreate = false; }
+    private void OnNoteEditKeyDown(KeyboardEventArgs e) { if (e.Key == "Escape") CloseNoteEdit(); }
 
     private void OpenCreate(bool isNote)
     {
