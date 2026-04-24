@@ -1,0 +1,641 @@
+﻿@page "/"
+@page "/journal"
+@attribute [Authorize]
+@implements IDisposable
+@inject JournalApiService JournalSvc
+@inject ProjectService ProjectSvc
+@inject TransactionService TxSvc
+@inject BudgetService BudgetSvc
+@inject ReceiptApiService ReceiptSvc
+@inject ToastService Toast
+@inject BudgetState BudgetState
+@inject JournalFilterState Filter
+@inject SignalRService SignalR
+@inject NavigationManager Nav
+@inject HttpClient Http
+@inject IJSRuntime JS
+@using MoneyKey.Blazor.Components.Shared
+
+<!-- ═══ DESKTOP ══════════════════════════════════════════════════════════ -->
+<div class="desktop-page-wrapper">
+    <div class="page-header">
+        <span class="page-title">Journal — @BudgetState.ActiveBudgetName</span>
+        <div class="header-actions">
+            @if (_selectedIds.Any() && BudgetState.CanEdit)
+            {
+                <button class="btn btn-danger btn-sm" @onclick="BatchDeleteAsync">
+                    <span class="material-icons" style="font-size:.9rem">delete</span> Ta bort (@_selectedIds.Count)
+                </button>
+            }
+            <button class="btn btn-secondary btn-sm @(Filter.IsFilterPanelOpen ? "btn-primary" : "")"
+                    @onclick="ToggleFilter">
+                <span class="material-icons" style="font-size:.9rem">filter_list</span>
+                Filter@(Filter.HasActiveFilters ? " ●" : "")
+            </button>
+            <button class="btn btn-secondary btn-sm" @onclick="ExportPdfAsync" disabled="@_exporting">
+                @if (_exporting) { <span class="spinner" style="width:12px;height:12px;border-width:2px"></span> }
+                else { <span class="material-icons" style="font-size:.9rem">picture_as_pdf</span> }
+                PDF
+            </button>
+            <button class="btn btn-secondary btn-sm" @onclick="ExportExcelAsync" disabled="@_exporting">
+                <span class="material-icons" style="font-size:.9rem">table_view</span> Excel
+            </button>
+            @if (BudgetState.CanEdit)
+            {
+                <button class="btn btn-primary btn-sm" @onclick="OpenNew">
+                    <span class="material-icons" style="font-size:.9rem">add</span> Ny post
+                </button>
+            }
+        </div>
+    </div>
+
+    <div class="page-content" style="display:flex;flex-direction:column;gap:14px;overflow-y:auto">
+        <SummaryCards Summary="_summary" />
+
+        @if (Filter.IsFilterPanelOpen)
+        {
+            <div class="filter-panel">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                    <span style="font-weight:600;font-size:.9rem">Filter @(Filter.HasActiveFilters ? "●" : "")</span>
+                    <div style="display:flex;gap:8px">
+                        <button class="btn btn-ghost btn-sm" @onclick="Filter.ResetFilters">Rensa</button>
+                        <button class="btn btn-ghost btn-icon btn-sm" @onclick="ToggleFilter">
+                            <span class="material-icons" style="font-size:.9rem">close</span>
+                        </button>
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px 20px">
+                    <div class="form-group" style="margin:0">
+                        <label class="form-label" style="display:flex;align-items:center;gap:6px">
+                            <input type="checkbox" @bind="Filter.Query.FilterByStartDate" @bind:after="NotifyFilter" /> Från
+                        </label>
+                        <input type="date" class="form-control" disabled="@(!Filter.Query.FilterByStartDate)"
+                               value="@Filter.Query.StartDate?.ToString("yyyy-MM-dd")"
+                               @onchange="e => SetFilterDate(e, d => Filter.Query.StartDate = d)" />
+                    </div>
+                    <div class="form-group" style="margin:0">
+                        <label class="form-label" style="display:flex;align-items:center;gap:6px">
+                            <input type="checkbox" @bind="Filter.Query.FilterByEndDate" @bind:after="NotifyFilter" /> Till
+                        </label>
+                        <input type="date" class="form-control" disabled="@(!Filter.Query.FilterByEndDate)"
+                               value="@Filter.Query.EndDate?.ToString("yyyy-MM-dd")"
+                               @onchange="e => SetFilterDate(e, d => Filter.Query.EndDate = d)" />
+                    </div>
+                    <div class="form-group" style="margin:0">
+                        <label class="form-label" style="display:flex;align-items:center;gap:6px">
+                            <input type="checkbox" @bind="Filter.Query.FilterByDescription" @bind:after="NotifyFilter" /> Fritext
+                        </label>
+                        <input class="form-control" @bind="Filter.Query.Description" @bind:after="NotifyFilter"
+                               placeholder="Sök..." disabled="@(!Filter.Query.FilterByDescription)" />
+                    </div>
+                    <div class="form-group" style="margin:0">
+                        <label class="form-label" style="display:flex;align-items:center;gap:6px">
+                            <input type="checkbox" @bind="Filter.Query.FilterByCategory" @bind:after="NotifyFilter" /> Kategori
+                        </label>
+                        <select class="form-control" disabled="@(!Filter.Query.FilterByCategory)"
+                                value="@(Filter.Query.CategoryId ?? 0)"
+                                @onchange="e => { Filter.Query.CategoryId = int.TryParse(e.Value?.ToString(), out var v) ? v : 0; NotifyFilter(); }">
+                            <option value="0">-- Välj --</option>
+                            @foreach (var cat in _categories) { <option value="@cat.Id">@cat.Name</option> }
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin:0">
+                        <label class="form-label" style="display:flex;align-items:center;gap:6px">
+                            <input type="checkbox" @bind="Filter.Query.FilterByProject" @bind:after="NotifyFilter" /> Projekt
+                        </label>
+                        <select class="form-control" disabled="@(!Filter.Query.FilterByProject)"
+                                value="@(Filter.Query.ProjectId ?? 0)"
+                                @onchange="e => { Filter.Query.ProjectId = int.TryParse(e.Value?.ToString(), out var v) ? v : 0; NotifyFilter(); }">
+                            <option value="0">-- Välj --</option>
+                            @foreach (var p in _projects) { <option value="@p.Id">@p.Name</option> }
+                        </select>
+                    </div>
+                </div>
+                <div style="margin-top:10px">
+                    <button class="btn btn-primary btn-sm" @onclick="NotifyFilter">Tillämpa</button>
+                </div>
+            </div>
+        }
+
+        <div class="grid-container" style="display:flex;flex-direction:column;min-height:400px">
+            <div class="grid-toolbar">
+                <div class="quick-filter">
+                    <span class="material-icons">search</span>
+                    <input placeholder="Snabbsök..." value="@_qs" @oninput="OnQuickSearch" />
+                </div>
+                <div style="display:flex;gap:4px;flex-wrap:wrap">
+                    <button class="btn btn-sm @(!Filter.Query.IncludeTypes.Any() ? "btn-primary" : "btn-secondary")"
+                            style="font-size:.72rem;padding:3px 8px" @onclick="ShowAllTypes">Alla</button>
+                    @foreach (var t in Enum.GetValues<JournalEntryType>())
+                    {
+                        var type  = t;
+                        var isSolo = Filter.Query.IncludeTypes.Count == 1 && Filter.Query.IncludeTypes.Contains(type);
+                        <button class="btn btn-sm @(isSolo ? "btn-primary" : "btn-secondary")"
+                                style="font-size:.72rem;padding:3px 8px"
+                                @onclick="() => SetOnlyType(type)">@TypeLabel(type)</button>
+                    }
+                </div>
+                <div class="grid-toolbar-spacer"></div>
+                <span style="font-size:.8rem;color:var(--color-muted)">@_totalCount poster</span>
+                <select class="form-control" style="width:auto;padding:4px 8px;font-size:.8rem"
+                        value="@Filter.Query.PageSize" @onchange="OnPageSizeChanged">
+                    <option value="25">25/sida</option>
+                    <option value="50">50/sida</option>
+                    <option value="100">100/sida</option>
+                </select>
+            </div>
+
+            <div style="overflow:auto;flex:1">
+                <JournalTable
+                    Entries="_entries" Lists="_lists"
+                    Loading="_loading" LoadError="_loadError"
+                    CanEdit="BudgetState.CanEdit" ShowLists="ShowLists"
+                    SelectAll="_selectAll" SelectedIds="_selectedIds"
+                    Expanded="_expanded" ReceiptCache="_receiptCache"
+                    EditingId="_editingId"
+                    SortBy="Filter.Query.SortBy" SortDir="Filter.Query.SortDir"
+                    OnToggleAll="ToggleAll" OnToggleRow="ToggleRow"
+                    OnToggleExpand="HandleToggleExpand"
+                    OnEdit="EditEntryAsync"
+                    OnDeleteMi="DeleteMiAsync" OnDeleteVab="DeleteVabAsync"
+                              OnNavigateToReceipt='id => Nav.NavigateTo($"/receipts/{id}")'
+                    OnOpenList="OpenListDetail" OnDeleteList="DeleteListAsync"
+                    OnSort="SetSort" OnRetry="LoadAsync" />
+            </div>
+
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-top:1px solid var(--color-border);flex-shrink:0">
+                <span style="font-size:.8rem;color:var(--color-muted)">Sida @Filter.Query.Page av @_totalPages</span>
+                <div style="display:flex;gap:3px">
+                    <button class="btn btn-secondary btn-sm" disabled="@(Filter.Query.Page <= 1)" @onclick="PrevPage">‹</button>
+                    @for (var pg = Math.Max(1, Filter.Query.Page - 2); pg <= Math.Min(_totalPages, Filter.Query.Page + 2); pg++)
+                    { var pg2 = pg; <button class="btn btn-sm @(pg2 == Filter.Query.Page ? "btn-primary" : "btn-secondary")" @onclick="() => GoPage(pg2)">@pg2</button> }
+                    <button class="btn btn-secondary btn-sm" disabled="@(Filter.Query.Page >= _totalPages)" @onclick="NextPage">›</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ MOBILE ═══════════════════════════════════════════════════════════ -->
+<div class="mobile-page-shell">
+    <div class="mobile-topbar">
+        <span class="mobile-title">Journal</span>
+        <div style="display:flex;gap:6px">
+            <button class="mobile-icon-btn @(Filter.HasActiveFilters ? "active" : "")"
+                    @onclick="() => _mobileFilterOpen = true">
+                <span class="material-icons">filter_list</span>
+                @if (Filter.HasActiveFilters) { <span class="mobile-badge"></span> }
+            </button>
+            @if (BudgetState.CanEdit)
+            {
+                <button class="mobile-icon-btn" @onclick="OpenNew"><span class="material-icons">add</span></button>
+            }
+        </div>
+    </div>
+    <div class="mobile-chips">
+        <button class="mobile-chip @(!Filter.Query.IncludeTypes.Any() ? "active" : "")" @onclick="ShowAllTypes">Alla</button>
+        @foreach (var t in Enum.GetValues<JournalEntryType>())
+        {
+            var type = t;
+            <button class="mobile-chip @(Filter.Query.IncludeTypes.Count == 1 && Filter.Query.IncludeTypes.Contains(type) ? "active" : "")"
+                    @onclick="() => SetOnlyType(type)">@TypeLabel(type)</button>
+        }
+    </div>
+    <div class="mobile-page-scroll">
+        @if (_loading) { <div style="text-align:center;padding:40px"><div class="spinner"></div></div> }
+        else if (_loadError != null) { <div style="text-align:center;padding:32px;color:var(--color-expense);font-size:.85rem">@_loadError</div> }
+        else
+        {
+            @if (ShowLists)
+            {
+                @foreach (var list in _lists)
+                {
+                    var ul = list;
+                    <div class="mobile-entry-card" @onclick="() => OpenListDetail(ul)">
+                        <div class="mobile-entry-card-header">
+                            <div style="flex:1;min-width:0">
+                                <span class="badge badge-muted" style="font-size:.65rem">@(ul.IsNote ? "Anteckning" : "Lista")</span>
+                                <div class="mobile-entry-card-title">@ul.Name</div>
+                                @if (!ul.IsNote)
+                                { <div class="mobile-entry-card-meta">@ul.CheckedItems/@ul.TotalItems klara</div> }
+                            </div>
+                            <div style="font-size:.75rem;color:var(--color-muted)">@ul.UpdatedAt.ToString("MM-dd")</div>
+                        </div>
+                    </div>
+                }
+            }
+            @foreach (var entry in _entries)
+            {
+                var e = entry;
+                <div class="mobile-entry-card">
+                    <div class="mobile-entry-card-header">
+                        <div style="flex:1;min-width:0">
+                            <span class="badge @TypeBadge(e.EntryType)" style="font-size:.65rem">@e.TypeLabel</span>
+                            @if (e.Status != null) { <span class="badge @StatusBadge(e.Status)" style="font-size:.65rem;margin-left:3px">@e.Status</span> }
+                            <div class="mobile-entry-card-title">@e.Description</div>
+                            <div class="mobile-entry-card-meta">
+                                @e.Date.ToString("yyyy-MM-dd")
+                                @if (e.CategoryName != null) { <span> · @e.CategoryName</span> }
+                            </div>
+                        </div>
+                        <div style="text-align:right;flex-shrink:0">
+                            <div class="@(e.Amount >= 0 ? "amount-pos" : "amount-neg")" style="font-size:.9rem;font-weight:700">
+                                @AmountStr(e)
+                            </div>
+                            @if (BudgetState.CanEdit)
+                            {
+                                <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">
+                                    @if (e.EntryType == JournalEntryType.Transaction)
+                                    { <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => EditEntryAsync(e)"><span class="material-icons" style="font-size:.9rem">edit</span></button> }
+                                    @if (e.EntryType == JournalEntryType.Milersattning)
+                                    { <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => DeleteMiAsync(e.SourceId)"><span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span></button> }
+                                    @if (e.EntryType == JournalEntryType.Vab)
+                                    { <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => DeleteVabAsync(e.SourceId)"><span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span></button> }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+    @if (BudgetState.CanEdit) { <button class="mobile-fab" @onclick="OpenNew"><span class="material-icons">add</span></button> }
+</div>
+
+<!-- ═══ Mobile filter sheet ══════════════════════════════════════════════ -->
+<MobileFilterSheet IsOpen="_mobileFilterOpen"
+                   Categories="_categories" Projects="_projects"
+                   OnClose="() => _mobileFilterOpen = false"
+                   OnChanged="NotifyFilter" />
+
+<!-- ═══ Entry form modal ════════════════════════════════════════════════ -->
+<EntryFormModal IsVisible="_showForm" EditTx="_editTx"
+                Categories="_categories" Projects="_projects" Jobs="_jobs"
+                OnSaved="OnFormSaved" OnCancelled="() => { _showForm = false; _editTx = null; }" />
+
+<!-- ═══ List detail modal ═══════════════════════════════════════════════ -->
+<ListDetailModal ActiveList="_activeList" CanEdit="BudgetState.CanEdit"
+                 OnClose="() => _activeList = null"
+                 OnUpdated="OnListUpdated"
+                 OnDeleted="OnListDeleted" />
+
+<ConfirmDialog @ref="_confirm" Title="Bekräfta borttagning" Message="Är du säker? Åtgärden kan inte ångras." />
+
+@code {
+    // ── Data ──────────────────────────────────────────────────────────────────
+    private List<JournalEntryDto>          _entries      = new();
+    private List<ProjectDto>               _projects     = new();
+    private List<Category>                 _categories   = new();
+    private List<UserListDto>              _lists        = new();
+    private List<JobDto>                   _jobs         = new();
+    private SummaryDto?                    _summary;
+    private HashSet<int>                   _selectedIds  = new();
+    private HashSet<string>               _expanded     = new();
+    private Dictionary<int, ReceiptBatchDto> _receiptCache = new();
+    private ConfirmDialog?                 _confirm;
+
+    // ── UI state ──────────────────────────────────────────────────────────────
+    private string  _qs             = "";
+    private string? _loadError;
+    private bool    _loading        = true;
+    private bool    _selectAll, _exporting;
+    private bool    _mobileFilterOpen;
+    private int     _totalCount, _totalPages, _editingId = -1;
+
+    // ── Form modal state ──────────────────────────────────────────────────────
+    private bool           _showForm;
+    private TransactionDto? _editTx;
+
+    // ── List detail state ─────────────────────────────────────────────────────
+    private UserListDto? _activeList;
+
+    private bool ShowLists => !Filter.Query.IncludeTypes.Any()
+                           || Filter.Query.IncludeTypes.Contains(JournalEntryType.List);
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // LIFECYCLE
+    // ─────────────────────────────────────────────────────────────────────────
+
+    protected override async Task OnInitializedAsync()
+    {
+        Filter.FilterChanged     += OnFilterChanged;
+        BudgetState.StateChanged += OnStateChanged;
+        SignalR.OnBudgetEvent    += OnSignalREvent;
+        if (BudgetState.ActiveBudgetId > 0)
+            await Task.WhenAll(LoadMetaAsync(), LoadListsAsync(), LoadAsync());
+        else _loading = false;
+    }
+
+    public void Dispose()
+    {
+        Filter.FilterChanged     -= OnFilterChanged;
+        BudgetState.StateChanged -= OnStateChanged;
+        SignalR.OnBudgetEvent    -= OnSignalREvent;
+    }
+
+    private void OnFilterChanged() => InvokeAsync(async () =>
+    { try { await LoadAsync(); } catch { } StateHasChanged(); });
+
+    private void OnStateChanged() => InvokeAsync(async () =>
+    {
+        // Don't reload while a modal is open — it could reset unsaved work
+        if (_showForm || _activeList != null) return;
+        try { await Task.WhenAll(LoadMetaAsync(), LoadListsAsync(), LoadAsync()); } catch { }
+        StateHasChanged();
+    });
+
+    private async Task OnSignalREvent(BudgetHubEvent e)
+    {
+        if (e.BudgetId != BudgetState.ActiveBudgetId) return;
+        if (_showForm || _activeList != null) return;
+        try { await LoadAsync(); } catch { }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // LOAD
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private async Task LoadMetaAsync()
+    {
+        if (BudgetState.ActiveBudgetId <= 0) return;
+        try
+        {
+            _projects   = await ProjectSvc.GetAllAsync(BudgetState.ActiveBudgetId) ?? new();
+            _categories = await BudgetSvc.GetCategoriesAsync(BudgetState.ActiveBudgetId) ?? new();
+            _jobs       = await JobApiServiceInstance.GetAllAsync(BudgetState.ActiveBudgetId) ?? new();
+        }
+        catch { }
+    }
+
+    [Inject] private JobApiService JobApiServiceInstance { get; set; } = null!;
+
+    private async Task LoadListsAsync()
+    {
+        if (BudgetState.ActiveBudgetId <= 0) return;
+        try
+        {
+            var svc = Http.BaseAddress != null
+                ? new ListApiService(Http)
+                : null;
+            // Use injected service via workaround
+            _lists = await ListApiServiceInstance.GetAllAsync(BudgetState.ActiveBudgetId) ?? new();
+        }
+        catch { _lists = new(); }
+    }
+
+    [Inject] private ListApiService ListApiServiceInstance { get; set; } = null!;
+
+    private async Task LoadAsync()
+    {
+        if (BudgetState.ActiveBudgetId <= 0) return;
+        _loading = true; _loadError = null; StateHasChanged();
+        try
+        {
+            var r = await JournalSvc.GetPagedAsync(BudgetState.ActiveBudgetId, Filter.Query);
+            if (r.HasValue)
+            {
+                _entries    = r.Value.Result.Items.Where(e => e.EntryType != JournalEntryType.List).ToList();
+                _totalCount = r.Value.Result.TotalCount;
+                _totalPages = Math.Max(1, r.Value.Result.TotalPages);
+                _summary    = r.Value.Summary;
+            }
+            else _loadError = "Inget svar från API:et.";
+        }
+        catch (Exception ex) { _loadError = $"Kunde inte ladda journal: {ex.Message}"; }
+        finally { _loading = false; }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // FILTER
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private void NotifyFilter()  => Filter.Update(_ => { });
+    private void ToggleFilter()  => Filter.IsFilterPanelOpen = !Filter.IsFilterPanelOpen;
+    private void ShowAllTypes()  => Filter.ShowAllTypes();
+    private void SetOnlyType(JournalEntryType t) => Filter.SetOnlyType(t);
+    private void SetSort(string col) => Filter.SetSort(col);
+    private void SetFilterDate(ChangeEventArgs e, Action<DateTime?> setter)
+    { setter(DateTime.TryParse(e.Value?.ToString(), out var d) ? d : null); NotifyFilter(); }
+    private void OnQuickSearch(ChangeEventArgs e)
+    {
+        _qs = e.Value?.ToString() ?? "";
+        Filter.Update(q => q.QuickSearch = _qs);
+    }
+
+    private void OnPageSizeChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var s))
+            Filter.Update(q => { q.PageSize = s; q.Page = 1; });
+    }
+
+    private void PrevPage() { if (Filter.Query.Page > 1) Filter.Update(q => q.Page--); }
+    private void NextPage() { if (Filter.Query.Page < _totalPages) Filter.Update(q => q.Page++); }
+    private void GoPage(int p) { if (p != Filter.Query.Page) Filter.Update(q => q.Page = p); }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SELECTION
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private void ToggleRow(int id)
+    {
+        if (!_selectedIds.Remove(id)) _selectedIds.Add(id);
+        _selectAll = _selectedIds.Count == _entries
+            .Where(e => e.EntryType == JournalEntryType.Transaction).Count();
+    }
+
+    private void ToggleAll(ChangeEventArgs e)
+    {
+        var all = _entries.Where(x => x.EntryType == JournalEntryType.Transaction)
+                          .Select(x => x.SourceId);
+        if (e.Value is true) { _selectedIds = new HashSet<int>(all); _selectAll = true; }
+        else { _selectedIds.Clear(); _selectAll = false; }
+    }
+
+    private async Task HandleToggleExpand((string Key, JournalEntryDto? E) arg)
+    {
+        var (key, e) = arg;
+        if (!_expanded.Remove(key))
+        {
+            _expanded.Add(key);
+            if (e?.EntryType == JournalEntryType.ReceiptBatch)
+                await EnsureReceiptCachedAsync(e.SourceId);
+        }
+    }
+
+    private async Task EnsureReceiptCachedAsync(int batchId)
+    {
+        if (_receiptCache.ContainsKey(batchId)) return;
+        try
+        {
+            var batch = await ReceiptSvc.GetByIdAsync(BudgetState.ActiveBudgetId, batchId);
+            if (batch != null) _receiptCache[batchId] = batch;
+        }
+        catch { }
+        StateHasChanged();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CRUD
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private async Task BatchDeleteAsync()
+    {
+        if (!_selectedIds.Any()) return;
+        if (_confirm is null || !await _confirm.ShowAsync()) return;
+        try
+        {
+            foreach (var id in _selectedIds.ToList())
+                await TxSvc.DeleteAsync(BudgetState.ActiveBudgetId, id);
+            Toast.Success($"{_selectedIds.Count} poster borttagna.");
+            _selectedIds.Clear(); _selectAll = false;
+            await LoadAsync();
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private async Task EditEntryAsync(JournalEntryDto e)
+    {
+        if (e.EntryType != JournalEntryType.Transaction) return;
+        _editingId = e.SourceId;
+        StateHasChanged();
+        try
+        {
+            _editTx = await TxSvc.GetByIdAsync(BudgetState.ActiveBudgetId, e.SourceId);
+            _showForm = _editTx != null;
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+        finally { _editingId = -1; StateHasChanged(); }
+    }
+
+    private async Task DeleteMiAsync(int id)
+    {
+        if (_confirm is null || !await _confirm.ShowAsync()) return;
+        try { await MilersattningApiSvc.DeleteAsync(BudgetState.ActiveBudgetId, id); Toast.Success("Milersättning borttagen."); await LoadAsync(); }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private async Task DeleteVabAsync(int id)
+    {
+        if (_confirm is null || !await _confirm.ShowAsync()) return;
+        try { await VabApiSvc.DeleteAsync(BudgetState.ActiveBudgetId, id); Toast.Success("VAB borttagen."); await LoadAsync(); }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    [Inject] private MilersattningApiService MilersattningApiSvc { get; set; } = null!;
+    [Inject] private VabApiService VabApiSvc { get; set; } = null!;
+
+    private void OpenNew()
+    {
+        _editTx = null;
+        _showForm = true;
+    }
+
+    private async Task OnFormSaved()
+    {
+        _showForm = false; _editTx = null;
+        await Task.WhenAll(LoadAsync(), LoadListsAsync());
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // LISTS
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private void OpenListDetail(UserListDto list) => _activeList = list;
+
+    private async Task OnListUpdated(UserListDto updated)
+    {
+        var idx = _lists.FindIndex(l => l.Id == updated.Id);
+        if (idx >= 0) _lists[idx] = updated;
+        else _lists.Insert(0, updated);
+        await LoadListsAsync();
+        StateHasChanged();
+    }
+
+    private async Task OnListDeleted(int id)
+    {
+        _activeList = null;
+        try { await ListApiServiceInstance.DeleteAsync(BudgetState.ActiveBudgetId, id); Toast.Success("Borttagen."); await LoadListsAsync(); }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private async Task DeleteListAsync(UserListDto ul)
+    {
+        if (_confirm is null || !await _confirm.ShowAsync()) return;
+        await OnListDeleted(ul.Id);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // EXPORT
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private async Task ExportPdfAsync()
+    {
+        _exporting = true;
+        try
+        {
+            var url = JournalSvc.GetPdfUrl(BudgetState.ActiveBudgetId, Filter.Query);
+            var resp = await Http.GetAsync(url);
+            if (!resp.IsSuccessStatusCode) { Toast.Error("Export misslyckades."); return; }
+            var b64 = Convert.ToBase64String(await resp.Content.ReadAsByteArrayAsync());
+            await JS.InvokeVoidAsync("downloadFile", $"journal_{DateTime.Today:yyyyMMdd}.pdf", "application/pdf", b64);
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+        finally { _exporting = false; }
+    }
+
+    private async Task ExportExcelAsync()
+    {
+        _exporting = true;
+        try
+        {
+            var url = JournalSvc.GetExcelUrl(BudgetState.ActiveBudgetId, Filter.Query);
+            var resp = await Http.GetAsync(url);
+            if (!resp.IsSuccessStatusCode) { Toast.Error("Export misslyckades."); return; }
+            var b64 = Convert.ToBase64String(await resp.Content.ReadAsByteArrayAsync());
+            await JS.InvokeVoidAsync("downloadFile",
+                $"journal_{DateTime.Today:yyyyMMdd}.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", b64);
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+        finally { _exporting = false; }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // HELPERS
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private static string TypeLabel(JournalEntryType t) => t switch
+    {
+        JournalEntryType.Transaction => "Transaktioner",
+        JournalEntryType.Milersattning => "Milersättning",
+        JournalEntryType.Vab => "VAB",
+        JournalEntryType.ReceiptBatch => "Kvitton",
+        JournalEntryType.List => "Listor",
+        JournalEntryType.TimeEntry => "Tidposter",
+        _ => t.ToString()
+    };
+
+    private static string TypeBadge(JournalEntryType t) => t switch
+    {
+        JournalEntryType.Transaction => "badge-primary",
+        JournalEntryType.Milersattning => "badge-income",
+        JournalEntryType.Vab => "badge-income",
+        JournalEntryType.ReceiptBatch => "badge",
+        JournalEntryType.TimeEntry => "badge-muted",
+        _ => "badge-muted"
+    };
+
+    private static string StatusBadge(string s) => s switch
+    {
+        "Godkänd" => "badge-income",
+        "Avslagen" => "badge-expense",
+        "Utbetald" => "badge-primary",
+        _ => "badge-muted"
+    };
+
+    private static string AmountStr(JournalEntryDto e) =>
+        e.EntryType == JournalEntryType.ReceiptBatch
+            ? $"{e.Amount:N0} kr"
+            : (e.Amount >= 0 ? "+" : "") + $"{e.Amount:N0} kr";
+}
