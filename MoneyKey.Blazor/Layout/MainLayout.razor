@@ -284,6 +284,14 @@
                 </a>
             }
 
+            @if (BudgetState.IsFeatureEnabled("Csn"))
+            {
+                <NavLink class="nav-item" href="/csn">
+                    <span class="material-icons">school</span> CSN
+                </NavLink>
+            }
+
+
             <!-- Always-visible links -->
             <a class="more-nav-item" href="/tax" @onclick='() => _morOpen = false'>
                 <span class="material-icons">calculate</span> Skattekalkyl

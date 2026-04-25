@@ -39,6 +39,7 @@ svcs.AddMemoryCache();
 svcs.AddScoped<ICurrentUserAccessor, HttpCurrentUserAccessor>();
 svcs.AddScoped<AuditInterceptor>();
 
+
 svcs.AddDbContext<BudgetDbContext>((sp, opt) =>
     opt.UseSqlServer(connStr, sql => sql.MigrationsAssembly("MoneyKey.DAL"))
        .AddInterceptors(sp.GetRequiredService<AuditInterceptor>()));

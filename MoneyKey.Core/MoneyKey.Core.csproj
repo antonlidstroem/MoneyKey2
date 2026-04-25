@@ -5,13 +5,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="QuestPDF"    Version="2024.3.0" />
-    <PackageReference Include="ClosedXML"   Version="0.102.3"  />
-    <PackageReference Include="CsvHelper"   Version="33.0.1"   />
+    <PackageReference Include="QuestPDF" Version="2024.3.0" />
+    <PackageReference Include="ClosedXML" Version="0.102.3" />
+    <PackageReference Include="CsvHelper" Version="33.0.1" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MoneyKey.Domain\MoneyKey.Domain.csproj" />
-    <ProjectReference Include="..\MoneyKey.DAL\MoneyKey.DAL.csproj"      />
+    <ProjectReference Include="..\MoneyKey.DAL\MoneyKey.DAL.csproj" />
   </ItemGroup>
 </Project>

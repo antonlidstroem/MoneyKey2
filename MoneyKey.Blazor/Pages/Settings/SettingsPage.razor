@@ -39,6 +39,10 @@
     private bool _creatingBudget;
     private HashSet<string> _disabledFeatures = new(StringComparer.OrdinalIgnoreCase);
     private bool _featuresLoading;
+    private string _displayName = "";
+    private bool _savingName;
+    private string _displayNameError = "";
+
 
     private static readonly (string Key, string Label, string Icon)[] AllFeatures =
     {
@@ -51,6 +55,7 @@
         ("TimeTracking",  "Tidrapportering", "schedule"),
         ("Loans",         "Lån & Krediter",   "account_balance"),
         ("Insurance",     "Försäkringar",     "security"),
+        ("Csn", "CSN-hantering", "school"),
         ("SickLeave",     "Sjukfrånvaro",     "sick")
     };
 
@@ -62,6 +67,8 @@
     protected override async Task OnInitializedAsync()
     {
         _budgetName = BudgetState.ActiveBudgetName;
+        _displayName = BudgetState.DisplayName;
+        
         await LoadFeaturesAsync();
         if (IsSuperAdmin)
         {
@@ -73,6 +80,27 @@
             }
             finally { _signalRLoading = false; }
         }
+    }
+
+    private async Task SaveDisplayNameAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_displayName)) { _displayNameError = "Ange ett visningsnamn."; return; }
+        _savingName = true; _displayNameError = "";
+        try
+        {
+            var r = await Http.PutAsJsonAsync("api/auth/display-name",
+                new { DisplayName = _displayName.Trim() });
+            if (!r.IsSuccessStatusCode)
+            {
+                _displayNameError = "Kunde inte spara visningsnamnet."; return;
+            }
+            // Refresh subscription state to update displayed name
+            var sub = await SubSvc.GetMineAsync();
+            if (sub != null) BudgetState.SetSubscription(sub);
+            Toast.Success("Visningsnamn uppdaterat.");
+        }
+        catch (Exception ex) { _displayNameError = ex.Message; }
+        finally { _savingName = false; }
     }
 
     private async Task LoadFeaturesAsync()
@@ -263,6 +291,31 @@
             <div class="card-title"><span class="material-icons">workspace_premium</span> Prenumeration</div>
             <div class="kpi-card"><div class="kpi-label">Plan</div><div class="kpi-value">@SubscriptionLimits.TierLabel(BudgetState.Tier)</div></div>
         </div>
+
+            <!-- ── Visningsnamn ──────────────────────────────────────────────── -->
+            <div class="card">
+                <div class="card-title"><span class="material-icons">badge</span> Visningsnamn</div>
+                <p style="font-size:.82rem;color:var(--color-muted);margin-bottom:10px">
+                    Visas för andra användare när du bjuds in till gemensamma budgetar.
+                </p>
+                <div style="display:flex;gap:8px;align-items:flex-end">
+                    <div class="form-group" style="flex:1;margin:0">
+                        <label class="form-label">Smeknamn *</label>
+                        <input class="form-control" @bind="_displayName" placeholder="T.ex. Anna L." />
+                    </div>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveDisplayNameAsync" disabled="@_savingName">
+                        @if (_savingName)
+                        {
+                            <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>
+                        }
+                        Spara
+                    </button>
+                </div>
+                @if (!string.IsNullOrEmpty(_displayNameError))
+                {
+                    <div style="color:var(--color-expense);font-size:.82rem;margin-top:6px">@_displayNameError</div>
+                }
+            </div>
 
         <div class="card" style="border-left:3px solid var(--color-expense)">
             <div class="card-title" style="color:var(--color-expense)">Radera konto</div>
