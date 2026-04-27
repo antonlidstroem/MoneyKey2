@@ -85,6 +85,14 @@
             {
                 <ProjectListRenderer List="List" CanEdit="CanEdit" OnUpdated="OnUpdated" />
             }
+            else if (List.ListType == ListType.Problem)
+            {
+                <ProblemListRenderer List="List" CanEdit="CanEdit" OnUpdated="OnUpdated" />
+            }
+            else if (List.ListType == ListType.Inventory)
+            {
+                <InventoryListRenderer List="List" CanEdit="CanEdit" OnUpdated="OnUpdated" />
+            }
            
             else
             {
@@ -188,6 +196,8 @@
         ListType.Inventory => "inventory_2",
         ListType.Shopping => "shopping_cart",
         ListType.ToDo => "task_alt",
+        ListType.Problem => "psychology",
+        ListType.Inventory => "inventory_2",
         _ => "checklist"
     };
 

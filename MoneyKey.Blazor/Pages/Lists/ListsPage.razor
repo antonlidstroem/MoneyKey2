@@ -48,6 +48,10 @@
                 @onclick="() => _tab = 4">
             <span class="material-icons" style="font-size:.82rem">folder_open</span> Projekt
         </button>
+        <button class="btn btn-sm @(_tab == 5 ? "btn-primary" : "btn-secondary")"
+                @onclick="() => _tab = 5">
+            <span class="material-icons" style="font-size:.82rem">inventory_2</span> Inventarie
+        </button>
     </div>
 
     <div class="page-content">
@@ -101,6 +105,11 @@
         <button class="mobile-chip @(_tab == 1 ? "active" : "")" @onclick="() => _tab = 1">Listor</button>
         <button class="mobile-chip @(_tab == 2 ? "active" : "")" @onclick="() => _tab = 2">🧳 Pack</button>
         <button class="mobile-chip @(_tab == 3 ? "active" : "")" @onclick="() => _tab = 3">Ant.</button>
+        <button class="mobile-chip @(_tab == 4 ? "active" : "")" @onclick="() => _tab = 4">?</button>
+        <button class="mobile-chip @(_tab == 5 ? "active" : "")"
+                @onclick="() => _tab = 5">
+            📦 Inv.
+        </button>
     </div>
 
     <div class="mobile-page-scroll">
@@ -290,14 +299,20 @@
         (ListType.Habit,    "Rutiner",      "repeat",      "Streaks & vanor"),
         (ListType.Decision, "Beslut",       "balance",     "Alternativ & magkänsla"),
         (ListType.Project,  "Projekt",      "folder_open", "Status & Kanban"),
+        (ListType.Problem,   "Problem/Lösning", "psychology",  "Testa & dokumentera"),
+        (ListType.Inventory, "Inventarie",      "inventory_2", "Värde & garantier"),
     };
 
     private IEnumerable<UserListDto> Filtered => _tab switch
     {
-        1 => _all.Where(x => !x.IsNote && x.ListType is not (ListType.Packing or ListType.Habit or ListType.Decision or ListType.Project)),
+        1 => _all.Where(x => !x.IsNote && x.ListType is not
+                 (ListType.Packing or ListType.Habit or ListType.Decision
+                  or ListType.Project or ListType.Problem or ListType.Inventory)),
         2 => _all.Where(x => x.ListType == ListType.Packing),
         3 => _all.Where(x => x.IsNote),
-        4 => _all.Where(x => x.ListType is ListType.Project or ListType.Habit or ListType.Decision),
+        4 => _all.Where(x => x.ListType is ListType.Project
+                           or ListType.Habit or ListType.Decision or ListType.Problem),
+        5 => _all.Where(x => x.ListType == ListType.Inventory),
         _ => _all
     };
 

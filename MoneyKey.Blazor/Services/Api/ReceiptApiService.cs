@@ -53,4 +53,10 @@ public class ReceiptApiService : ApiServiceBase
 
     public string GetPdfUrl(int budgetId, int batchId) =>
         $"api/budgets/{budgetId}/receipts/{batchId}/export/pdf";
+
+    /// <summary>
+    /// Returns all receipt batches for a budget (summary only — for dropdowns).
+    /// </summary>
+    public Task<List<ReceiptBatchDto>?> GetAllBatchesAsync(int budgetId) =>
+        GetAsync<List<ReceiptBatchDto>>($"api/budgets/{budgetId}/receipts");
 }

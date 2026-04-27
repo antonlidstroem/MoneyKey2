@@ -1,0 +1,523 @@
+﻿@using MoneyKey.Core.DTOs.Lists
+@using System.Text.Json
+@inject ListApiService ListSvc
+@inject ToastService   Toast
+@inject BudgetState    BudgetState
+
+<div class="problem-list">
+
+    @* ── Summary ─────────────────────────────────────────────────── *@
+    @if (_problems.Any())
+    {
+        var solved  = _problems.Count(p => GetData(p).Status == "solved");
+        var open    = _problems.Count(p => GetData(p).Status == "open");
+        var parked  = _problems.Count(p => GetData(p).Status == "parked");
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+            <div class="kpi-card" style="flex:1;min-width:90px;padding:8px 12px">
+                <div class="kpi-label">Öppna</div>
+                <div class="kpi-value" style="font-size:1.1rem;color:var(--color-expense)">@open</div>
+            </div>
+            <div class="kpi-card" style="flex:1;min-width:90px;padding:8px 12px">
+                <div class="kpi-label">Lösta</div>
+                <div class="kpi-value" style="font-size:1.1rem;color:#22c55e">@solved</div>
+            </div>
+            @if (parked > 0)
+            {
+                <div class="kpi-card" style="flex:1;min-width:90px;padding:8px 12px">
+                    <div class="kpi-label">Parkerade</div>
+                    <div class="kpi-value" style="font-size:1.1rem;color:var(--color-muted)">@parked</div>
+                </div>
+            }
+        </div>
+    }
+
+    @* ── Problem cards ────────────────────────────────────────────── *@
+    @foreach (var item in _problems.OrderBy(p => GetData(p).Status == "solved" ? 1 : 0))
+    {
+        var li   = item;
+        var data = GetData(li);
+        var sols = data.Solutions ?? new();
+
+        <div class="problem-card @(data.Status == "solved" ? "is-solved" : "")">
+
+            @* Problem header *@
+            <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px">
+                <span style="font-size:1.1rem;flex-shrink:0;margin-top:1px">
+                    @ProblemEmoji(data.Status)
+                </span>
+                <div style="flex:1;min-width:0">
+                    <div style="font-weight:600;font-size:.9rem">@li.Text</div>
+                    @if (!string.IsNullOrEmpty(data.Context))
+                    {
+                        <div style="font-size:.78rem;color:var(--color-muted);margin-top:2px">
+                            @data.Context
+                        </div>
+                    }
+                </div>
+                <div style="display:flex;gap:3px;align-items:center;flex-shrink:0">
+                    <span class="badge @StatusBadge(data.Status)" style="font-size:.68rem">
+                        @StatusLabel(data.Status)
+                    </span>
+                    @if (CanEdit)
+                    {
+                        <button class="btn btn-ghost btn-icon btn-sm"
+                                @onclick="() => OpenProblemMenu(li, data)">
+                            <span class="material-icons" style="font-size:.9rem">more_vert</span>
+                        </button>
+                    }
+                </div>
+            </div>
+
+            @* Solution that worked *@
+            @if (data.Status == "solved" && !string.IsNullOrEmpty(data.ChosenSolution))
+            {
+                <div style="padding:8px 10px;background:rgba(34,197,94,.1);border-radius:8px;
+                            font-size:.82rem;margin-bottom:8px;border-left:3px solid #22c55e">
+                    ✅ Fungerande lösning: <strong>@data.ChosenSolution</strong>
+                </div>
+            }
+
+            @* Solutions list *@
+            @if (sols.Any())
+            {
+                <div style="margin-bottom:8px">
+                    <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;
+                                letter-spacing:.06em;color:var(--color-muted);margin-bottom:5px">
+                        Lösningsförsök (@sols.Count)
+                    </div>
+                    @foreach (var sol in sols.OrderBy(s => SolutionOrder(s.TestStatus)))
+                    {
+                        var s = sol;
+                        <div class="solution-row">
+                            <div class="solution-status-dot"
+                                 style="background:@SolutionDotColor(s.TestStatus)">
+                            </div>
+                            <div style="flex:1;min-width:0">
+                                <div style="font-size:.84rem">@s.Name</div>
+                                @if (!string.IsNullOrEmpty(s.TestedDate))
+                                {
+                                    <div style="font-size:.7rem;color:var(--color-muted)">
+                                        Testad @DateTime.TryParse(s.TestedDate, out var td)
+                                            ? td.ToString("d MMM yyyy") : s.TestedDate
+                                    </div>
+                                }
+                                @if (!string.IsNullOrEmpty(s.ResultNote))
+                                {
+                                    <div class="solution-result-log">@s.ResultNote</div>
+                                }
+                            </div>
+                            <div style="display:flex;gap:3px;align-items:center;flex-shrink:0">
+                                <span style="font-size:.68rem;padding:2px 6px;border-radius:6px;
+                                             background:@SolutionDotColor(s.TestStatus)20;
+                                             color:@SolutionDotColor(s.TestStatus);font-weight:700">
+                                    @SolutionStatusLabel(s.TestStatus)
+                                </span>
+                                @if (CanEdit && data.Status != "solved")
+                                {
+                                    <button class="btn btn-ghost btn-icon btn-sm"
+                                            @onclick="() => OpenSolutionMenu(li, data, s)">
+                                        <span class="material-icons" style="font-size:.82rem">edit</span>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+
+            @* Add solution inline *@
+            @if (CanEdit && data.Status == "open")
+            {
+                @if (_addingSolutionFor == li.Id)
+                {
+                    <div style="background:var(--color-bg);border-radius:8px;padding:10px;margin-top:4px">
+                        <div class="form-group" style="margin-bottom:6px">
+                            <input class="list-quick-add__input" @bind="_newSolName"
+                                   placeholder="Beskriv lösningsförslaget..." />
+                        </div>
+                        <div style="display:flex;gap:6px">
+                            <button class="btn btn-primary btn-sm" @onclick="() => AddSolutionAsync(li, data)"
+                                    disabled="@string.IsNullOrWhiteSpace(_newSolName)">
+                                Lägg till
+                            </button>
+                            <button class="btn btn-ghost btn-sm"
+                                    @onclick="() => _addingSolutionFor = -1">
+                                Avbryt
+                            </button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <button class="btn btn-ghost btn-sm"
+                            style="font-size:.76rem;margin-top:4px"
+                            @onclick="() => { _addingSolutionFor = li.Id; _newSolName = ""; }">
+                        <span class="material-icons" style="font-size:.8rem">add</span>
+                        Föreslå lösning
+                    </button>
+                }
+            }
+        </div>
+    }
+
+    @* ── Add new problem ──────────────────────────────────────────── *@
+    @if (CanEdit)
+    {
+        @if (_showAdd)
+        {
+            <div style="background:var(--color-bg);border-radius:10px;padding:12px;margin-top:4px">
+                <div class="form-group" style="margin-bottom:8px">
+                    <label style="font-size:.72rem;color:var(--color-muted);font-weight:600;
+                                  display:block;margin-bottom:4px">Problem *</label>
+                    <input class="list-quick-add__input" @bind="_newProblemTitle"
+                           placeholder="Beskriv problemet kortfattat..." />
+                </div>
+                <div class="form-group" style="margin-bottom:8px">
+                    <label style="font-size:.72rem;color:var(--color-muted);font-weight:600;
+                                  display:block;margin-bottom:4px">Kontext (valfritt)</label>
+                    <textarea class="form-control" rows="2" @bind="_newProblemContext"
+                              style="font-size:.84rem"
+                              placeholder="Mer detaljer om problemet..."></textarea>
+                </div>
+                <div style="display:flex;gap:6px">
+                    <button class="btn btn-primary btn-sm" @onclick="AddProblemAsync"
+                            disabled="@string.IsNullOrWhiteSpace(_newProblemTitle)">
+                        Lägg till problem
+                    </button>
+                    <button class="btn btn-ghost btn-sm"
+                            @onclick="() => _showAdd = false">Avbryt</button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <button class="btn btn-ghost btn-sm"
+                    style="width:100%;justify-content:center;margin-top:4px;
+                           border:1.5px dashed var(--color-border)"
+                    @onclick="() => { _showAdd = true; _newProblemTitle = ""; _newProblemContext = ""; }">
+                <span class="material-icons" style="font-size:.9rem">add</span>
+                Lägg till problem
+            </button>
+        }
+    }
+</div>
+
+@* ── Problem menu ─────────────────────────────────────────────────── *@
+@if (_menuItem != null && _menuData != null)
+{
+    <div class="modal-overlay" @onclick="() => _menuItem = null">
+        <div class="modal" style="max-width:400px" @onclick:stopPropagation>
+            <div class="modal-header">
+                <span class="modal-title" style="font-size:.9rem">@_menuItem.Text</span>
+                <button class="btn btn-ghost btn-icon btn-sm"
+                        @onclick="() => _menuItem = null">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body" style="display:flex;flex-direction:column;gap:8px">
+                <div style="font-size:.75rem;color:var(--color-muted);font-weight:600;
+                            text-transform:uppercase;letter-spacing:.05em">
+                    Ändra status
+                </div>
+                @foreach (var (s, label) in new[] { ("open","Öppen"), ("parked","Parkera"), ("solved","Markera som löst") })
+                {
+                    var st = s;
+                    var lb = label;
+                    @if (st != _menuData.Status)
+                    {
+                        <button class="btn btn-secondary btn-sm"
+                                @onclick="() => ChangeStatusAsync(st)">
+                            @ProblemEmoji(st) @lb
+                        </button>
+                    }
+                }
+                <hr style="border:none;border-top:.5px solid var(--color-border);margin:4px 0"/>
+                <button class="btn btn-ghost btn-sm" style="color:var(--color-expense)"
+                        @onclick="RemoveProblemAsync">
+                    <span class="material-icons" style="font-size:.85rem">delete</span>
+                    Ta bort problem
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Solution menu ────────────────────────────────────────────────── *@
+@if (_solMenuItem != null)
+{
+    <div class="modal-overlay" @onclick="() => _solMenuItem = null">
+        <div class="modal" style="max-width:420px" @onclick:stopPropagation>
+            <div class="modal-header">
+                <span class="modal-title" style="font-size:.9rem">@_solMenuItem.Name</span>
+                <button class="btn btn-ghost btn-icon btn-sm"
+                        @onclick="() => _solMenuItem = null">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Status</label>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+                        @foreach (var (st, lb) in new[]
+                        {
+                            ("untested","Ej testad"),("testing","Testas"),
+                            ("works","Fungerar! ✅"),("failed","Fungerar inte ✗")
+                        })
+                        {
+                            var s = st; var l = lb;
+                            <button class="btn btn-sm @(_solEditStatus == s ? "btn-primary" : "btn-secondary")"
+                                    @onclick="() => _solEditStatus = s">@l</button>
+                        }
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Testdatum</label>
+                    <input class="form-control" type="date" @bind="_solEditDate" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Resultat / Anteckning</label>
+                    <textarea class="form-control" rows="2" @bind="_solEditNote"
+                              placeholder="Vad hände när du testade?"></textarea>
+                </div>
+                @if (_solEditStatus == "works")
+                {
+                    <div style="background:rgba(34,197,94,.1);border-radius:8px;
+                                padding:8px 12px;font-size:.82rem">
+                        💡 Markerar du som "Fungerar" stängs problemet automatiskt.
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost btn-sm"
+                        style="color:var(--color-expense);margin-right:auto"
+                        @onclick="RemoveSolutionAsync">Ta bort</button>
+                <button class="btn btn-secondary" @onclick="() => _solMenuItem = null">Avbryt</button>
+                <button class="btn btn-primary" @onclick="SaveSolutionAsync">Spara</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public UserListDto               List      { get; set; } = null!;
+    [Parameter] public bool                       CanEdit   { get; set; }
+    [Parameter] public EventCallback<UserListDto> OnUpdated { get; set; }
+
+    private List<ListItemDto> _problems = new();
+
+    // Add problem
+    private bool   _showAdd;
+    private string _newProblemTitle = "", _newProblemContext = "";
+
+    // Add solution
+    private int    _addingSolutionFor = -1;
+    private string _newSolName = "";
+
+    // Problem menu
+    private ListItemDto?    _menuItem;
+    private ProblemItemData? _menuData;
+
+    // Solution menu
+    private SolutionEntry?   _solMenuItem;
+    private ListItemDto?     _solParentItem;
+    private ProblemItemData? _solParentData;
+    private string           _solEditStatus = "untested";
+    private DateTime?        _solEditDate;
+    private string           _solEditNote   = "";
+
+    protected override void OnParametersSet() =>
+        _problems = List.Items.ToList();
+
+    private static ProblemItemData GetData(ListItemDto item)
+    {
+        if (string.IsNullOrEmpty(item.ItemData)) return new ProblemItemData(item.Text);
+        try { return JsonSerializer.Deserialize<ProblemItemData>(item.ItemData) ?? new(item.Text); }
+        catch { return new ProblemItemData(item.Text); }
+    }
+
+    // ── Add problem ────────────────────────────────────────────────────────────
+
+    private async Task AddProblemAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newProblemTitle)) return;
+        var data = new ProblemItemData(
+            ProblemDescription: _newProblemTitle.Trim(),
+            Context: string.IsNullOrWhiteSpace(_newProblemContext) ? null : _newProblemContext.Trim());
+        try
+        {
+            var item = await ListSvc.AddItemAsync(
+                BudgetState.ActiveBudgetId, List.Id,
+                new CreateListItemDto(_newProblemTitle.Trim())
+                { ItemData = JsonSerializer.Serialize(data) });
+            if (item != null)
+            {
+                _problems.Add(item); List.Items.Add(item);
+                List.TotalItems++;
+            }
+            _showAdd = false; _newProblemTitle = ""; _newProblemContext = "";
+            await OnUpdated.InvokeAsync(List);
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    // ── Add solution ───────────────────────────────────────────────────────────
+
+    private async Task AddSolutionAsync(ListItemDto item, ProblemItemData data)
+    {
+        if (string.IsNullOrWhiteSpace(_newSolName)) return;
+        var sols    = new List<SolutionEntry>(data.Solutions ?? new())
+                      { new SolutionEntry(_newSolName.Trim()) };
+        var updated = data with { Solutions = sols };
+        await PersistAsync(item, updated);
+        _addingSolutionFor = -1; _newSolName = "";
+    }
+
+    // ── Problem menu ───────────────────────────────────────────────────────────
+
+    private void OpenProblemMenu(ListItemDto item, ProblemItemData data)
+    {
+        _menuItem = item; _menuData = data;
+    }
+
+    private async Task ChangeStatusAsync(string newStatus)
+    {
+        if (_menuItem == null || _menuData == null) return;
+        var updated = _menuData with { Status = newStatus };
+        await PersistAsync(_menuItem, updated);
+        _menuItem = null;
+    }
+
+    private async Task RemoveProblemAsync()
+    {
+        if (_menuItem == null) return;
+        try
+        {
+            await ListSvc.DeleteItemAsync(BudgetState.ActiveBudgetId, List.Id, _menuItem.Id);
+            _problems.Remove(_menuItem); List.Items.Remove(_menuItem);
+            List.TotalItems--;
+            _menuItem = null;
+            await OnUpdated.InvokeAsync(List);
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    // ── Solution menu ──────────────────────────────────────────────────────────
+
+    private void OpenSolutionMenu(ListItemDto item, ProblemItemData data, SolutionEntry sol)
+    {
+        _solParentItem = item; _solParentData = data;
+        _solMenuItem   = sol;
+        _solEditStatus = sol.TestStatus;
+        _solEditDate   = DateTime.TryParse(sol.TestedDate, out var d) ? d : DateTime.Today;
+        _solEditNote   = sol.ResultNote ?? "";
+    }
+
+    private async Task SaveSolutionAsync()
+    {
+        if (_solMenuItem == null || _solParentItem == null || _solParentData == null) return;
+
+        var sols = new List<SolutionEntry>(_solParentData.Solutions ?? new());
+        var idx  = sols.FindIndex(s => s.Name == _solMenuItem.Name);
+        if (idx < 0) return;
+
+        var updated = _solMenuItem with
+        {
+            TestStatus = _solEditStatus,
+            TestedDate = _solEditDate?.ToString("yyyy-MM-dd"),
+            ResultNote = string.IsNullOrWhiteSpace(_solEditNote) ? null : _solEditNote.Trim(),
+            IsChosen   = _solEditStatus == "works"
+        };
+        sols[idx] = updated;
+
+        // Auto-solve problem when a solution is marked as working
+        var newStatus  = _solEditStatus == "works" ? "solved" : _solParentData.Status;
+        var chosen     = _solEditStatus == "works" ? updated.Name : _solParentData.ChosenSolution;
+        var newData    = _solParentData with { Solutions = sols, Status = newStatus, ChosenSolution = chosen };
+
+        await PersistAsync(_solParentItem, newData);
+        _solMenuItem = null;
+    }
+
+    private async Task RemoveSolutionAsync()
+    {
+        if (_solMenuItem == null || _solParentItem == null || _solParentData == null) return;
+        var sols = new List<SolutionEntry>(_solParentData.Solutions ?? new());
+        sols.RemoveAll(s => s.Name == _solMenuItem.Name);
+        await PersistAsync(_solParentItem, _solParentData with { Solutions = sols });
+        _solMenuItem = null;
+    }
+
+    // ── Persistence ────────────────────────────────────────────────────────────
+
+    private async Task PersistAsync(ListItemDto item, ProblemItemData data)
+    {
+        var json     = JsonSerializer.Serialize(data);
+        item.ItemData = json;
+        item.IsChecked = data.Status == "solved";
+
+        var idx = _problems.FindIndex(p => p.Id == item.Id);
+        if (idx >= 0) _problems[idx] = item;
+        List.CheckedItems = List.Items.Count(i => i.IsChecked);
+
+        StateHasChanged();
+        await OnUpdated.InvokeAsync(List);
+
+        try
+        {
+            await ListSvc.UpdateItemDataAsync(
+                BudgetState.ActiveBudgetId, List.Id, item.Id, json);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ProblemList] Sync failed: {ex.Message}");
+        }
+    }
+
+    // ── Labels & helpers ───────────────────────────────────────────────────────
+
+    private static string ProblemEmoji(string status) => status switch
+    {
+        "solved" => "✅",
+        "parked" => "⏸️",
+        _        => "🔴"
+    };
+
+    private static string StatusLabel(string s) => s switch
+    {
+        "solved" => "Löst",
+        "parked" => "Parkerat",
+        _        => "Öppet"
+    };
+
+    private static string StatusBadge(string s) => s switch
+    {
+        "solved" => "badge-income",
+        "parked" => "badge-muted",
+        _        => "badge-expense"
+    };
+
+    private static string SolutionDotColor(string s) => s switch
+    {
+        "works"    => "#22c55e",
+        "failed"   => "#ef4444",
+        "testing"  => "#f59e0b",
+        _          => "#64748b"
+    };
+
+    private static string SolutionStatusLabel(string s) => s switch
+    {
+        "works"   => "Fungerar",
+        "failed"  => "Fungerar inte",
+        "testing" => "Testas",
+        _         => "Ej testad"
+    };
+
+    private static int SolutionOrder(string s) => s switch
+    {
+        "works"   => 0,
+        "testing" => 1,
+        "failed"  => 2,
+        _         => 3
+    };
+}

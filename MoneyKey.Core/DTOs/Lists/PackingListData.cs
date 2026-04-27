@@ -47,12 +47,3 @@ public record ProjectItemData(
     List<string>? SubTasks = null
 );
 
-public record InventoryItemData(
-    string? Category = null,
-    string? Location = null,
-    decimal? Value = null,
-    string? PurchaseDate = null,   // ISO date
-    string? WarrantyEnd = null,   // ISO date
-    int? LinkedReceiptId = null,
-    string? SerialNumber = null
-);

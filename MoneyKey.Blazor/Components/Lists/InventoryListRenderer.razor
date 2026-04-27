@@ -1,0 +1,486 @@
+﻿@using MoneyKey.Core.DTOs.Lists
+@using System.Text.Json
+@inject ListApiService   ListSvc
+@inject ReceiptApiService ReceiptSvc
+@inject ToastService     Toast
+@inject BudgetState      BudgetState
+
+<div class="inventory-list">
+
+    @* ── Summary / total value ───────────────────────────────────── *@
+    @if (_items.Any())
+    {
+        var totalVal    = _items.Sum(i => GetData(i).Value ?? 0);
+        var warrantyNow = _items.Count(i => IsWarningExpiry(GetData(i)));
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+            <div class="kpi-card" style="flex:1;min-width:100px;padding:8px 12px">
+                <div class="kpi-label">Totalt värde</div>
+                <div class="kpi-value" style="font-size:1rem">@totalVal.ToString("N0") kr</div>
+            </div>
+            <div class="kpi-card" style="flex:1;min-width:100px;padding:8px 12px">
+                <div class="kpi-label">Antal</div>
+                <div class="kpi-value" style="font-size:1rem">@_items.Count st</div>
+            </div>
+            @if (warrantyNow > 0)
+            {
+                <div class="kpi-card" style="flex:1;min-width:100px;padding:8px 12px;
+                             border-left:3px solid #f59e0b">
+                    <div class="kpi-label">Garanti snart ut</div>
+                    <div class="kpi-value" style="font-size:1rem;color:#f59e0b">@warrantyNow st</div>
+                </div>
+            }
+        </div>
+
+        @* ── Category filter chips ─────────────────────────────── *@
+        @{
+            var cats = _items.Select(i => GetData(i).Category ?? "Övrigt")
+                             .Distinct().OrderBy(c => c).ToList();
+        }
+        @if (cats.Count > 1)
+        {
+            <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px">
+                <button class="category-chip @(_filterCat == null ? "is-active" : "")"
+                        @onclick="() => _filterCat = null">Alla</button>
+                @foreach (var cat in cats)
+                {
+                    var c = cat;
+                    <button class="category-chip @(_filterCat == c ? "is-active" : "")"
+                            @onclick="() => _filterCat = c">
+                        @CategoryIcon(c) @c
+                    </button>
+                }
+            </div>
+        }
+    }
+
+    @* ── Items ────────────────────────────────────────────────────── *@
+    @if (!FilteredItems.Any())
+    {
+        <div style="text-align:center;padding:24px;color:var(--color-muted);font-size:.875rem">
+            @if (_items.Any())
+            { <span>Inga objekt i denna kategori.</span> }
+            else
+            {
+                <span>Inventarielistan är tom.<br />
+                Lägg till dina saker och håll koll på värde och garantier.</span>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="list-items-container">
+            @foreach (var item in FilteredItems)
+            {
+                var li   = item;
+                var data = GetData(li);
+                var warningClass = WarrantyClass(data);
+
+                <SwipeableItem Enabled="CanEdit"
+                               LeftIcon="edit" LeftLabel="Redigera" LeftColor="#3b82f6"
+                               RightIcon="delete" RightLabel="Ta bort" RightColor="#ef4444"
+                               OnSwipedRight="() => OpenDetail(li, data)"
+                               OnSwipedLeft="() => ConfirmRemoveAsync(li)">
+                    <div class="inv-item-row" @onclick="() => OpenDetail(li, data)">
+                        @* Category icon *@
+                        <div class="inv-category-icon"
+                             style="background:rgba(37,99,235,.12)">
+                            @CategoryIcon(data.Category ?? "Övrigt")
+                        </div>
+
+                        @* Name + meta *@
+                        <div style="flex:1;min-width:0">
+                            <div style="font-weight:500;font-size:.875rem;
+                                        overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                                @li.Text
+                            </div>
+                            <div style="font-size:.72rem;color:var(--color-muted);
+                                        margin-top:2px;display:flex;gap:6px;flex-wrap:wrap">
+                                @if (!string.IsNullOrEmpty(data.Brand) || !string.IsNullOrEmpty(data.Model))
+                                {
+                                    <span>@data.Brand @data.Model</span>
+                                }
+                                @if (!string.IsNullOrEmpty(data.Location))
+                                {
+                                    <span>📍 @data.Location</span>
+                                }
+                                @if (!string.IsNullOrEmpty(data.PurchaseDate) &&
+                                     DateTime.TryParse(data.PurchaseDate, out var pd))
+                                {
+                                    <span>Köpt @pd.ToString("MMM yyyy")</span>
+                                }
+                            </div>
+                            @* Warranty badge *@
+                            @if (!string.IsNullOrEmpty(warningClass))
+                            {
+                                var wd = DateTime.TryParse(data.WarrantyEnd, out var w) ? w : (DateTime?)null;
+                                <span class="warranty-warning @warningClass" style="margin-top:3px;display:inline-block">
+                                    🛡 Garanti @(wd < DateTime.Today ? "gick ut" : "går ut")
+                                    @wd?.ToString("d MMM yyyy")
+                                </span>
+                            }
+                        </div>
+
+                        @* Value + receipt *@
+                        <div style="text-align:right;flex-shrink:0">
+                            @if (data.Value.HasValue)
+                            {
+                                <div class="inv-value-badge">@data.Value?.ToString("N0") kr</div>
+                            }
+                            @if (data.LinkedReceiptId.HasValue)
+                            {
+                                <div style="font-size:.68rem;color:var(--color-primary);margin-top:3px">
+                                    <span class="material-icons" style="font-size:.75rem;vertical-align:middle">
+                                        receipt
+                                    </span> kvitto
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </SwipeableItem>
+            }
+        </div>
+    }
+
+    @* ── Quick add ────────────────────────────────────────────────── *@
+    @if (CanEdit)
+    {
+        <div class="list-quick-add" style="margin-top:10px">
+            <input class="list-quick-add__input" @bind="_newName"
+                   placeholder="Lägg till sak..." @onkeydown="OnQuickAddKeyDown" />
+            <button class="btn btn-primary btn-sm"
+                    disabled="@string.IsNullOrWhiteSpace(_newName)"
+                    @onclick="QuickAddAsync">
+                <span class="material-icons" style="font-size:.85rem">add</span>
+            </button>
+        </div>
+    }
+</div>
+
+@* ── Detail / edit modal ──────────────────────────────────────────── *@
+@if (_detailItem != null)
+{
+    <div class="modal-overlay" @onclick="CloseDetail">
+        <div class="modal" style="max-width:520px;max-height:90vh;overflow-y:auto"
+             @onclick:stopPropagation>
+            <div class="modal-header">
+                <span class="modal-title">@(_detailItem.Text)</span>
+                <button class="btn btn-ghost btn-icon btn-sm" @onclick="CloseDetail">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="form-group">
+                    <label class="form-label">Namn *</label>
+                    <input class="form-control" @bind="_dName" disabled="@(!CanEdit)" />
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Kategori</label>
+                        <select class="form-control" @bind="_dCategory" disabled="@(!CanEdit)">
+                            @foreach (var cat in DefaultCategories)
+                            { <option>@cat</option> }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Skick</label>
+                        <select class="form-control" @bind="_dCondition" disabled="@(!CanEdit)">
+                            <option value="new">Nytt</option>
+                            <option value="good">Bra skick</option>
+                            <option value="fair">Godkänt</option>
+                            <option value="poor">Dåligt skick</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Märke</label>
+                        <input class="form-control" @bind="_dBrand" disabled="@(!CanEdit)"
+                               placeholder="T.ex. Apple, Ikea..." />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Modell</label>
+                        <input class="form-control" @bind="_dModel" disabled="@(!CanEdit)"
+                               placeholder="T.ex. iPhone 15..." />
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Inköpspris (kr)</label>
+                        <input class="form-control" type="number" @bind="_dValue" disabled="@(!CanEdit)" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Plats</label>
+                        <input class="form-control" @bind="_dLocation" disabled="@(!CanEdit)"
+                               placeholder="T.ex. Hemmakontoret..." />
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Inköpsdatum</label>
+                        <input class="form-control" type="date" @bind="_dPurchaseDate"
+                               disabled="@(!CanEdit)" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Garanti till</label>
+                        <input class="form-control" type="date" @bind="_dWarrantyEnd"
+                               disabled="@(!CanEdit)" />
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Serienummer</label>
+                    <input class="form-control" @bind="_dSerial" disabled="@(!CanEdit)"
+                           placeholder="Valfritt..." />
+                </div>
+
+                @* Receipt link *@
+                <div class="form-group">
+                    <label class="form-label">
+                        Kopplat kvitto
+                        @if (_receiptsLoading)
+                        {
+                            <span class="spinner" style="width:12px;height:12px;
+                                         border-width:2px;display:inline-block;margin-left:6px">
+                            </span>
+                        }
+                    </label>
+                    @if (_availableReceipts.Any())
+                    {
+                        <select class="form-control" @bind="_dReceiptId" disabled="@(!CanEdit)">
+                            <option value="0">Inget kvitto kopplat</option>
+                            @foreach (var r in _availableReceipts)
+                            {
+                                <option value="@r.Id">@r.Label (@r.Date.ToString("d MMM yyyy"))</option>
+                            }
+                        </select>
+                    }
+                    else if (!_receiptsLoading)
+                    {
+                        <div style="font-size:.78rem;color:var(--color-muted)">
+                            Inga kvitton i budgeten ännu.
+                        </div>
+                    }
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Anteckningar</label>
+                    <textarea class="form-control" rows="2" @bind="_dNotes"
+                              disabled="@(!CanEdit)" placeholder="Valfritt..."></textarea>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                @if (CanEdit)
+                {
+                    <button class="btn btn-ghost btn-sm"
+                            style="color:var(--color-expense);margin-right:auto"
+                            @onclick="() => { CloseDetail(); ConfirmRemoveAsync(_detailItem); }">
+                        Ta bort
+                    </button>
+                    <button class="btn btn-secondary" @onclick="CloseDetail">Avbryt</button>
+                    <button class="btn btn-primary" @onclick="SaveDetailAsync">Spara</button>
+                }
+                else
+                {
+                    <button class="btn btn-secondary" @onclick="CloseDetail">Stäng</button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public UserListDto               List      { get; set; } = null!;
+    [Parameter] public bool                       CanEdit   { get; set; }
+    [Parameter] public EventCallback<UserListDto> OnUpdated { get; set; }
+
+    private List<ListItemDto>        _items            = new();
+    private string?                  _filterCat;
+    private string                   _newName          = "";
+    private bool                     _receiptsLoading;
+    private List<ReceiptBatchSummary> _availableReceipts = new();
+
+    // Detail modal state
+    private ListItemDto?     _detailItem;
+    private string           _dName        = "", _dCategory = "Elektronik",
+                             _dBrand       = "", _dModel     = "",
+                             _dLocation    = "", _dSerial    = "",
+                             _dCondition   = "good", _dNotes = "";
+    private decimal?         _dValue;
+    private DateTime?        _dPurchaseDate, _dWarrantyEnd;
+    private int              _dReceiptId;
+
+    private static readonly string[] DefaultCategories =
+    {
+        "Elektronik", "Möbler", "Kläder & Accessoarer", "Kök & Hushåll",
+        "Sport & Fritid", "Verktyg", "Fordon", "Konst & Samlarobjekt",
+        "Böcker & Media", "Övrigt"
+    };
+
+    // Minimal receipt summary for dropdown
+    private record ReceiptBatchSummary(int Id, string Label, DateTime Date);
+
+    private IEnumerable<ListItemDto> FilteredItems =>
+        _filterCat == null
+            ? _items
+            : _items.Where(i => (GetData(i).Category ?? "Övrigt") == _filterCat);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _items = List.Items.ToList();
+        if (!_availableReceipts.Any()) await LoadReceiptsAsync();
+    }
+
+    private async Task LoadReceiptsAsync()
+    {
+        if (BudgetState.ActiveBudgetId <= 0) return;
+        _receiptsLoading = true;
+        try
+        {
+            var batches = await ReceiptSvc.GetAllBatchesAsync(BudgetState.ActiveBudgetId);
+            _availableReceipts = batches?
+                .Select(b => new ReceiptBatchSummary(b.Id, b.Label, b.Date))
+                .OrderByDescending(b => b.Date).ToList() ?? new();
+        }
+        catch { }
+        finally { _receiptsLoading = false; }
+    }
+
+    private static InventoryItemData GetData(ListItemDto item)
+    {
+        if (string.IsNullOrEmpty(item.ItemData)) return new InventoryItemData();
+        try { return JsonSerializer.Deserialize<InventoryItemData>(item.ItemData) ?? new(); }
+        catch { return new InventoryItemData(); }
+    }
+
+    private async Task QuickAddAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newName)) return;
+        var data = new InventoryItemData(Category: "Övrigt");
+        try
+        {
+            var item = await ListSvc.AddItemAsync(
+                BudgetState.ActiveBudgetId, List.Id,
+                new CreateListItemDto(_newName.Trim())
+                { ItemData = JsonSerializer.Serialize(data) });
+            if (item != null)
+            {
+                _items.Add(item); List.Items.Add(item);
+                List.TotalItems++; _newName = "";
+                await OnUpdated.InvokeAsync(List);
+                // Open detail immediately so user can fill in info
+                OpenDetail(item, data);
+            }
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private async Task OnQuickAddKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await QuickAddAsync();
+    }
+
+    private void OpenDetail(ListItemDto item, InventoryItemData data)
+    {
+        _detailItem   = item;
+        _dName        = item.Text;
+        _dCategory    = data.Category    ?? "Övrigt";
+        _dBrand       = data.Brand       ?? "";
+        _dModel       = data.Model       ?? "";
+        _dLocation    = data.Location    ?? "";
+        _dSerial      = data.SerialNumber ?? "";
+        _dCondition   = data.Condition   ?? "good";
+        _dNotes       = data.Notes       ?? "";
+        _dValue       = data.Value;
+        _dReceiptId   = data.LinkedReceiptId ?? 0;
+        _dPurchaseDate = DateTime.TryParse(data.PurchaseDate, out var pd) ? pd : null;
+        _dWarrantyEnd  = DateTime.TryParse(data.WarrantyEnd,  out var wd) ? wd : null;
+    }
+
+    private void CloseDetail() => _detailItem = null;
+
+    private async Task SaveDetailAsync()
+    {
+        if (_detailItem == null) return;
+        _detailItem.Text = _dName;
+        var data = new InventoryItemData(
+            Category:      _dCategory,
+            Location:      string.IsNullOrWhiteSpace(_dLocation)  ? null : _dLocation.Trim(),
+            Value:         _dValue,
+            PurchaseDate:  _dPurchaseDate?.ToString("yyyy-MM-dd"),
+            WarrantyEnd:   _dWarrantyEnd?.ToString("yyyy-MM-dd"),
+            LinkedReceiptId: _dReceiptId > 0 ? _dReceiptId : null,
+            SerialNumber:  string.IsNullOrWhiteSpace(_dSerial) ? null : _dSerial.Trim(),
+            Brand:         string.IsNullOrWhiteSpace(_dBrand)  ? null : _dBrand.Trim(),
+            Model:         string.IsNullOrWhiteSpace(_dModel)  ? null : _dModel.Trim(),
+            Notes:         string.IsNullOrWhiteSpace(_dNotes)  ? null : _dNotes.Trim(),
+            Condition:     _dCondition);
+
+        var json = JsonSerializer.Serialize(data);
+        _detailItem.ItemData = json;
+
+        var idx = _items.FindIndex(i => i.Id == _detailItem.Id);
+        if (idx >= 0) _items[idx] = _detailItem;
+
+        CloseDetail();
+        StateHasChanged();
+        await OnUpdated.InvokeAsync(List);
+
+        try
+        {
+            await ListSvc.UpdateItemDataAsync(
+                BudgetState.ActiveBudgetId, List.Id, _detailItem.Id, json);
+        }
+        catch (Exception ex) { Console.WriteLine($"[Inventory] {ex.Message}"); }
+    }
+
+    private async Task ConfirmRemoveAsync(ListItemDto item)
+    {
+        try
+        {
+            await ListSvc.DeleteItemAsync(BudgetState.ActiveBudgetId, List.Id, item.Id);
+            _items.Remove(item); List.Items.Remove(item);
+            List.TotalItems--;
+            await OnUpdated.InvokeAsync(List);
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    // ── Warranty helpers ───────────────────────────────────────────────────────
+
+    private static bool IsWarningExpiry(InventoryItemData data)
+    {
+        if (!DateTime.TryParse(data.WarrantyEnd, out var end)) return false;
+        return end >= DateTime.Today && end <= DateTime.Today.AddDays(60);
+    }
+
+    private static string WarrantyClass(InventoryItemData data)
+    {
+        if (!DateTime.TryParse(data.WarrantyEnd, out var end)) return "";
+        if (end < DateTime.Today)                  return "expired";
+        if (end <= DateTime.Today.AddDays(60))     return "expiring";
+        return "";
+    }
+
+    // ── Category icons ────────────────────────────────────────────────────────
+
+    private static string CategoryIcon(string cat) => cat switch
+    {
+        "Elektronik"             => "💻",
+        "Möbler"                 => "🛋️",
+        "Kläder & Accessoarer"   => "👗",
+        "Kök & Hushåll"          => "🍳",
+        "Sport & Fritid"         => "⚽",
+        "Verktyg"                => "🔧",
+        "Fordon"                 => "🚗",
+        "Konst & Samlarobjekt"   => "🖼️",
+        "Böcker & Media"         => "📚",
+        _                        => "📦"
+    };
+}
