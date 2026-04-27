@@ -1,0 +1,39 @@
+﻿@inject IJSRuntime JS
+
+<div @ref="_ref"
+     class="list-checkbox @(IsChecked ? "is-checked" : "")"
+     role="checkbox"
+     aria-checked="@IsChecked"
+     tabindex="@(Disabled ? -1 : 0)"
+     @onclick="HandleClickAsync"
+     @onkeydown="HandleKeyDownAsync">
+
+    <svg class="list-checkbox__svg" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+        <rect class="list-checkbox__bg" x="1" y="1" width="20" height="20" rx="5" />
+        <path class="list-checkbox__mark" d="M5.5 11 l4 4 l7 -7" />
+    </svg>
+</div>
+
+@code {
+    private ElementReference _ref;
+
+    [Parameter] public bool IsChecked { get; set; }
+    [Parameter] public EventCallback<bool> OnToggle { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+
+    private async Task HandleClickAsync()
+    {
+        if (Disabled) return;
+        await JS.InvokeVoidAsync("listInterop.triggerHaptic", IsChecked ? 15 : 25);
+        await JS.InvokeVoidAsync("listInterop.bounceCheckbox", _ref);
+        if (!IsChecked)
+            await JS.InvokeVoidAsync("listInterop.rippleCheckbox", _ref);
+        await OnToggle.InvokeAsync(!IsChecked);
+    }
+
+    private async Task HandleKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key is " " or "Enter")
+            await HandleClickAsync();
+    }
+}

@@ -173,12 +173,14 @@ public class BudgetDbContext : IdentityDbContext<ApplicationUser>
             e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId)
              .IsRequired(false).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Items).WithOne(i => i.List).HasForeignKey(i => i.ListId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.ListConfig).HasColumnType("nvarchar(max)").IsRequired(false);
         });
 
         mb.Entity<ListItem>(e =>
         {
             e.HasKey(x => x.Id);
             e.Property(x => x.Text).HasMaxLength(500).IsRequired();
+            e.Property(x => x.ItemData).HasColumnType("nvarchar(max)").IsRequired(false);
         });
 
         mb.Entity<Job>(e =>

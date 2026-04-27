@@ -1,0 +1,677 @@
+﻿/* ===================================================================
+   MoneyKey Lists — Animation & Interaction System
+   Fas A — Kernerfarenhet
+   =================================================================== */
+
+/* ── Animated SVG Checkbox ─────────────────────────────────────────── */
+
+.list-checkbox {
+    position: relative;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    outline: none;
+}
+
+.list-checkbox__svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.list-checkbox__bg {
+    fill: transparent;
+    stroke: var(--color-border, #334155);
+    stroke-width: 1.75;
+    transition: fill 0.18s ease, stroke 0.18s ease;
+}
+
+.list-checkbox__mark {
+    fill: none;
+    stroke: #fff;
+    stroke-width: 2.25;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 16;
+    stroke-dashoffset: 16;
+    transition: stroke-dashoffset 0.24s cubic-bezier(0.65, 0, 0.35, 1) 0.04s;
+}
+
+.list-checkbox.is-checked .list-checkbox__bg {
+    fill: #22c55e;
+    stroke: #22c55e;
+}
+
+.list-checkbox.is-checked .list-checkbox__mark {
+    stroke-dashoffset: 0;
+}
+
+/* Bounce on toggle */
+.list-checkbox.is-bouncing {
+    animation: cb-bounce 0.38s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes cb-bounce {
+    0% {
+        transform: scale(1);
+    }
+
+    25% {
+        transform: scale(1.28);
+    }
+
+    55% {
+        transform: scale(0.88);
+    }
+
+    80% {
+        transform: scale(1.07);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Ripple on tap */
+.list-checkbox::after {
+    content: '';
+    position: absolute;
+    inset: -10px;
+    border-radius: 50%;
+    background: #22c55e;
+    opacity: 0;
+    transform: scale(0);
+    pointer-events: none;
+}
+
+.list-checkbox.is-rippling::after {
+    animation: cb-ripple 0.42s ease-out forwards;
+}
+
+@keyframes cb-ripple {
+    0% {
+        opacity: 0.22;
+        transform: scale(0);
+    }
+
+    100% {
+        opacity: 0;
+        transform: scale(1);
+    }
+}
+
+/* Keyboard focus ring */
+.list-checkbox:focus-visible {
+    outline: 2px solid var(--color-primary, #2563eb);
+    outline-offset: 3px;
+    border-radius: 5px;
+}
+
+/* ── Item text & strikethrough ──────────────────────────────────────── */
+
+.list-item-text {
+    flex: 1;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    color: var(--color-dark, #f1f5f9);
+    transition: color 0.22s ease, opacity 0.22s ease;
+    position: relative;
+    word-break: break-word;
+}
+
+    .list-item-text.is-done {
+        color: var(--color-muted, #64748b);
+    }
+
+        /* Animated strikethrough */
+        .list-item-text.is-done::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: calc(50% - 1px);
+            height: 1.5px;
+            background: var(--color-muted, #64748b);
+            border-radius: 1px;
+            animation: strikethrough 0.28s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+        }
+
+@keyframes strikethrough {
+    from {
+        width: 0%;
+        opacity: 0;
+    }
+
+    to {
+        width: 100%;
+        opacity: 1;
+    }
+}
+
+/* ── Base list item row ─────────────────────────────────────────────── */
+
+.list-item-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 0.5px solid var(--color-border, #1e293b);
+    transition: opacity 0.2s ease;
+    position: relative;
+}
+
+    .list-item-row:last-child {
+        border-bottom: none;
+    }
+
+    .list-item-row.is-done {
+        opacity: 0.55;
+    }
+
+/* ── Swipe container ────────────────────────────────────────────────── */
+
+.swipe-wrapper {
+    position: relative;
+    overflow: hidden;
+}
+
+.swipe-bg {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 18px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #fff;
+    opacity: 0;
+    pointer-events: none;
+    user-select: none;
+}
+
+.swipe-bg-left {
+    background: #22c55e;
+    justify-content: flex-start;
+}
+
+.swipe-bg-right {
+    background: #ef4444;
+    justify-content: flex-end;
+}
+
+.swipe-bg .material-icons {
+    font-size: 1.15rem;
+}
+
+.swipe-content {
+    position: relative;
+    background: var(--color-surface, #1e293b);
+    will-change: transform;
+}
+
+/* ── Item enter animations ──────────────────────────────────────────── */
+
+.item-entering {
+    animation: item-enter 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes item-enter {
+    from {
+        opacity: 0;
+        transform: translateY(-6px) scale(0.97);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Stagger for list renders */
+.list-items-container > .swipe-wrapper:nth-child(1) {
+    animation: item-enter .28s .00s cubic-bezier(.34,1.56,.64,1) both;
+}
+
+.list-items-container > .swipe-wrapper:nth-child(2) {
+    animation: item-enter .28s .04s cubic-bezier(.34,1.56,.64,1) both;
+}
+
+.list-items-container > .swipe-wrapper:nth-child(3) {
+    animation: item-enter .28s .08s cubic-bezier(.34,1.56,.64,1) both;
+}
+
+.list-items-container > .swipe-wrapper:nth-child(4) {
+    animation: item-enter .28s .12s cubic-bezier(.34,1.56,.64,1) both;
+}
+
+.list-items-container > .swipe-wrapper:nth-child(5) {
+    animation: item-enter .28s .16s cubic-bezier(.34,1.56,.64,1) both;
+}
+
+.list-items-container > .swipe-wrapper:nth-child(6) {
+    animation: item-enter .28s .20s cubic-bezier(.34,1.56,.64,1) both;
+}
+
+.list-items-container > .swipe-wrapper:nth-child(n+7) {
+    animation: item-enter .28s .24s cubic-bezier(.34,1.56,.64,1) both;
+}
+
+/* Item reset (packing list reset-all) */
+.item-resetting {
+    animation: item-reset 0.36s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes item-reset {
+    0% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+
+    35% {
+        transform: translateX(-10px);
+        opacity: 0.7;
+    }
+
+    100% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* ── Card grid animations ───────────────────────────────────────────── */
+
+.list-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px;
+}
+
+    .list-card-grid .card:nth-child(1) {
+        animation: card-enter .35s .00s cubic-bezier(.34,1.56,.64,1) both;
+    }
+
+    .list-card-grid .card:nth-child(2) {
+        animation: card-enter .35s .06s cubic-bezier(.34,1.56,.64,1) both;
+    }
+
+    .list-card-grid .card:nth-child(3) {
+        animation: card-enter .35s .12s cubic-bezier(.34,1.56,.64,1) both;
+    }
+
+    .list-card-grid .card:nth-child(4) {
+        animation: card-enter .35s .18s cubic-bezier(.34,1.56,.64,1) both;
+    }
+
+    .list-card-grid .card:nth-child(n+5) {
+        animation: card-enter .35s .22s cubic-bezier(.34,1.56,.64,1) both;
+    }
+
+@keyframes card-enter {
+    from {
+        opacity: 0;
+        transform: translateY(14px) scale(0.97);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* ── Packing list styles ────────────────────────────────────────────── */
+
+.packing-progress-bar {
+    height: 3px;
+    background: var(--color-border, #1e293b);
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 6px 0 14px;
+}
+
+.packing-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #22c55e, #16a34a);
+    border-radius: 2px;
+    transition: width 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.packing-category-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0 4px;
+    margin-top: 4px;
+}
+
+.packing-category-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--color-muted, #64748b);
+}
+
+.packing-category-count {
+    font-size: 0.72rem;
+    color: var(--color-muted, #64748b);
+}
+
+/* "All done" celebration */
+.packing-all-done {
+    text-align: center;
+    padding: 24px 16px;
+    animation: done-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes done-pop {
+    from {
+        opacity: 0;
+        transform: scale(0.75);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* ── Essential indicator ─────────────────────────────────────────────  */
+
+.essential-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #ef4444;
+    flex-shrink: 0;
+    margin-top: 7px;
+    animation: essential-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes essential-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(239,68,68,0.5);
+    }
+
+    60% {
+        box-shadow: 0 0 0 5px rgba(239,68,68,0);
+    }
+}
+
+/* ── Quantity badge ──────────────────────────────────────────────────── */
+
+.quantity-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 20px;
+    padding: 0 5px;
+    background: var(--color-bg, #0f172a);
+    border: 1px solid var(--color-border, #1e293b);
+    border-radius: 10px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--color-muted, #64748b);
+    flex-shrink: 0;
+}
+
+/* ── Category chips ─────────────────────────────────────────────────── */
+
+.category-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.73rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    border: 1.5px solid var(--color-border, #1e293b);
+    background: var(--color-bg, #0f172a);
+    color: var(--color-muted, #64748b);
+    white-space: nowrap;
+}
+
+    .category-chip.is-active {
+        background: var(--color-primary, #2563eb);
+        border-color: var(--color-primary, #2563eb);
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(37,99,235,0.35);
+    }
+
+    .category-chip:active {
+        transform: scale(0.92);
+    }
+
+/* ── Quick-add input ────────────────────────────────────────────────── */
+
+.list-quick-add {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 0 2px;
+}
+
+.list-quick-add__input {
+    flex: 1;
+    background: var(--color-bg, #0f172a);
+    border: 1.5px solid var(--color-border, #1e293b);
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 0.875rem;
+    color: var(--color-dark, #f1f5f9);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    outline: none;
+    width: 100%;
+}
+
+    .list-quick-add__input:focus {
+        border-color: var(--color-primary, #2563eb);
+        box-shadow: 0 0 0 3px rgba(37,99,235,0.18);
+    }
+
+    .list-quick-add__input::placeholder {
+        color: var(--color-muted, #64748b);
+    }
+
+/* ── Mobile tweaks ──────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+    .list-item-row {
+        padding: 13px 16px;
+    }
+
+    .list-checkbox {
+        width: 26px;
+        height: 26px;
+        margin-top: 1px;
+    }
+
+    .list-item-text {
+        font-size: 0.96rem;
+    }
+
+    .swipe-wrapper {
+        border-radius: 12px;
+        margin-bottom: 8px;
+    }
+}
+
+/* ── Fas B tillägg ── lägg till i slutet av lists-animations.css ── */
+
+/* Habit */
+.habit-streak-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+    background: linear-gradient(135deg,#f59e0b,#ef4444);
+    color: #fff;
+    animation: streak-pop .45s cubic-bezier(.34,1.56,.64,1) both;
+}
+
+@keyframes streak-pop {
+    from {
+        opacity: 0;
+        transform: scale(.7) rotate(-6deg)
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) rotate(0)
+    }
+}
+
+.habit-ring {
+    transition: stroke-dashoffset .55s cubic-bezier(.34,1.56,.64,1), stroke .3s ease;
+}
+
+.habit-day-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .68rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    transition: background .2s ease, transform .15s ease;
+    cursor: pointer;
+}
+
+    .habit-day-dot:active {
+        transform: scale(.85);
+    }
+
+    .habit-day-dot.done {
+        background: #22c55e;
+        color: #fff;
+    }
+
+    .habit-day-dot.missed {
+        background: var(--color-border);
+        color: var(--color-muted);
+    }
+
+    .habit-day-dot.excused {
+        background: #f59e0b;
+        color: #fff;
+    }
+
+    .habit-day-dot.future {
+        background: transparent;
+        border: 1.5px solid var(--color-border);
+        color: var(--color-muted);
+    }
+
+    .habit-day-dot.today {
+        border: 2px solid var(--color-primary);
+    }
+
+/* Decision */
+.decision-alt-card {
+    border: 1.5px solid var(--color-border);
+    border-radius: 10px;
+    padding: 14px;
+    transition: border-color .2s ease,box-shadow .2s ease;
+}
+
+    .decision-alt-card.is-winner {
+        border-color: #22c55e;
+        box-shadow: 0 0 0 3px rgba(34,197,94,.15);
+    }
+
+.gut-slider-track {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 8px;
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+    background: linear-gradient(90deg, #3b82f6 0%,#22c55e 50%,#ef4444 100%);
+}
+
+    .gut-slider-track::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: #fff;
+        border: 2.5px solid var(--color-primary);
+        box-shadow: 0 2px 6px rgba(0,0,0,.25);
+        transition: transform .1s ease;
+    }
+
+        .gut-slider-track::-webkit-slider-thumb:active {
+            transform: scale(1.25);
+        }
+
+    .gut-slider-track::-moz-range-thumb {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: #fff;
+        border: 2.5px solid var(--color-primary);
+        box-shadow: 0 2px 6px rgba(0,0,0,.25);
+    }
+
+/* Project */
+.kanban-col {
+    flex: 1;
+    min-width: 200px;
+    max-width: 280px;
+    background: var(--color-bg);
+    border-radius: 12px;
+    padding: 12px;
+}
+
+.kanban-col-header {
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1.5px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.kanban-card {
+    background: var(--color-surface);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    border: 1px solid var(--color-border);
+    cursor: pointer;
+    transition: transform .15s ease,box-shadow .15s ease;
+}
+
+    .kanban-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,.2);
+    }
+
+.project-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: .68rem;
+    font-weight: 700;
+}

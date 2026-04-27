@@ -1,0 +1,478 @@
+﻿@using MoneyKey.Core.DTOs.Lists
+@using System.Text.Json
+@inject ListApiService ListSvc
+@inject ToastService Toast
+@inject BudgetState BudgetState
+
+@* ── View toggle ───────────────────────────────────────────────────── *@
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div style="font-size:.75rem;color:var(--color-muted)">
+        @_items.Count(i => GetData(i).Status == "done") / @_items.Count klara
+    </div>
+    <div style="display:flex;gap:4px">
+        <button class="btn btn-sm @(_kanban ? "btn-secondary" : "btn-primary")"
+                style="padding:3px 8px;font-size:.72rem"
+                @onclick="() => _kanban = false">
+            <span class="material-icons" style="font-size:.78rem">list</span>
+        </button>
+        <button class="btn btn-sm @(_kanban ? "btn-primary" : "btn-secondary")"
+                style="padding:3px 8px;font-size:.72rem"
+                @onclick="() => _kanban = true">
+            <span class="material-icons" style="font-size:.78rem">view_kanban</span>
+        </button>
+    </div>
+</div>
+
+@if (_kanban)
+{
+    @* ═══ KANBAN VIEW ═══════════════════════════════════════════════ *@
+    <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:8px">
+        @foreach (var col in Columns)
+        {
+            var status = col.Key;
+            var colItems = _items.Where(i => GetData(i).Status == status).ToList();
+            var (label, color) = col.Value;
+
+            <div class="kanban-col" style="min-height:200px">
+                <div class="kanban-col-header">
+                    <span>
+                        <span style="width:8px;height:8px;border-radius:50%;
+                            background:@color;display:inline-block;margin-right:5px">
+                        </span>
+                        @label
+                    </span>
+                    <span style="font-size:.7rem;color:var(--color-muted)">
+                        @colItems.Count
+                    </span>
+                </div>
+
+                @foreach (var item in colItems)
+                {
+                    var it = item;
+                    var data = GetData(it);
+                    <div class="kanban-card" @onclick="() => OpenItemDetail(it, data)">
+                        <div style="font-size:.84rem;font-weight:500;margin-bottom:4px">
+                            @it.Text
+                        </div>
+                        @if (!string.IsNullOrEmpty(data.Deadline))
+                        {
+                            var dl = DateTime.TryParse(data.Deadline, out var d) ? d : (DateTime?)null;
+                            <div style="font-size:.7rem;color:@(dl < DateTime.Today ? "var(--color-expense)" : "var(--color-muted)")">
+                                📅 @dl?.ToString("d MMM")
+                                @if (dl < DateTime.Today)
+                                {
+                                    <span> — försenad</span>
+                                }
+                            </div>
+                        }
+                        @if (data.SubTasks?.Any() == true)
+                        {
+                            var done = data.SubTasks.Count(s => s.StartsWith("✓"));
+                            <div style="font-size:.7rem;color:var(--color-muted);margin-top:3px">
+                                @done/@data.SubTasks.Count delmål
+                            </div>
+                        }
+                        @* Move arrows *@
+                        @if (CanEdit)
+                        {
+                            <div style="display:flex;gap:3px;margin-top:6px" @onclick:stopPropagation>
+                                @foreach (var target in NextStatuses(status))
+                                {
+                                    var t = target;
+                                    <button class="btn btn-ghost btn-sm"
+                                            style="font-size:.68rem;padding:2px 6px;flex:1"
+                                            @onclick="() => MoveStatusAsync(it, data, t.Key)">
+                                        → @t.Value
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (CanEdit && status == "todo")
+                {
+                    <button class="btn btn-ghost btn-sm"
+                            style="width:100%;justify-content:center;margin-top:4px;
+                        font-size:.75rem;border:1px dashed var(--color-border)"
+                            @onclick="() => OpenAdd(status)">
+                        <span class="material-icons" style="font-size:.8rem">add</span>
+                    </button>
+                }
+            </div>
+        }
+    </div>
+}
+else
+{
+    @* ═══ LIST VIEW ═════════════════════════════════════════════════ *@
+    <div class="list-items-container">
+        @foreach (var status in Columns.Keys)
+        {
+            var colItems = _items.Where(i => GetData(i).Status == status).ToList();
+            if (!colItems.Any()) continue;
+
+            var (label, color) = Columns[status];
+            <div style="margin-bottom:12px">
+                <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;
+                    letter-spacing:.07em;color:var(--color-muted);
+                    display:flex;align-items:center;gap:6px;
+                    margin-bottom:6px;padding-bottom:4px;
+                    border-bottom:.5px solid var(--color-border)">
+                    <span style="width:7px;height:7px;border-radius:50%;
+                    background:@color;flex-shrink:0"></span>
+                    @label (@colItems.Count)
+                </div>
+
+                @foreach (var item in colItems)
+                {
+                    var it = item;
+                    var data = GetData(it);
+
+                    <SwipeableItem Enabled="CanEdit"
+                                   LeftIcon="done_all" LeftLabel="Klar"
+                                   RightIcon="delete" RightLabel="Ta bort"
+                                   OnSwipedRight="() => MoveStatusAsync(it, data, " done")"
+                                   OnSwipedLeft="() => RemoveItemAsync(it)">
+                        <div class="list-item-row @(data.Status == "done" ? "is-done" : "")"
+                             style="cursor:pointer" @onclick="() => OpenItemDetail(it, data)">
+
+                            <span style="width:8px;height:8px;border-radius:50%;
+                                background:@color;flex-shrink:0;margin-top:6px">
+                            </span>
+
+                            <div style="flex:1;min-width:0">
+                                <div class="list-item-text @(data.Status == "done" ? "is-done" : "")">
+                                    @it.Text
+                                </div>
+                                @if (!string.IsNullOrEmpty(data.Deadline) || data.SubTasks?.Any() == true)
+                                {
+                                    <div style="font-size:.72rem;color:var(--color-muted);margin-top:2px;
+                                        display:flex;gap:8px;flex-wrap:wrap">
+                                        @if (!string.IsNullOrEmpty(data.Deadline) &&
+                                             DateTime.TryParse(data.Deadline, out var dl))
+                                        {
+                                            <span style="color:@(dl < DateTime.Today ? "var(--color-expense)" : "inherit")">
+                                                📅 @dl.ToString("d MMM")
+                                            </span>
+                                        }
+                                        @if (data.SubTasks?.Any() == true)
+                                        {
+                                            var done = data.SubTasks.Count(s => s.StartsWith("✓"));
+                                            <span>☑ @done/@data.SubTasks.Count</span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+
+                            <span class="project-status-pill"
+                                  style="background:@color20(color);color:@color">
+                                @StatusShort(data.Status)
+                            </span>
+                        </div>
+                    </SwipeableItem>
+                }
+            </div>
+        }
+    </div>
+}
+
+@* ── Quick add ────────────────────────────────────────────────────── *@
+@if (CanEdit)
+{
+    <div class="list-quick-add" style="margin-top:10px">
+        <input class="list-quick-add__input" @bind="_newText"
+               placeholder="Ny uppgift..." @onkeydown="OnQuickAddKeyDownAsync" />
+        <button class="btn btn-primary btn-sm"
+                disabled="@string.IsNullOrWhiteSpace(_newText)"
+                @onclick="QuickAddAsync">
+            <span class="material-icons" style="font-size:.85rem">add</span>
+        </button>
+    </div>
+}
+
+@* ── Item detail modal ────────────────────────────────────────────── *@
+@if (_detailItem != null)
+{
+    <div class="modal-overlay" @onclick="CloseDetail">
+        <div class="modal" style="max-width:480px;max-height:88vh;overflow-y:auto"
+             @onclick:stopPropagation>
+            <div class="modal-header">
+                <span class="modal-title">Uppgift</span>
+                <button class="btn btn-ghost btn-icon btn-sm" @onclick="CloseDetail">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Namn</label>
+                    <input class="form-control" @bind="_detailName" disabled="@(!CanEdit)" />
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Status</label>
+                        <select class="form-control" @bind="_detailStatus" disabled="@(!CanEdit)">
+                            @foreach (var col in Columns)
+                            {
+                                <option value="@col.Key">@col.Value.Label</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Deadline</label>
+                        <input class="form-control" type="date" @bind="_detailDeadline"
+                               disabled="@(!CanEdit)" />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Anteckningar</label>
+                    <textarea class="form-control" rows="3" @bind="_detailNotes"
+                              disabled="@(!CanEdit)" placeholder="Anteckningar..."></textarea>
+                </div>
+
+                @* Sub-tasks *@
+                <div>
+                    <label class="form-label">Delmål</label>
+                    @foreach (var sub in _detailSubTasks)
+                    {
+                        var s = sub;
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                            <ListCheckbox IsChecked="s.StartsWith(" ✓")"
+                                          OnToggle="_ => ToggleSubTask(s)"
+                                          Disabled="!CanEdit" />
+                            <span style="font-size:.85rem;flex:1;
+                                @(s.StartsWith("✓") ? "color:var(--color-muted)" : "")">
+                                @s.TrimStart('✓').Trim()
+                            </span>
+                            @if (CanEdit)
+                            {
+                                <button class="btn btn-ghost btn-icon btn-sm"
+                                        @onclick="() => RemoveSubTask(s)">
+                                    <span class="material-icons" style="font-size:.78rem">close</span>
+                                </button>
+                            }
+                        </div>
+                    }
+                    @if (CanEdit)
+                    {
+                        <input class="list-quick-add__input"
+                               style="margin-top:4px;font-size:.8rem"
+                               @bind="_newSubTask"
+                               placeholder="Nytt delmål..."
+                               @onkeydown="OnSubTaskKeyDown" />
+                    }
+                </div>
+            </div>
+            <div class="modal-footer">
+                @if (CanEdit)
+                {
+                    <button class="btn btn-ghost btn-sm"
+                            style="color:var(--color-expense);margin-right:auto"
+                            @onclick="RemoveDetailItemAsync">
+                        Ta bort
+                    </button>
+                    <button class="btn btn-secondary" @onclick="CloseDetail">Avbryt</button>
+                    <button class="btn btn-primary" @onclick="SaveDetailAsync">Spara</button>
+                }
+                else
+                {
+                    <button class="btn btn-secondary" @onclick="CloseDetail">Stäng</button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public UserListDto List { get; set; } = null!;
+    [Parameter] public bool CanEdit { get; set; }
+    [Parameter] public EventCallback<UserListDto> OnUpdated { get; set; }
+
+    private List<ListItemDto> _items = new();
+    private bool _kanban;
+
+    // Detail modal
+    private ListItemDto? _detailItem;
+    private ProjectItemData? _detailData;
+    private string _detailName = "";
+    private string _detailStatus = "todo";
+    private DateTime? _detailDeadline;
+    private string _detailNotes = "";
+    private List<string> _detailSubTasks = new();
+    private string _newSubTask = "";
+    private string _newText = "";
+
+    private static readonly Dictionary<string, (string Label, string Color)> Columns = new()
+    {
+        ["idea"] = ("Idé", "#8b5cf6"),
+        ["todo"] = ("Att göra", "#3b82f6"),
+        ["doing"] = ("Pågående", "#f59e0b"),
+        ["blocked"] = ("Blockerad", "#ef4444"),
+        ["done"] = ("Klar", "#22c55e")
+    };
+
+    protected override void OnParametersSet() =>
+        _items = List.Items.ToList();
+
+    private static ProjectItemData GetData(ListItemDto item)
+    {
+        if (string.IsNullOrEmpty(item.ItemData)) return new ProjectItemData();
+        try { return JsonSerializer.Deserialize<ProjectItemData>(item.ItemData) ?? new(); }
+        catch { return new ProjectItemData(); }
+    }
+
+    private static IEnumerable<KeyValuePair<string, string>> NextStatuses(string current)
+    {
+        var all = Columns.Keys.ToList();
+        var idx = all.IndexOf(current);
+        var nexts = new List<string>();
+        if (idx > 0) nexts.Add(all[idx - 1]);
+        if (idx < all.Count - 1) nexts.Add(all[idx + 1]);
+        return nexts.Select(k => new KeyValuePair<string, string>(k, Columns[k].Label));
+    }
+
+    private async Task MoveStatusAsync(ListItemDto item, ProjectItemData data, string newStatus)
+    {
+        var updated = data with { Status = newStatus };
+        await PersistItemAsync(item, updated);
+        if (newStatus == "done")
+        {
+            item.IsChecked = true;
+            item.CompletedAt = DateTime.Now;
+        }
+        StateHasChanged();
+    }
+
+    private void OpenAdd(string status) { _newText = ""; }
+
+    private async Task QuickAddAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newText)) return;
+        var data = new ProjectItemData(Status: "todo");
+        var item = await ListSvc.AddItemAsync(
+            BudgetState.ActiveBudgetId, List.Id,
+            new CreateListItemDto(_newText.Trim())
+            { ItemData = JsonSerializer.Serialize(data) });
+        if (item != null)
+        {
+            _items.Add(item); List.Items.Add(item);
+            List.TotalItems++; _newText = "";
+            await OnUpdated.InvokeAsync(List);
+        }
+    }
+
+    private async Task OnQuickAddKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await QuickAddAsync();
+    }
+
+    private void OpenItemDetail(ListItemDto item, ProjectItemData data)
+    {
+        _detailItem = item; _detailData = data;
+        _detailName = item.Text;
+        _detailStatus = data.Status;
+        _detailDeadline = DateTime.TryParse(data.Deadline, out var d) ? d : null;
+        _detailNotes = data.Notes ?? "";
+        _detailSubTasks = new List<string>(data.SubTasks ?? new());
+        _newSubTask = "";
+    }
+
+    private void CloseDetail() { _detailItem = null; _detailData = null; }
+
+    private async Task SaveDetailAsync()
+    {
+        if (_detailItem == null || _detailData == null) return;
+        _detailItem.Text = _detailName;
+        var updated = _detailData with
+        {
+            Status = _detailStatus,
+            Deadline = _detailDeadline?.ToString("yyyy-MM-dd"),
+            Notes = string.IsNullOrWhiteSpace(_detailNotes) ? null : _detailNotes,
+            SubTasks = _detailSubTasks.Any() ? _detailSubTasks : null
+        };
+        await PersistItemAsync(_detailItem, updated);
+        CloseDetail();
+    }
+
+    private async Task RemoveItemAsync(ListItemDto item)
+    {
+        try
+        {
+            await ListSvc.DeleteItemAsync(BudgetState.ActiveBudgetId, List.Id, item.Id);
+            _items.Remove(item); List.Items.Remove(item);
+            List.TotalItems--;
+            await OnUpdated.InvokeAsync(List);
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private async Task RemoveDetailItemAsync()
+    {
+        if (_detailItem == null) return;
+        await RemoveItemAsync(_detailItem);
+        CloseDetail();
+    }
+
+    private void ToggleSubTask(string sub)
+    {
+        var idx = _detailSubTasks.IndexOf(sub);
+        if (idx < 0) return;
+        _detailSubTasks[idx] = sub.StartsWith("✓")
+            ? sub.TrimStart('✓').Trim()
+            : "✓ " + sub;
+    }
+
+    private void RemoveSubTask(string sub) => _detailSubTasks.Remove(sub);
+
+    private void OnSubTaskKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_newSubTask))
+        {
+            _detailSubTasks.Add(_newSubTask.Trim());
+            _newSubTask = "";
+        }
+    }
+
+    private async Task PersistItemAsync(ListItemDto item, ProjectItemData data)
+    {
+        var json = JsonSerializer.Serialize(data);
+        item.ItemData = json;
+        item.IsChecked = data.Status == "done";
+
+        var match = _items.FindIndex(i => i.Id == item.Id);
+        if (match >= 0) _items[match] = item;
+
+        List.CheckedItems = List.Items.Count(i => i.IsChecked);
+        await OnUpdated.InvokeAsync(List);
+        StateHasChanged();
+
+        try
+        {
+            await ListSvc.UpdateItemDataAsync(
+                BudgetState.ActiveBudgetId, List.Id, item.Id, json);
+        }
+        catch (Exception ex) { Console.WriteLine($"[ProjectList] {ex.Message}"); }
+    }
+
+    private static string StatusShort(string s) => s switch
+    {
+        "idea" => "Idé",
+        "todo" => "Todo",
+        "doing" => "Pågår",
+        "blocked" => "🚫",
+        "done" => "✓",
+        _ => s
+    };
+
+    // Approximation: lighten color for background chip
+    private static string color20(string hex) =>
+        hex switch
+        {
+            "#22c55e" => "rgba(34,197,94,.15)",
+            "#3b82f6" => "rgba(59,130,246,.15)",
+            "#f59e0b" => "rgba(245,158,11,.15)",
+            "#ef4444" => "rgba(239,68,68,.15)",
+            "#8b5cf6" => "rgba(139,92,246,.15)",
+            _ => "rgba(100,116,139,.15)"
+        };
+}

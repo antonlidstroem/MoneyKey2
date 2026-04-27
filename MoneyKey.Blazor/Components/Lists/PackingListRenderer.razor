@@ -1,0 +1,299 @@
+﻿@inject ListApiService ListSvc
+@inject IJSRuntime JS
+@inject ToastService Toast
+@inject BudgetState BudgetState
+@using MoneyKey.Core.DTOs.Lists
+@using System.Text.Json
+
+<div class="packing-list">
+
+    @* ── Stats header ────────────────────────────────────────────── *@
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <span style="font-size:.8rem;color:var(--color-muted)">
+            @_done / @_total pakade
+        </span>
+        <div style="display:flex;gap:6px;align-items:center">
+            @if (_done == _total && _total > 0)
+            {
+                <span style="font-size:.8rem;color:#22c55e;font-weight:700;
+                    animation:item-enter .4s cubic-bezier(.34,1.56,.64,1) both">
+                    ✓ Redo!
+                </span>
+            }
+            @if (CanEdit && _done > 0)
+            {
+                <button class="btn btn-ghost btn-sm" style="font-size:.73rem;padding:2px 6px"
+                        @onclick="ResetAllAsync">
+                    <span class="material-icons" style="font-size:.8rem">restart_alt</span> Återställ
+                </button>
+            }
+        </div>
+    </div>
+
+    @* ── Progress bar ─────────────────────────────────────────────── *@
+    <div class="packing-progress-bar">
+        <div class="packing-progress-fill"
+             style="width:@(_total > 0 ? (_done * 100 / _total) : 0)%">
+        </div>
+    </div>
+
+    @* ── "All done" state ─────────────────────────────────────────── *@
+    @if (_done == _total && _total > 0)
+    {
+        <div class="packing-all-done">
+            <div style="font-size:2.8rem">✈️</div>
+            <div style="font-weight:700;font-size:1rem;margin-top:8px">Allt packat!</div>
+            <div style="font-size:.8rem;color:var(--color-muted)">Ha en fantastisk resa!</div>
+        </div>
+    }
+    else
+    {
+        @* ── Items by category ────────────────────────────────────── *@
+        @foreach (var grp in GroupedItems)
+        {
+            var catName = grp.Key;
+            var catItems = grp.Value;
+            var catDone = catItems.Count(i => i.IsChecked);
+
+            <div class="packing-category-header">
+                <span class="packing-category-label">
+                    @CategoryEmoji(catName) @catName
+                </span>
+                <span class="packing-category-count">@catDone/@catItems.Count</span>
+            </div>
+
+            <div class="list-items-container">
+                @foreach (var item in catItems)
+                {
+                    var li = item;
+                    var data = ParseData(li);
+
+                    <SwipeableItem Enabled="CanEdit"
+                                   LeftIcon="check" LeftLabel="Klar"
+                                   RightIcon="close" RightLabel="Ta bort"
+                                   OnSwipedRight="() => ToggleAsync(li, true)"
+                                   OnSwipedLeft="() => RemoveAsync(li)">
+                        <div class="list-item-row @(li.IsChecked ? "is-done" : "")">
+                            @if (data.IsEssential)
+                            {
+                                <div class="essential-dot" title="Viktig — glöm inte!"></div>
+                            }
+
+                            <ListCheckbox IsChecked="li.IsChecked"
+                                          OnToggle="checked => ToggleAsync(li, checked)"
+                                          Disabled="!CanEdit" />
+
+                            <div class="list-item-text @(li.IsChecked ? "is-done" : "")">
+                                @li.Text
+                            </div>
+
+                            @if (data.Quantity > 1)
+                            {
+                                <span class="quantity-badge">×@data.Quantity</span>
+                            }
+
+                            @if (CanEdit)
+                            {
+                                <button class="btn btn-ghost btn-icon btn-sm"
+                                        style="opacity:.35;transition:opacity .15s;flex-shrink:0"
+                                        @onclick="() => RemoveAsync(li)"
+                                        @onclick:stopPropagation>
+                                    <span class="material-icons" style="font-size:.82rem">close</span>
+                                </button>
+                            }
+                        </div>
+                    </SwipeableItem>
+                }
+            </div>
+        }
+    }
+
+    @* ── Quick-add ────────────────────────────────────────────────── *@
+    @if (CanEdit)
+    {
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--color-border)">
+            @* Category chips *@
+            <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">
+                @foreach (var cat in DefaultCategories)
+                {
+                    var c = cat;
+                    <button class="category-chip @(_selectedCat == c ? "is-active" : "")"
+                            @onclick="() => _selectedCat = c">
+                        @CategoryEmoji(c) @c
+                    </button>
+                }
+            </div>
+
+            @* Input row *@
+            <div class="list-quick-add">
+                <input class="list-quick-add__input"
+                       @bind="_newText" @bind:event="oninput"
+                       @onkeydown="OnKeyDownAsync"
+                       placeholder="Lägg till i @_selectedCat..." />
+
+                <button class="btn btn-ghost btn-icon btn-sm"
+                        title="@(_newEssential ? "Viktig" : "Markera som viktig")"
+                        style="color:@(_newEssential ? "#ef4444" : "var(--color-muted)");
+                    transition:color .15s;flex-shrink:0"
+                        @onclick="() => _newEssential = !_newEssential">
+                    <span class="material-icons" style="font-size:.9rem">
+                        @(_newEssential ? "star" : "star_border")
+                    </span>
+                </button>
+
+                <button class="btn btn-primary btn-sm"
+                        style="flex-shrink:0"
+                        disabled="@string.IsNullOrWhiteSpace(_newText)"
+                        @onclick="AddItemAsync">
+                    <span class="material-icons" style="font-size:.85rem">add</span>
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public UserListDto List { get; set; } = null!;
+    [Parameter] public bool CanEdit { get; set; }
+    [Parameter] public EventCallback<UserListDto> OnUpdated { get; set; }
+
+    private string _newText = "";
+    private string _selectedCat = "Kläder";
+    private bool _newEssential;
+
+    private int _done => List.Items.Count(i => i.IsChecked);
+    private int _total => List.Items.Count;
+
+    private static readonly string[] DefaultCategories =
+    {
+        "Kläder", "Toalett", "Elektronik", "Dokument",
+        "Medicin", "Nöje", "Mat & dryck", "Övrigt"
+    };
+
+    private Dictionary<string, List<ListItemDto>> GroupedItems =>
+        List.Items
+            .GroupBy(i => ParseData(i).Category ?? "Övrigt")
+            .OrderBy(g => Array.IndexOf(DefaultCategories, g.Key) is var idx && idx < 0 ? 99 : idx)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+    private static PackingItemData ParseData(ListItemDto item)
+    {
+        if (string.IsNullOrEmpty(item.ItemData)) return new PackingItemData();
+        try { return JsonSerializer.Deserialize<PackingItemData>(item.ItemData) ?? new(); }
+        catch { return new PackingItemData(); }
+    }
+
+    private static string CategoryEmoji(string cat) => cat switch
+    {
+        "Kläder" => "👗",
+        "Toalett" => "🧴",
+        "Elektronik" => "💻",
+        "Dokument" => "📄",
+        "Medicin" => "💊",
+        "Nöje" => "🎮",
+        "Mat & dryck" => "🍎",
+        _ => "🧰"
+    };
+
+    private async Task ToggleAsync(ListItemDto item, bool newState)
+    {
+        if (item.IsChecked == newState) return;
+
+        // Optimistic
+        item.IsChecked = newState;
+        item.CompletedAt = newState ? DateTime.Now : null;
+        List.CheckedItems = List.Items.Count(i => i.IsChecked);
+        StateHasChanged();
+
+        try
+        {
+            await ListSvc.ToggleItemAsync(BudgetState.ActiveBudgetId, List.Id, item.Id);
+            await OnUpdated.InvokeAsync(List);
+        }
+        catch (Exception ex)
+        {
+            // Rollback
+            item.IsChecked = !newState;
+            item.CompletedAt = null;
+            List.CheckedItems = List.Items.Count(i => i.IsChecked);
+            Toast.Error(ex.Message);
+            StateHasChanged();
+        }
+    }
+
+    private async Task AddItemAsync()
+    {
+        var text = _newText.Trim();
+        if (string.IsNullOrEmpty(text)) return;
+
+        var itemData = new PackingItemData(
+            Category: _selectedCat,
+            Quantity: 1,
+            IsEssential: _newEssential);
+
+        var dto = new CreateListItemDto(text)
+        {
+            ItemData = JsonSerializer.Serialize(itemData)
+        };
+
+        try
+        {
+            var created = await ListSvc.AddItemAsync(BudgetState.ActiveBudgetId, List.Id, dto);
+            if (created != null)
+            {
+                List.Items.Add(created);
+                List.TotalItems++;
+                _newText = ""; _newEssential = false;
+                await JS.InvokeVoidAsync("listInterop.triggerHaptic", 20);
+                await OnUpdated.InvokeAsync(List);
+            }
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private async Task RemoveAsync(ListItemDto item)
+    {
+        try
+        {
+            await ListSvc.DeleteItemAsync(BudgetState.ActiveBudgetId, List.Id, item.Id);
+            List.Items.Remove(item);
+            List.TotalItems = List.Items.Count;
+            List.CheckedItems = List.Items.Count(i => i.IsChecked);
+            await OnUpdated.InvokeAsync(List);
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private async Task ResetAllAsync()
+    {
+        var toReset = List.Items.Where(i => i.IsChecked).ToList();
+        if (!toReset.Any()) return;
+
+        // Optimistic — instant visual reset
+        foreach (var item in toReset)
+        {
+            item.IsChecked = false;
+            item.CompletedAt = null;
+        }
+        List.CheckedItems = 0;
+        await JS.InvokeVoidAsync("listInterop.triggerHaptic", 40);
+        StateHasChanged();
+        await OnUpdated.InvokeAsync(List);
+
+        // Background sync — fire and forget, best effort
+        foreach (var item in toReset)
+        {
+            _ = ListSvc.ToggleItemAsync(BudgetState.ActiveBudgetId, List.Id, item.Id)
+                .ContinueWith(t =>
+                {
+                    if (t.IsFaulted)
+                        Console.WriteLine($"[PackingList] Reset sync failed: {t.Exception?.Message}");
+                });
+        }
+    }
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await AddItemAsync();
+    }
+}

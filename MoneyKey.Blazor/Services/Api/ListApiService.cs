@@ -55,4 +55,13 @@ public class ListApiService : ApiServiceBase
         var r = await Http.PostAsync($"api/budgets/{budgetId}/lists/{listId}/items/clear-checked", null);
         return r.IsSuccessStatusCode ? await r.Content.ReadFromJsonAsync<UserListDto>() : null;
     }
+
+
+    public async Task UpdateItemDataAsync(int budgetId, int listId, int itemId, string itemDataJson)
+    {
+        var r = await Http.PatchAsJsonAsync(
+            $"api/budgets/{budgetId}/lists/{listId}/items/{itemId}/data",
+            new { ItemData = itemDataJson });
+        r.EnsureSuccessStatusCode();
+    }
 }

@@ -9,4 +9,7 @@ public class ListItemDto
     public int     SortOrder   { get; set; }
     public DateTime CreatedAt  { get; set; }
     public DateTime? CompletedAt { get; set; }
+
+    // Tillägg till befintlig ListItemDto:
+    public string? ItemData { get; set; }    // JSON — typ-specifikt payload
 }

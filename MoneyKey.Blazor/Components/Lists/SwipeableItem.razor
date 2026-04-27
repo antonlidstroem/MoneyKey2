@@ -1,0 +1,62 @@
+﻿@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="swipe-wrapper">
+    <div class="swipe-bg swipe-bg-left" style="background:@LeftColor">
+        <span class="material-icons">@LeftIcon</span>
+        @if (!string.IsNullOrEmpty(LeftLabel))
+        {
+            <span>@LeftLabel</span>
+        }
+    </div>
+    <div class="swipe-bg swipe-bg-right" style="background:@RightColor">
+        @if (!string.IsNullOrEmpty(RightLabel))
+        {
+            <span>@RightLabel</span>
+        }
+        <span class="material-icons">@RightIcon</span>
+    </div>
+    <div @ref="_contentRef" class="swipe-content">
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    private ElementReference _contentRef;
+    private DotNetObjectReference<SwipeableItem>? _dotnetRef;
+    private bool _initialized;
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public EventCallback OnSwipedRight { get; set; }
+    [Parameter] public EventCallback OnSwipedLeft { get; set; }
+    [Parameter] public string LeftIcon { get; set; } = "check";
+    [Parameter] public string RightIcon { get; set; } = "delete";
+    [Parameter] public string LeftLabel { get; set; } = "Klar";
+    [Parameter] public string RightLabel { get; set; } = "Ta bort";
+    [Parameter] public string LeftColor { get; set; } = "#22c55e";
+    [Parameter] public string RightColor { get; set; } = "#ef4444";
+    [Parameter] public bool Enabled { get; set; } = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Enabled)
+        {
+            _dotnetRef = DotNetObjectReference.Create(this);
+            _initialized = true;
+            await JS.InvokeVoidAsync("listInterop.initSwipe", _contentRef, _dotnetRef);
+        }
+    }
+
+    [JSInvokable] public Task OnSwipeRight() => OnSwipedRight.InvokeAsync();
+    [JSInvokable] public Task OnSwipeLeft() => OnSwipedLeft.InvokeAsync();
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_initialized)
+        {
+            try { await JS.InvokeVoidAsync("listInterop.disposeSwipe", _contentRef); }
+            catch { /* Normal on page navigation */ }
+        }
+        _dotnetRef?.Dispose();
+    }
+}

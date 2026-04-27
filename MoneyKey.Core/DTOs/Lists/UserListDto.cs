@@ -22,4 +22,7 @@ public class UserListDto
     public int             CheckedItems    { get; set; }
     /// <summary>True if ListType is Note — items collection is not used.</summary>
     public bool IsNote => ListType == ListType.Note;
+
+    // Tillägg till befintlig UserListDto:
+    public string? ListConfig { get; set; }  // JSON — typ-specifik konfiguration
 }

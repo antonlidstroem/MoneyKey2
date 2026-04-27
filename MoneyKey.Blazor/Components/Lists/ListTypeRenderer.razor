@@ -1,0 +1,251 @@
+﻿@* ── ListTypeRenderer ───────────────────────────────────────────────
+   Dispatchar rätt vy baserat på ListType.
+   Innehåller HELA kortet, inklusive header, för grid-vyn.
+   Fas A: Packing + Note + legacy CheckList/Shopping/ToDo/Custom.
+   Fas B: Habit, Decision, Project, Problem läggs till här.
+   ─────────────────────────────────────────────────────────────────── *@
+
+@inject BudgetState BudgetState
+
+<div class="card list-card" style="cursor:default">
+
+    @* ── Shared card header ─────────────────────────────────────── *@
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:@(List.IsNote ? "8px" : "10px")">
+        <div style="min-width:0;flex:1">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <span class="material-icons" style="font-size:1rem;color:var(--color-muted)">
+                    @ListIcon
+                </span>
+                <span style="font-weight:600;font-size:.92rem;overflow:hidden;
+                    text-overflow:ellipsis;white-space:nowrap">
+                    @List.Name
+                </span>
+                <span class="badge badge-muted" style="font-size:.68rem;flex-shrink:0">
+                    @ListTypeLabel
+                </span>
+            </div>
+            @if (!string.IsNullOrEmpty(List.Tags))
+            {
+                <div style="margin-top:4px;display:flex;gap:3px;flex-wrap:wrap">
+                    @foreach (var tag in List.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        <span class="badge badge-muted" style="font-size:.65rem">@tag.Trim()</span>
+                    }
+                </div>
+            }
+        </div>
+
+        <div style="display:flex;gap:2px;align-items:center;flex-shrink:0">
+            @if (!List.IsNote && List.ListType != ListType.Packing)
+            {
+                <button class="btn btn-ghost btn-icon btn-sm" title="Öppna"
+                        @onclick="() => OnOpen.InvokeAsync(List)">
+                    <span class="material-icons" style="font-size:.9rem">open_in_new</span>
+                </button>
+            }
+            @if (CanEdit)
+            {
+                <button class="btn btn-ghost btn-icon btn-sm" title="Ta bort"
+                        @onclick="() => OnDelete.InvokeAsync(List)">
+                    <span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">
+                        delete
+                    </span>
+                </button>
+            }
+        </div>
+    </div>
+
+    @* ── Type-specific body ──────────────────────────────────────── *@
+
+    @if (List.IsNote)
+    {
+        @* Note: show content preview, click to open *@
+        <div @onclick="() => OnOpen.InvokeAsync(List)" style="cursor:pointer">
+            @if (!string.IsNullOrEmpty(List.Content))
+            {
+                <div style="font-size:.83rem;color:var(--color-muted);white-space:pre-wrap;
+                    max-height:80px;overflow:hidden;line-height:1.5">
+                    @List.Content
+                </div>
+            }
+            else if (List.ListType == ListType.Packing)
+            {
+
+                <PackingListRenderer ... />
+            }
+            else if (List.ListType == ListType.Habit)
+            {
+                <HabitListRenderer List="List" CanEdit="CanEdit" OnUpdated="OnUpdated" />
+            }
+            else if (List.ListType == ListType.Decision)
+            {
+                <DecisionListRenderer List="List" CanEdit="CanEdit" OnUpdated="OnUpdated" />
+            }
+            else if (List.ListType == ListType.Project)
+            {
+                <ProjectListRenderer List="List" CanEdit="CanEdit" OnUpdated="OnUpdated" />
+            }
+           
+            else
+            {
+                <div style="font-size:.8rem;color:var(--color-muted);font-style:italic">
+                    Tom anteckning – klicka för att redigera
+                </div>
+            }
+        </div>
+    }
+    else if (List.ListType == ListType.Packing)
+    {
+        @* Packing list: full interactive renderer *@
+        <PackingListRenderer List="List" CanEdit="CanEdit" OnUpdated="OnUpdated" />
+    }
+    else
+    {
+        @* Legacy: CheckList, Shopping, Custom, ToDo *@
+        @if (List.Items.Any())
+        {
+            var done = List.Items.Count(i => i.IsChecked);
+            var total = List.Items.Count;
+            var pct = total > 0 ? done * 100 / total : 0;
+
+            <div style="height:3px;background:var(--color-border);border-radius:2px;margin-bottom:8px;overflow:hidden">
+                <div style="height:100%;width:@pct%;background:var(--color-income);
+                border-radius:2px;transition:width .4s ease"></div>
+            </div>
+            <div style="font-size:.75rem;color:var(--color-muted);margin-bottom:8px">
+                @done / @total klart
+            </div>
+
+            @foreach (var li in List.Items.Take(5))
+            {
+                var item = li;
+                <div style="display:flex;align-items:center;gap:8px;padding:3px 0">
+                    <ListCheckbox IsChecked="item.IsChecked"
+                                  OnToggle="c => QuickToggleAsync(item, c)"
+                                  Disabled="!CanEdit" />
+                    <span style="font-size:.855rem;@(item.IsChecked ? "color:var(--color-muted)" : "")">
+                        @item.Text
+                    </span>
+                </div>
+            }
+
+            @if (total > 5)
+            {
+                <div style="font-size:.76rem;color:var(--color-muted);margin-top:4px;
+                    cursor:pointer" @onclick="() => OnOpen.InvokeAsync(List)">
+                    + @(total - 5) till...
+                </div>
+            }
+        }
+        else
+        {
+            <div style="font-size:.82rem;color:var(--color-muted);font-style:italic">
+                Ingen lista – <span style="cursor:pointer;color:var(--color-primary)"
+                                    @onclick="() => OnOpen.InvokeAsync(List)">öppna för att lägga till</span>
+            </div>
+        }
+
+        @* Quick-add for legacy lists *@
+        @if (CanEdit)
+        {
+            <div class="list-quick-add" style="margin-top:8px">
+                <input class="list-quick-add__input"
+                       id="quick-@List.Id"
+                       placeholder="Lägg till..."
+                       value="@_legacyNewText"
+                       @oninput="e => _legacyNewText = e.Value?.ToString() ??" ""
+                       @onkeydown="OnLegacyKeyDownAsync" />
+                <button class="btn btn-ghost btn-icon btn-sm"
+                        disabled="@string.IsNullOrWhiteSpace(_legacyNewText)"
+                        @onclick="LegacyAddAsync">
+                    <span class="material-icons" style="font-size:.9rem">add</span>
+                </button>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public UserListDto List { get; set; } = null!;
+    [Parameter] public bool CanEdit { get; set; }
+    [Parameter] public EventCallback<UserListDto> OnUpdated { get; set; }
+    [Parameter] public EventCallback<UserListDto> OnDelete { get; set; }
+    [Parameter] public EventCallback<UserListDto> OnOpen { get; set; }
+
+    [Inject] private ListApiService ListSvc { get; set; } = null!;
+    [Inject] private ToastService Toast { get; set; } = null!;
+
+    private string _legacyNewText = "";
+
+    private string ListIcon => List.ListType switch
+    {
+        ListType.Note => "sticky_note_2",
+        ListType.Packing => "luggage",
+        ListType.Habit => "repeat",
+        ListType.Decision => "balance",
+        ListType.Project => "folder_open",
+        ListType.Problem => "psychology",
+        ListType.Inventory => "inventory_2",
+        ListType.Shopping => "shopping_cart",
+        ListType.ToDo => "task_alt",
+        _ => "checklist"
+    };
+
+    private string ListTypeLabel => List.ListType switch
+    {
+        ListType.Note => "Anteckning",
+        ListType.Packing => "Packlista",
+        ListType.Habit => "Rutiner",
+        ListType.Decision => "Beslut",
+        ListType.Project => "Projekt",
+        ListType.Problem => "Problem",
+        ListType.Inventory => "Inventarie",
+        ListType.Shopping => "Inköpslista",
+        ListType.ToDo => "Att-göra",
+        ListType.Custom => "Progresslista",
+        _ => "Checklista"
+    };
+
+    private async Task QuickToggleAsync(ListItemDto item, bool newState)
+    {
+        item.IsChecked = newState;
+        item.CompletedAt = newState ? DateTime.Now : null;
+        List.CheckedItems = List.Items.Count(i => i.IsChecked);
+        StateHasChanged();
+        try
+        {
+            await ListSvc.ToggleItemAsync(BudgetState.ActiveBudgetId, List.Id, item.Id);
+            await OnUpdated.InvokeAsync(List);
+        }
+        catch (Exception ex)
+        {
+            item.IsChecked = !newState;
+            Toast.Error(ex.Message);
+            StateHasChanged();
+        }
+    }
+
+    private async Task LegacyAddAsync()
+    {
+        var text = _legacyNewText.Trim();
+        if (string.IsNullOrEmpty(text)) return;
+        try
+        {
+            var item = await ListSvc.AddItemAsync(BudgetState.ActiveBudgetId, List.Id,
+                new CreateListItemDto(text));
+            if (item != null)
+            {
+                List.Items.Add(item);
+                List.TotalItems++;
+                _legacyNewText = "";
+                await OnUpdated.InvokeAsync(List);
+            }
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private async Task OnLegacyKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await LegacyAddAsync();
+    }
+}

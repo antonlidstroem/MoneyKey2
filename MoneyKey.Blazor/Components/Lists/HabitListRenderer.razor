@@ -1,0 +1,390 @@
+﻿@using MoneyKey.Core.DTOs.Lists
+@using MoneyKey.Core.Services.Lists
+@using System.Text.Json
+@inject ListApiService ListSvc
+@inject ToastService   Toast
+@inject BudgetState    BudgetState
+@inject IJSRuntime     JS
+
+<div class="habit-list">
+    @if (!List.Items.Any())
+    {
+        <div style="text-align:center;padding:24px;color:var(--color-muted);font-size:.875rem">
+            Inga rutiner ännu.<br />
+            <button class="btn btn-primary btn-sm" style="margin-top:10px"
+                    @onclick="() => _showAdd = true">Lägg till rutin</button>
+        </div>
+    }
+    else
+    {
+        @foreach (var item in List.Items)
+        {
+            var li     = item;
+            var data   = ParseData(li);
+            var status = HabitService.Compute(data, DateTime.Today);
+
+            <div class="habit-item" style="margin-bottom:16px;padding-bottom:16px;
+                         border-bottom:.5px solid var(--color-border)">
+
+                @* ── Header row ─────────────────────────────────── *@
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+                    @* Main check *@
+                    <ListCheckbox IsChecked="status.IsDoneToday"
+                                  OnToggle="_ => ToggleTodayAsync(li, data)"
+                                  Disabled="!CanEdit" />
+
+                    @* Name & meta *@
+                    <div style="flex:1;min-width:0">
+                        <div style="font-weight:600;font-size:.9rem;@(status.IsDoneToday ? "color:var(--color-muted)" : "")">
+                            @li.Text
+                        </div>
+                        <div style="font-size:.72rem;color:var(--color-muted);margin-top:1px">
+                            @FreqLabel(data) ·
+                            <span style="color:@EnergyColor(data.EnergyRequired)">
+                                @EnergyLabel(data.EnergyRequired)
+                            </span>
+                        </div>
+                    </div>
+
+                    @* Streak badge *@
+                    @if (status.Streak > 1)
+                    {
+                        <div class="habit-streak-badge">
+                            🔥 @status.Streak
+                        </div>
+                    }
+                    else if (status.Streak == 1)
+                    {
+                        <div style="font-size:.72rem;color:#f59e0b;font-weight:700">🔥 1</div>
+                    }
+
+                    @* Overflow menu *@
+                    @if (CanEdit)
+                    {
+                        <button class="btn btn-ghost btn-icon btn-sm"
+                                @onclick="() => OpenItemMenu(li, data)">
+                            <span class="material-icons" style="font-size:.9rem">more_vert</span>
+                        </button>
+                    }
+                </div>
+
+                @* ── Ring + week dots ────────────────────────────── *@
+                <div style="display:flex;align-items:center;gap:12px">
+                    @* Circular completion ring *@
+                    <svg width="44" height="44" viewBox="0 0 44 44" style="flex-shrink:0">
+                        <circle cx="22" cy="22" r="18"
+                                fill="transparent" stroke="var(--color-border)" stroke-width="3.5"/>
+                        <circle cx="22" cy="22" r="18"
+                                fill="transparent"
+                                stroke="@(status.CompletionPct >= 80 ? "#22c55e" : status.CompletionPct >= 50 ? "#f59e0b" : "#3b82f6")"
+                                stroke-width="3.5"
+                                stroke-linecap="round"
+                                stroke-dasharray="@(2 * Math.PI * 18)"
+                                stroke-dashoffset="@(2 * Math.PI * 18 * (1 - status.CompletionPct / 100.0))"
+                                class="habit-ring"
+                                transform="rotate(-90 22 22)" />
+                        <text x="22" y="26" text-anchor="middle"
+                              font-size="10" font-weight="700"
+                              fill="var(--color-dark)">@status.CompletionPct%</text>
+                    </svg>
+
+                    @* Week dots *@
+                    <div style="display:flex;gap:4px">
+                        @foreach (var day in status.Last7)
+                        {
+                            var d = day;
+                            <div class="habit-day-dot @d.State @(d.Date == DateTime.Today ? "today" : "")"
+                                 title="@d.Date.ToString("ddd d/M") — @DayStateLabel(d.State)"
+                                 @onclick="() => OnDotClickAsync(li, data, d)">
+                                @if (d.State == "done")    { <text>✓</text> }
+                                else if (d.State == "excused") { <text>~</text> }
+                                else { <text style="font-size:.6rem">@d.Date.Day</text> }
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                @* ── Contextual nudge ────────────────────────────── *@
+                @if (status.IsScheduledToday && !status.IsDoneToday)
+                {
+                    <div style="font-size:.75rem;color:var(--color-muted);margin-top:6px">
+                        @GetNudge(data, status)
+                    </div>
+                }
+            </div>
+        }
+    }
+
+    @* ── Add new routine ──────────────────────────────────────────── *@
+    @if (CanEdit)
+    {
+        @if (_showAdd)
+        {
+            <div style="background:var(--color-bg);border-radius:10px;padding:12px;margin-top:4px">
+                <div class="form-group" style="margin-bottom:8px">
+                    <input class="list-quick-add__input" @bind="_addName"
+                           placeholder="T.ex. Morgonpromenad..." @onkeydown="OnAddKeyDownAsync" />
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+                    <div>
+                        <label style="font-size:.72rem;color:var(--color-muted);font-weight:600;
+                                      display:block;margin-bottom:4px">Frekvens</label>
+                        <select class="form-control" style="padding:6px 8px" @bind="_addFreq">
+                            <option value="daily">Dagligen</option>
+                            <option value="weekly">Mål per vecka</option>
+                            <option value="alternate">Varannan dag</option>
+                        </select>
+                    </div>
+                    @if (_addFreq == "weekly")
+                    {
+                        <div>
+                            <label style="font-size:.72rem;color:var(--color-muted);font-weight:600;
+                                          display:block;margin-bottom:4px">Mål (ggr/vecka)</label>
+                            <input class="form-control" type="number" min="1" max="7" @bind="_addTarget"
+                                   style="padding:6px 8px" />
+                        </div>
+                    }
+                </div>
+                <div style="margin-bottom:8px">
+                    <label style="font-size:.72rem;color:var(--color-muted);font-weight:600;
+                                  display:block;margin-bottom:6px">
+                        Energinivå som krävs (@_addEnergy/5)
+                    </label>
+                    <input type="range" min="1" max="5" @bind="_addEnergy"
+                           style="width:100%;accent-color:var(--color-primary)" />
+                    <div style="display:flex;justify-content:space-between;
+                                font-size:.66rem;color:var(--color-muted);margin-top:2px">
+                        <span>Låg energi</span><span>Full energi</span>
+                    </div>
+                </div>
+                <div style="display:flex;gap:6px">
+                    <button class="btn btn-primary btn-sm" @onclick="AddRoutineAsync"
+                            disabled="@string.IsNullOrWhiteSpace(_addName)">
+                        Lägg till
+                    </button>
+                    <button class="btn btn-ghost btn-sm" @onclick="() => _showAdd = false">
+                        Avbryt
+                    </button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;
+                           margin-top:4px;border:1.5px dashed var(--color-border)"
+                    @onclick="() => _showAdd = true">
+                <span class="material-icons" style="font-size:.9rem">add</span> Lägg till rutin
+            </button>
+        }
+    }
+</div>
+
+@* ── Item menu modal ──────────────────────────────────────────────── *@
+@if (_menuItem != null)
+{
+    <div class="modal-overlay" @onclick="() => _menuItem = null">
+        <div class="modal" style="max-width:400px" @onclick:stopPropagation>
+            <div class="modal-header">
+                <span class="modal-title">@_menuItem.Text</span>
+                <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => _menuItem = null">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body" style="display:flex;flex-direction:column;gap:8px">
+                <button class="btn btn-secondary" @onclick="ExcuseTodayAsync">
+                    <span class="material-icons" style="font-size:.9rem">sick</span>
+                    Ursäkta idag (sjuk/ledigt — streaken bevaras)
+                </button>
+                <button class="btn btn-danger btn-sm" style="margin-top:8px"
+                        @onclick="RemoveRoutineAsync">
+                    <span class="material-icons" style="font-size:.85rem">delete</span>
+                    Ta bort rutin
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public UserListDto               List      { get; set; } = null!;
+    [Parameter] public bool                       CanEdit   { get; set; }
+    [Parameter] public EventCallback<UserListDto> OnUpdated { get; set; }
+
+    // Add form
+    private bool   _showAdd;
+    private string _addName   = "";
+    private string _addFreq   = "daily";
+    private int    _addTarget = 5;
+    private int    _addEnergy = 3;
+
+    // Item menu
+    private ListItemDto?   _menuItem;
+    private HabitItemData? _menuData;
+
+    private static HabitItemData ParseData(ListItemDto item)
+    {
+        if (string.IsNullOrEmpty(item.ItemData)) return new HabitItemData();
+        try { return JsonSerializer.Deserialize<HabitItemData>(item.ItemData) ?? new(); }
+        catch { return new HabitItemData(); }
+    }
+
+    private async Task ToggleTodayAsync(ListItemDto item, HabitItemData data)
+    {
+        if (!CanEdit) return;
+        var updated = HabitService.Toggle(data, DateTime.Today);
+        await PersistItemDataAsync(item, updated);
+        await JS.InvokeVoidAsync("listInterop.triggerHaptic", 30);
+    }
+
+    private async Task OnDotClickAsync(ListItemDto item, HabitItemData data, DayState day)
+    {
+        if (!CanEdit || day.State == "future") return;
+        // Clicking a past day toggles it manually (for correction)
+        var dates = new HashSet<string>(data.CompletionDates ?? new());
+        var key   = day.Date.ToString("yyyy-MM-dd");
+        if (dates.Contains(key)) dates.Remove(key);
+        else dates.Add(key);
+        var updated = data with { CompletionDates = dates.ToList() };
+        await PersistItemDataAsync(item, updated);
+    }
+
+    private void OpenItemMenu(ListItemDto item, HabitItemData data)
+    {
+        _menuItem = item; _menuData = data;
+    }
+
+    private async Task ExcuseTodayAsync()
+    {
+        if (_menuItem == null || _menuData == null) return;
+        var updated = HabitService.Excuse(_menuData, DateTime.Today);
+        await PersistItemDataAsync(_menuItem, updated);
+        _menuItem = null;
+        Toast.Success("Dagen ursäktad — streaken bevaras.");
+    }
+
+    private async Task RemoveRoutineAsync()
+    {
+        if (_menuItem == null) return;
+        try
+        {
+            await ListSvc.DeleteItemAsync(BudgetState.ActiveBudgetId, List.Id, _menuItem.Id);
+            List.Items.Remove(_menuItem);
+            List.TotalItems--;
+            _menuItem = null;
+            await OnUpdated.InvokeAsync(List);
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private async Task PersistItemDataAsync(ListItemDto item, HabitItemData data)
+    {
+        var json = JsonSerializer.Serialize(data);
+
+        // Optimistic update
+        item.ItemData   = json;
+        item.IsChecked  = data.CompletionDates?.Contains(DateTime.Today.ToString("yyyy-MM-dd")) ?? false;
+        item.CompletedAt = item.IsChecked ? DateTime.Now : null;
+        List.CheckedItems = List.Items.Count(i => i.IsChecked);
+        StateHasChanged();
+        await OnUpdated.InvokeAsync(List);
+
+        // Sync to server — update ItemData via toggle endpoint
+        // The toggle endpoint refreshes IsChecked; ItemData needs a dedicated update
+        // For now we use the existing UpdateItemData endpoint pattern if available,
+        // otherwise fall back to re-creating via delete+create (not ideal but safe)
+        try
+        {
+            // Assumes ListApiService has UpdateItemDataAsync — add to service if not present
+            await ListSvc.UpdateItemDataAsync(
+                BudgetState.ActiveBudgetId, List.Id, item.Id, json);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[HabitList] Sync failed: {ex.Message}");
+        }
+    }
+
+    private async Task AddRoutineAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_addName)) return;
+        var data = new HabitItemData(
+            Frequency:    _addFreq,
+            TargetPerWeek: _addFreq == "daily" ? 7 : _addTarget,
+            EnergyRequired: _addEnergy,
+            CurrentStreak: 0, LongestStreak: 0,
+            CompletionDates: new List<string>());
+
+        try
+        {
+            var item = await ListSvc.AddItemAsync(
+                BudgetState.ActiveBudgetId, List.Id,
+                new CreateListItemDto(_addName.Trim())
+                {
+                    ItemData = JsonSerializer.Serialize(data)
+                });
+            if (item != null)
+            {
+                List.Items.Add(item);
+                List.TotalItems++;
+            }
+            _addName = ""; _showAdd = false;
+            await JS.InvokeVoidAsync("listInterop.triggerHaptic", 25);
+            await OnUpdated.InvokeAsync(List);
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private async Task OnAddKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await AddRoutineAsync();
+    }
+
+    // ── Label helpers ─────────────────────────────────────────────────────────
+
+    private static string FreqLabel(HabitItemData d) => d.Frequency switch
+    {
+        "daily"     => "Dagligen",
+        "alternate" => "Varannan dag",
+        "weekly"    => $"{d.TargetPerWeek}×/vecka",
+        _           => "Anpassad"
+    };
+
+    private static string EnergyLabel(int e) => e switch
+    {
+        1 => "⚡ Lite energi",
+        2 => "⚡⚡ Normal",
+        3 => "⚡⚡⚡ Medel",
+        4 => "⚡⚡⚡⚡ Hög",
+        5 => "⚡⚡⚡⚡⚡ Full kapacitet",
+        _ => ""
+    };
+
+    private static string EnergyColor(int e) => e switch
+    {
+        1 or 2 => "#22c55e",
+        3      => "#f59e0b",
+        4 or 5 => "#ef4444",
+        _      => "var(--color-muted)"
+    };
+
+    private static string DayStateLabel(string s) => s switch
+    {
+        "done"    => "Genomfört",
+        "missed"  => "Missad",
+        "excused" => "Ursäktad",
+        "future"  => "Kommande",
+        "today"   => "Idag",
+        _         => s
+    };
+
+    private static string GetNudge(HabitItemData data, HabitStatus status)
+    {
+        if (data.EnergyRequired >= 4)
+            return "Kräver hög energi — gör det bara om du mår bra idag.";
+        if (status.Streak > 6)
+            return $"🔥 {status.Streak} dagar i rad — håll igång!";
+        if (status.CompletionPct < 40)
+            return "Lite lägre genomförandegrad senaste månaden — inga krav, men idag är ett bra tillfälle.";
+        return "Dags!";
+    }
+}

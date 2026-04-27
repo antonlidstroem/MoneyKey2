@@ -1,3 +1,4 @@
+using DocumentFormat.OpenXml.Office2010.ExcelAc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MoneyKey.API.Filters;
@@ -55,6 +56,7 @@ public class ListsController : BaseApiController
             Tags            = dto.Tags,
             Scope           = dto.Scope,
             Visibility      = dto.Visibility,
+            ListConfig = dto.ListConfig,
             CreatedByUserId = UserId
         };
         return Ok(ToDto(await _repo.CreateAsync(list)));
@@ -102,7 +104,7 @@ public class ListsController : BaseApiController
         var nextSort = list.Items.Any() ? list.Items.Max(i => i.SortOrder) + 1 : 0;
         list.UpdatedAt = DateTime.UtcNow;
         await _repo.UpdateAsync(list);
-        return Ok(ToItemDto(await _repo.AddItemAsync(new ListItem { ListId = listId, Text = dto.Text, SortOrder = nextSort })));
+        return Ok(ToItemDto(await _repo.AddItemAsync(new ListItem { ListId = listId, Text = dto.Text, SortOrder = nextSort, ItemData = dto.ItemData  })));
     }
 
     [HttpPatch("{listId:int}/items/{itemId:int}/toggle")]
@@ -155,6 +157,7 @@ public class ListsController : BaseApiController
         CreatedAt = l.CreatedAt, UpdatedAt = l.UpdatedAt,
         IsArchived = l.IsArchived, TotalItems = l.Items.Count,
         CheckedItems = l.Items.Count(i => i.IsChecked),
+        ListConfig = l.ListConfig,
         Items = l.Items.Select(ToItemDto).ToList()
     };
 
@@ -162,6 +165,22 @@ public class ListsController : BaseApiController
     {
         Id = i.Id, ListId = i.ListId, Text = i.Text,
         IsChecked = i.IsChecked, SortOrder = i.SortOrder,
+        ItemData = i.ItemData,
         CreatedAt = i.CreatedAt, CompletedAt = i.CompletedAt
     };
+
+    [HttpPatch("{listId:int}/items/{itemId:int}/data")]
+    public async Task<IActionResult> UpdateItemData(
+    int budgetId, int listId, int itemId,
+    [FromBody] UpdateItemDataDto dto)
+    {
+        if (!await _auth.HasRoleAsync(budgetId, UserId, BudgetMemberRole.Editor)) return Forbid();
+        var item = await _listRepo.GetItemAsync(itemId, listId);
+        if (item == null) return NotFound();
+        item.ItemData = dto.ItemData;
+        await _listRepo.UpdateItemAsync(item);
+        return Ok();
+    }
+
+    public record UpdateItemDataDto(string ItemData);
 }
