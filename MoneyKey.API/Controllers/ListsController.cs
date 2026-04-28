@@ -175,10 +175,10 @@ public class ListsController : BaseApiController
     [FromBody] UpdateItemDataDto dto)
     {
         if (!await _auth.HasRoleAsync(budgetId, UserId, BudgetMemberRole.Editor)) return Forbid();
-        var item = await _listRepo.GetItemAsync(itemId, listId);
+        var item = await _repo.GetItemAsync(itemId, listId);
         if (item == null) return NotFound();
         item.ItemData = dto.ItemData;
-        await _listRepo.UpdateItemAsync(item);
+        await _repo.UpdateItemAsync(item);
         return Ok();
     }
 
