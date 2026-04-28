@@ -1,5 +1,4 @@
 ﻿using MoneyKey.Core.DTOs.Lists;
-using System.Text.Json;
 
 namespace MoneyKey.Core.Services.Lists;
 
@@ -15,7 +14,11 @@ public static class HabitService
     {
         var completions = data.CompletionDates ?? new List<string>();
         var dates = completions
-            .Select(s => DateTime.TryParse(s, out var d) ? (DateTime?)d.Date : null)
+            .Select(s => {
+                // Strip ":excused" suffix before parsing
+                var raw = s.Contains(':') ? s.Split(':')[0] : s;
+                return DateTime.TryParse(raw, out var d) ? (DateTime?)d.Date : null;
+            })
             .Where(d => d.HasValue).Select(d => d!.Value).ToHashSet();
 
         var window30 = Enumerable.Range(0, 30)
@@ -36,7 +39,7 @@ public static class HabitService
             CompletionPct: Math.Min(100, completionPct),
             IsDoneToday: isDoneToday,
             IsScheduledToday: isScheduled,
-            Last7: BuildWeekView(dates, today));
+            Last7: BuildWeekView(data.CompletionDates ?? new(), today));
     }
 
     /// <summary>
@@ -53,7 +56,10 @@ public static class HabitService
         // Prune dates older than 90 days to keep payload small
         var cutoff = today.AddDays(-90).Date;
         var pruned = dates
-            .Where(s => DateTime.TryParse(s, out var d) && d >= cutoff)
+            .Where(s => {
+                var raw = s.Contains(':') ? s.Split(':')[0] : s;
+                return DateTime.TryParse(raw, out var d) && d >= cutoff;
+            })
             .ToList();
 
         var updated = data with { CompletionDates = pruned };
@@ -84,7 +90,7 @@ public static class HabitService
         data.Frequency switch
         {
             "daily" => true,
-            "weekly" => true,          // show every day, target is X/week
+            "weekly" => true,
             "alternate" => ((today.Date - new DateTime(2024, 1, 1)).Days % 2 == 0),
             _ => true
         };
@@ -93,18 +99,15 @@ public static class HabitService
 
     private static int ComputeStreak(HabitItemData data, HashSet<DateTime> dates, DateTime today)
     {
-        // Forgiving streak: a streak is not broken by one missed day if
-        // the habit is not scheduled daily or if target is < 7/week.
         var streak = 0;
-        var current = today.Date;
         var toleranceUsed = 0;
-        var maxTolerance = data.TargetPerWeek < 7 ? 1 : 0; // 1 grace day for non-daily habits
+        var maxTolerance = data.TargetPerWeek < 7 ? 1 : 0;
 
         for (var i = 0; i < 365; i++)
         {
             var day = today.AddDays(-i).Date;
 
-            if (IsDoneOrExcused(day, dates))
+            if (IsDoneOrExcused(day, data.CompletionDates ?? new()))
             {
                 streak++;
                 toleranceUsed = 0;
@@ -119,10 +122,10 @@ public static class HabitService
         return streak;
     }
 
-    private static bool IsDoneOrExcused(DateTime date, HashSet<DateTime> dates)
+    private static bool IsDoneOrExcused(DateTime date, List<string> rawDates)
     {
         var key = date.ToString("yyyy-MM-dd");
-        return dates.Contains(date) || dates.Contains($"{key}:excused");
+        return rawDates.Contains(key) || rawDates.Contains($"{key}:excused");
     }
 
     private static bool IsScheduledDay(HabitItemData data, DateTime day) =>
@@ -133,14 +136,14 @@ public static class HabitService
 
     // ── Week view ─────────────────────────────────────────────────────────────
 
-    private static List<DayState> BuildWeekView(HashSet<DateTime> dates, DateTime today) =>
+    private static List<DayState> BuildWeekView(List<string> rawDates, DateTime today) =>
         Enumerable.Range(-6, 7).Select(offset =>
         {
             var day = today.AddDays(offset).Date;
             var key = day.ToString("yyyy-MM-dd");
             var state = day > today.Date ? "future"
-                      : dates.Contains(day) ? "done"
-                      : dates.Contains($"{key}:excused") ? "excused"
+                      : rawDates.Contains(key) ? "done"
+                      : rawDates.Contains($"{key}:excused") ? "excused"
                       : day == today.Date ? "today"
                       : "missed";
             return new DayState(day, state);

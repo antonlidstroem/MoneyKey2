@@ -7,6 +7,7 @@ public class ListItem
     public UserList List { get; set; } = null!;
     public string Text { get; set; } = string.Empty;
     public bool IsChecked { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? CompletedAt { get; set; }
     public int SortOrder { get; set; }
     public string? Notes { get; set; }
