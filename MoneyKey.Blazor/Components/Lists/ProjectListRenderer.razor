@@ -132,7 +132,7 @@ else
                     <SwipeableItem Enabled="CanEdit"
                                    LeftIcon="done_all" LeftLabel="Klar"
                                    RightIcon="delete" RightLabel="Ta bort"
-                                   OnSwipedRight="() => MoveStatusAsync(it, data, " done")"
+                                   OnSwipedRight='() => MoveStatusAsync(it, data, "done")'
                                    OnSwipedLeft="() => RemoveItemAsync(it)">
                         <div class="list-item-row @(data.Status == "done" ? "is-done" : "")"
                              style="cursor:pointer" @onclick="() => OpenItemDetail(it, data)">
@@ -237,7 +237,7 @@ else
                     {
                         var s = sub;
                         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-                            <ListCheckbox IsChecked="s.StartsWith(" ✓")"
+                            <ListCheckbox IsChecked='@(s.StartsWith("✓"))'
                                           OnToggle="_ => ToggleSubTask(s)"
                                           Disabled="!CanEdit" />
                             <span style="font-size:.85rem;flex:1;

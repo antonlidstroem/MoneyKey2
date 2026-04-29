@@ -33,10 +33,10 @@
         </div>
 
         @* ── Category filter chips ─────────────────────────────── *@
-        @{
+        
             var cats = _items.Select(i => GetData(i).Category ?? "Övrigt")
                              .Distinct().OrderBy(c => c).ToList();
-        }
+        
         @if (cats.Count > 1)
         {
             <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px">
@@ -345,7 +345,7 @@
         {
             var batches = await ReceiptSvc.GetAllBatchesAsync(BudgetState.ActiveBudgetId);
             _availableReceipts = batches?
-                .Select(b => new ReceiptBatchSummary(b.Id, b.Label, b.Date))
+                .Select(b => new ReceiptBatchSummary(b.Id, b.Label, b.CreatedAt))
                 .OrderByDescending(b => b.Date).ToList() ?? new();
         }
         catch { }

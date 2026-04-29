@@ -161,7 +161,7 @@
                        id="quick-@List.Id"
                        placeholder="Lägg till..."
                        value="@_legacyNewText"
-                       @oninput="e => _legacyNewText = e.Value?.ToString() ??" ""
+                       @oninput='e => _legacyNewText = e.Value?.ToString() ?? "" '
                        @onkeydown="OnLegacyKeyDownAsync" />
                 <button class="btn btn-ghost btn-icon btn-sm"
                         disabled="@string.IsNullOrWhiteSpace(_legacyNewText)"
@@ -196,8 +196,6 @@
         ListType.Inventory => "inventory_2",
         ListType.Shopping => "shopping_cart",
         ListType.ToDo => "task_alt",
-        ListType.Problem => "psychology",
-        ListType.Inventory => "inventory_2",
         _ => "checklist"
     };
 

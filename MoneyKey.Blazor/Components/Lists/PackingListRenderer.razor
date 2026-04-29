@@ -80,10 +80,10 @@
                             }
 
                             <ListCheckbox IsChecked="li.IsChecked"
-                                          OnToggle="checked => ToggleAsync(li, checked)"
+                                          OnToggle="isDone => ToggleAsync(li, isDone)"
                                           Disabled="!CanEdit" />
 
-                            <div class="list-item-text @(li.IsChecked ? "is-done" : "")">
+                            <div class='list-item-text @(li.IsChecked ? "is-done" : "")'>
                                 @li.Text
                             </div>
 
@@ -117,7 +117,7 @@
                 @foreach (var cat in DefaultCategories)
                 {
                     var c = cat;
-                    <button class="category-chip @(_selectedCat == c ? "is-active" : "")"
+                    <button class='category-chip @(_selectedCat == c ? "is-active" : "")'
                             @onclick="() => _selectedCat = c">
                         @CategoryEmoji(c) @c
                     </button>

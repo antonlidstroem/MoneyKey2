@@ -98,7 +98,7 @@
                                  @onclick="() => OnDotClickAsync(li, data, d)">
                                 @if (d.State == "done")    { <text>✓</text> }
                                 else if (d.State == "excused") { <text>~</text> }
-                                else { <text style="font-size:.6rem">@d.Date.Day</text> }
+                                else { <span style="font-size:.6rem">@d.Date.Day</span> }
                             </div>
                         }
                     </div>

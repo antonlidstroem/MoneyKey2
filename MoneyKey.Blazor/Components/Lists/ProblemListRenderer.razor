@@ -152,7 +152,7 @@
                 {
                     <button class="btn btn-ghost btn-sm"
                             style="font-size:.76rem;margin-top:4px"
-                            @onclick="() => { _addingSolutionFor = li.Id; _newSolName = ""; }">
+                            @onclick='() => { _addingSolutionFor = li.Id; _newSolName = ""; }'>
                         <span class="material-icons" style="font-size:.8rem">add</span>
                         Föreslå lösning
                     </button>
@@ -195,7 +195,7 @@
             <button class="btn btn-ghost btn-sm"
                     style="width:100%;justify-content:center;margin-top:4px;
                            border:1.5px dashed var(--color-border)"
-                    @onclick="() => { _showAdd = true; _newProblemTitle = ""; _newProblemContext = ""; }">
+                    @onclick='() => { _showAdd = true; _newProblemTitle = ""; _newProblemContext = ""; }'>
                 <span class="material-icons" style="font-size:.9rem">add</span>
                 Lägg till problem
             </button>
@@ -220,10 +220,9 @@
                             text-transform:uppercase;letter-spacing:.05em">
                     Ändra status
                 </div>
-                @foreach (var (s, label) in new[] { ("open","Öppen"), ("parked","Parkera"), ("solved","Markera som löst") })
+                @foreach (var item in new[] { ("open", "Öppen"), ("parked", "Parkera"), ("solved", "Markera som löst") })
                 {
-                    var st = s;
-                    var lb = label;
+                    var st = item.Item1; var lb = item.Item2;
                     @if (st != _menuData.Status)
                     {
                         <button class="btn btn-secondary btn-sm"
@@ -259,15 +258,15 @@
                 <div class="form-group">
                     <label class="form-label">Status</label>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-                        @foreach (var (st, lb) in new[]
+                        @foreach (var item in new[]
+                            {
+                                ("untested","Ej testad"),("testing","Testas"),
+                                ("works","Fungerar! ✅"),("failed","Fungerar inte ✗")
+                            })
                         {
-                            ("untested","Ej testad"),("testing","Testas"),
-                            ("works","Fungerar! ✅"),("failed","Fungerar inte ✗")
-                        })
-                        {
-                            var s = st; var l = lb;
-                            <button class="btn btn-sm @(_solEditStatus == s ? "btn-primary" : "btn-secondary")"
-                                    @onclick="() => _solEditStatus = s">@l</button>
+                            var st = item.Item1; var lb = item.Item2;
+                            <button class='btn btn-sm @(_solEditStatus == st ? "btn-primary" : "btn-secondary")'
+                                    @onclick="() => _solEditStatus = st">@lb</button>
                         }
                     </div>
                 </div>
