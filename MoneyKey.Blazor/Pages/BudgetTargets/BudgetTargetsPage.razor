@@ -13,7 +13,10 @@
         <div class="header-actions">
             <select class="form-control" style="width:auto" @bind="_month" @bind:after="ReloadAsync">
                 @for (var m = 1; m <= 12; m++)
-                { var mm = m; <option value="@mm">@new DateTime(2000, mm, 1).ToString("MMMM")</option> }
+                {
+                    var mm = m;
+                    <option value="@mm">@(new DateTime(2000, mm, 1).ToString("MMMM"))</option>
+                }
             </select>
             <select class="form-control" style="width:auto" @bind="_year" @bind:after="ReloadAsync">
                 @for (var y = DateTime.Today.Year - 2; y <= DateTime.Today.Year + 1; y++)
@@ -66,7 +69,7 @@
             <div class="card" style="padding:0;overflow:hidden">
                 <div style="padding:12px 16px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;justify-content:space-between">
                     <span style="font-weight:600;font-size:.9rem">
-                        Mål per kategori — @new DateTime(_year, _month, 1).ToString("MMMM yyyy")
+                        Mål per kategori — @(new DateTime(_year, _month, 1).ToString("MMMM yyyy"))
                     </span>
                     @if (BudgetState.CanEdit)
                     {
@@ -112,7 +115,7 @@
                                                    value="@_editAmount"
                                                    @onchange="e => { if (decimal.TryParse(e.Value?.ToString(), out var v)) _editAmount = v; }"
                                                    @onblur="() => SaveEditAsync(target)"
-                                                   @onkeydown="async e => { if (e.Key == "Enter") await SaveEditAsync(target); if (e.Key == "Escape") _editingId = -1; }" />
+                                                   @onkeydown='async e => { if (e.Key == "Enter") await SaveEditAsync(target); if (e.Key == "Escape") _editingId = -1; }' />
                                         }
                                         else
                                         {
@@ -206,7 +209,10 @@
         <div style="display:flex;gap:4px">
             <select class="form-control" style="padding:4px 6px;font-size:.78rem;width:80px" @bind="_month" @bind:after="ReloadAsync">
                 @for (var m = 1; m <= 12; m++)
-                { var mm = m; <option value="@mm">@new DateTime(2000, mm, 1).ToString("MMM")</option> }
+                {
+                    var mm = m;
+                    <option value="@mm">@(new DateTime(2000, mm, 1).ToString("MMM"))</option>
+                }
             </select>
             <select class="form-control" style="padding:4px 6px;font-size:.78rem;width:70px" @bind="_year" @bind:after="ReloadAsync">
                 @for (var y = DateTime.Today.Year - 1; y <= DateTime.Today.Year + 1; y++)

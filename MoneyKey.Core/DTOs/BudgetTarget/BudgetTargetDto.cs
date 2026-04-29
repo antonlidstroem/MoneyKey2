@@ -20,10 +20,10 @@ public class BudgetTargetDto
     public bool IsOverBudget => (ActualAmount ?? 0) > TargetAmount && TargetAmount > 0;
 }
 
-public class UpsertBudgetTargetDto
-{
-    public int CategoryId { get; set; }
-    public decimal TargetAmount { get; set; }
-    public int Year { get; set; }
-    public int Month { get; set; }
-}
+//public class UpsertBudgetTargetDto
+//{
+//    public int CategoryId { get; set; }
+//    public decimal TargetAmount { get; set; }
+//    public int Year { get; set; }
+//    public int Month { get; set; }
+//}
