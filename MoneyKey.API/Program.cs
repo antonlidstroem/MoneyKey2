@@ -169,11 +169,20 @@ var app = builder.Build();
 // ── Migrate + seed ─────────────────────────────────────────────────────────────
 //if (app.Environment.IsDevelopment())
 //{
-//    using var scope = app.Services.CreateScope();
-//    scope.ServiceProvider.GetRequiredService<BudgetDbContext>().Database.Migrate();
+//    using var scope = //app.Services.CreateScope();
+//    //scope.ServiceProvider.GetRequiredService<//BudgetDbContext>().Database.Migrate();
 ////}
 
+
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<BudgetDbContext>();
+    await db.Database.MigrateAsync();
+}
 await DbInitializer.InitializeAsync(app.Services);
+
+
 
 app.UseSwagger();
 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "MoneyKey API v1"));
