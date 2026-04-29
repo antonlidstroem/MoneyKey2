@@ -1,0 +1,260 @@
+﻿@inject ListApiService ListSvc
+@inject ToastService Toast
+@inject BudgetState BudgetState
+
+@if (ActiveList is not null)
+{
+    <div class="modal-overlay" @onclick="Close">
+        <div class="modal" style="max-width:520px;max-height:86vh;display:flex;flex-direction:column" @onclick:stopPropagation>
+            <div class="modal-header">
+                <div style="display:flex;align-items:center;gap:8px;min-width:0">
+                    <span class="modal-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                        @(_editMode ? "Redigera" : ActiveList.Name)
+                    </span>
+                    @if (ActiveList.IsNote)
+                    {
+                        <span class="badge badge-muted" style="font-size:.7rem;flex-shrink:0">Anteckning</span>
+                    }
+                    else
+                    {
+
+                        <span class="badge badge-muted" style="font-size:.7rem;flex-shrink:0">@ListTypeLabel(ActiveList.ListType)</span>
+                    }
+                </div>
+                <div style="display:flex;gap:4px;align-items:center;flex-shrink:0">
+                    @if (!ActiveList.IsNote && ActiveList.CheckedItems > 0 && CanEdit)
+                    {
+                        <button class="btn btn-ghost btn-sm" style="font-size:.78rem" @onclick="ClearCheckedAsync">Rensa klara</button>
+                    }
+                    @if (CanEdit)
+                    {
+                        <button class="btn btn-ghost btn-icon btn-sm" @onclick="ToggleEditMode"
+                                title="@(_editMode ? "Avbryt redigering" : "Redigera")">
+                            <span class="material-icons" style="font-size:.9rem">@(_editMode ? "close" : "edit")</span>
+                        </button>
+                        <button class="btn btn-ghost btn-icon btn-sm" @onclick="RequestDelete" title="Ta bort">
+                            <span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span>
+                        </button>
+                    }
+                    <button class="btn btn-ghost btn-icon btn-sm" @onclick="Close"><span class="material-icons">close</span></button>
+                </div>
+            </div>
+
+            @if (ActiveList.Tags != null && !_editMode)
+            {
+                <div style="padding:6px 24px 0;font-size:.78rem;color:var(--color-primary)">@ActiveList.Tags</div>
+            }
+
+            @if (_editMode)
+            {
+                <div class="modal-body" style="overflow-y:auto;flex:1">
+                    <div class="form-group">
+                        <label class="form-label">Titel</label>
+                        <input class="form-control" @bind="_editTitle" />
+                    </div>
+                    @if (ActiveList.IsNote)
+                    {
+                        <div class="form-group">
+                            <label class="form-label">Innehåll</label>
+                            <textarea class="form-control" rows="8" style="resize:vertical" @bind="_editContent"></textarea>
+                        </div>
+                    }
+                    <div class="form-group">
+                        <label class="form-label">Taggar</label>
+                        <input class="form-control" @bind="_editTags" placeholder="Komma-separerade" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="ToggleEditMode">Avbryt</button>
+                    <button class="btn btn-primary" @onclick="SaveEditAsync" disabled="@_saving">
+                        @if (_saving)
+                        {
+                            <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>
+                        }
+                        Spara
+                    </button>
+                </div>
+            }
+            else if (ActiveList.IsNote)
+            {
+                <div class="modal-body" style="overflow-y:auto;flex:1">
+                    <div style="font-size:.9rem;line-height:1.7;white-space:pre-wrap">@(ActiveList.Content ?? "(Tom anteckning)")</div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="Close">Stäng</button>
+                </div>
+            }
+            else
+            {
+                <div class="modal-body" style="overflow-y:auto;flex:1">
+                    @if (!ActiveList.Items.Any())
+                    {
+                        <p style="text-align:center;padding:24px;color:var(--color-muted);font-size:.875rem">Inga poster ännu.</p>
+                    }
+                    @foreach (var item in ActiveList.Items)
+                    {
+                        var li = item;
+                        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:.5px solid var(--color-border)">
+                            <input type="checkbox" checked="@li.IsChecked" @onchange="() => ToggleItemAsync(li.Id)" />
+                            <span style="flex:1;font-size:.9rem;@(li.IsChecked ? "text-decoration:line-through;color:var(--color-muted)" : "")">@li.Text</span>
+                            @if (CanEdit)
+                            {
+                                <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => DeleteItemAsync(li.Id)">
+                                    <span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span>
+                                </button>
+                            }
+                        </div>
+                    }
+                    @if (ActiveList.ListType == ListType.Custom)
+                    {
+                        var pct = ActiveList.TotalItems > 0 ? (int)(ActiveList.CheckedItems * 100.0 / ActiveList.TotalItems) : 0;
+                        <div style="margin-top:12px">
+                            <div style="display:flex;justify-content:space-between;font-size:.8rem;color:var(--color-muted);margin-bottom:4px">
+                                <span>Framsteg</span><span>@ActiveList.CheckedItems / @ActiveList.TotalItems (@pct%)</span>
+                            </div>
+                            <div style="height:8px;background:var(--color-border);border-radius:4px;overflow:hidden">
+                                <div style="height:100%;width:@pct%;background:var(--color-income);border-radius:4px;transition:width .3s"></div>
+                            </div>
+                        </div>
+                    }
+                </div>
+                @if (CanEdit)
+                {
+                    <div style="padding:14px 24px;border-top:1px solid var(--color-border)">
+                        <div style="display:flex;gap:8px">
+                            <input class="form-control" placeholder="Ny rad..." @bind="_newItemText"
+                                   @onkeydown="OnItemKeyDown" />
+                            <button class="btn btn-primary btn-sm" @onclick="AddItemAsync">
+                                <span class="material-icons" style="font-size:.9rem">add</span>
+                            </button>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public UserListDto? ActiveList { get; set; }
+    [Parameter] public bool CanEdit { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<UserListDto> OnUpdated { get; set; }
+    [Parameter] public EventCallback<int> OnDeleted { get; set; }
+
+    private bool _editMode, _saving;
+    private string _editTitle = "", _editContent = "", _editTags = "";
+    private string _newItemText = "";
+
+    private void Close() => OnClose.InvokeAsync();
+
+    private void ToggleEditMode()
+    {
+        _editMode = !_editMode;
+        if (_editMode && ActiveList != null)
+        {
+            _editTitle = ActiveList.Name;
+            _editContent = ActiveList.Content ?? "";
+            _editTags = ActiveList.Tags ?? "";
+        }
+    }
+
+    private void RequestDelete()
+    {
+        if (ActiveList == null) return;
+        OnDeleted.InvokeAsync(ActiveList.Id);
+    }
+
+    private async Task SaveEditAsync()
+    {
+        if (ActiveList == null) return;
+        _saving = true;
+        try
+        {
+            var dto = new CreateListDto(_editTitle.Trim(), ActiveList.ListType, ActiveList.Description,
+                _editContent, string.IsNullOrWhiteSpace(_editTags) ? null : _editTags,
+                ActiveList.Scope, ActiveList.Visibility);
+            var updated = await ListSvc.UpdateAsync(BudgetState.ActiveBudgetId, ActiveList.Id, dto);
+            if (updated != null)
+            {
+                _editMode = false;
+                await OnUpdated.InvokeAsync(updated);
+                Toast.Success("Sparat.");
+            }
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+        finally { _saving = false; }
+    }
+
+    private async Task ToggleItemAsync(int itemId)
+    {
+        if (ActiveList is null) return;
+        try
+        {
+            var upd = await ListSvc.ToggleItemAsync(BudgetState.ActiveBudgetId, ActiveList.Id, itemId);
+            if (upd != null)
+            {
+                var i = ActiveList.Items.FirstOrDefault(x => x.Id == itemId);
+                if (i != null) { i.IsChecked = upd.IsChecked; i.CompletedAt = upd.CompletedAt; }
+                ActiveList.CheckedItems = ActiveList.Items.Count(x => x.IsChecked);
+                await OnUpdated.InvokeAsync(ActiveList);
+            }
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private async Task DeleteItemAsync(int itemId)
+    {
+        if (ActiveList is null) return;
+        try
+        {
+            await ListSvc.DeleteItemAsync(BudgetState.ActiveBudgetId, ActiveList.Id, itemId);
+            ActiveList.Items.RemoveAll(x => x.Id == itemId);
+            ActiveList.TotalItems = ActiveList.Items.Count;
+            ActiveList.CheckedItems = ActiveList.Items.Count(x => x.IsChecked);
+            await OnUpdated.InvokeAsync(ActiveList);
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private async Task AddItemAsync()
+    {
+        if (ActiveList is null || string.IsNullOrWhiteSpace(_newItemText)) return;
+        try
+        {
+            var item = await ListSvc.AddItemAsync(BudgetState.ActiveBudgetId, ActiveList.Id,
+                new CreateListItemDto(_newItemText.Trim()));
+            if (item != null)
+            {
+                ActiveList.Items.Add(item);
+                ActiveList.TotalItems++;
+                _newItemText = "";
+                await OnUpdated.InvokeAsync(ActiveList);
+            }
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private async Task OnItemKeyDown(KeyboardEventArgs e)
+    { if (e.Key == "Enter") await AddItemAsync(); }
+
+    private async Task ClearCheckedAsync()
+    {
+        if (ActiveList is null) return;
+        try
+        {
+            var upd = await ListSvc.ClearCheckedAsync(BudgetState.ActiveBudgetId, ActiveList.Id);
+            if (upd != null) await OnUpdated.InvokeAsync(upd);
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private static string ListTypeLabel(ListType t) => t switch
+    {
+        ListType.CheckList => "Checklista",
+        ListType.Shopping => "Inköpslista",
+        ListType.Custom => "Progresslista",
+        ListType.ToDo => "Att-göra",
+        _ => "Lista"
+    };
+}

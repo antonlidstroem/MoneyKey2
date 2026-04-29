@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
+using MoneyKey.API.Filters;
 using MoneyKey.API.Hubs;
 using MoneyKey.API.Services;
 using MoneyKey.API.Services.Email;
@@ -13,6 +14,7 @@ using MoneyKey.Domain.Enums;
 
 namespace MoneyKey.API.Controllers;
 
+[RequireFeature("Receipts")]
 [Authorize, Route("api/budgets/{budgetId:int}/receipts")]
 public class ReceiptsController : BaseApiController
 {

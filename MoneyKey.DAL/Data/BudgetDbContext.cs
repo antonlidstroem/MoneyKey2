@@ -37,6 +37,7 @@ public class BudgetDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Job> Jobs => Set<Job>();
     public DbSet<TimeEntry> TimeEntries => Set<TimeEntry>();
 
+    public DbSet<CsnEntry> CsnEntries => Set<CsnEntry>();
     protected override void OnModelCreating(ModelBuilder mb)
     {
         base.OnModelCreating(mb);
@@ -292,5 +293,22 @@ public class BudgetDbContext : IdentityDbContext<ApplicationUser>
             new ReceiptBatchCategory { Id = 6, Name = "Tjänster & Konsulting", IconName = "handshake", SortOrder = 6, Description = "Externa tjänster, prenumerationer" },
             new ReceiptBatchCategory { Id = 7, Name = "Övrigt", IconName = "more_horiz", SortOrder = 7, Description = "Utlägg som inte passar annan kategori" }
         );
+        mb.Entity<CsnEntry>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.TotalOriginalDebt).HasColumnType("decimal(18,2)");
+            e.Property(x => x.CurrentBalance).HasColumnType("decimal(18,2)");
+            e.Property(x => x.AnnualRepayment).HasColumnType("decimal(18,2)");
+            e.Property(x => x.AnnualIncomeLimit).HasColumnType("decimal(18,2)");
+            e.Property(x => x.EstimatedAnnualIncome).HasColumnType("decimal(18,2)");
+            e.Property(x => x.MonthlyStudyGrant).HasColumnType("decimal(18,2)");
+            e.Property(x => x.MonthlyStudyLoan).HasColumnType("decimal(18,2)");
+            e.Ignore(x => x.MonthlyRepayment);
+            e.Ignore(x => x.IncomeMargin);
+            e.Ignore(x => x.YearsRemaining);
+            e.Ignore(x => x.IsOverIncomeLimit);
+            e.HasOne(x => x.Budget).WithMany().HasForeignKey(x => x.BudgetId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.BudgetId, x.UserId, x.Year }).IsUnique();
+        });
     }
 }

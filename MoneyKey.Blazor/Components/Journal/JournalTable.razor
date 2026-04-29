@@ -1,0 +1,328 @@
+﻿@inject NavigationManager Nav
+
+@if (Loading)
+{
+    <div style="padding:40px;text-align:center"><div class="spinner"></div></div>
+}
+else if (LoadError != null)
+{
+    <div style="padding:40px;text-align:center;color:var(--color-expense)">
+        <span class="material-icons" style="display:block;font-size:2rem;margin-bottom:8px">error_outline</span>
+        @LoadError
+        <br /><button class="btn btn-secondary btn-sm" style="margin-top:12px" @onclick="OnRetry">Försök igen</button>
+    </div>
+}
+else
+{
+    <table style="width:100%;border-collapse:collapse" class="quickgrid">
+        <thead>
+            <tr>
+                <th style="width:32px">
+                    @if (CanEdit)
+                    {
+                        <input type="checkbox" checked="@SelectAll" @onchange="e => OnToggleAll.InvokeAsync(e)" />
+                    }
+                </th>
+                <th style="cursor:pointer;width:100px" @onclick='() => OnSort.InvokeAsync("Date")'>
+                    Datum @SortIndicator("Date")
+                </th>
+                <th style="width:92px">Typ</th>
+                <th style="cursor:pointer" @onclick='() => OnSort.InvokeAsync("Description")'>
+                    Beskrivning @SortIndicator("Description")
+                </th>
+                <th style="width:140px">Kategori / Taggar</th>
+                <th style="width:100px">Projekt</th>
+                <th style="width:90px">Status</th>
+                <th style="cursor:pointer;text-align:right;width:105px" @onclick='() => OnSort.InvokeAsync("Amount")'>
+                    Belopp @SortIndicator("Amount")
+                </th>
+                <th style="width:90px"></th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (!Entries.Any() && (!ShowLists || !Lists.Any()))
+            {
+                <tr>
+                    <td colspan="9" style="text-align:center;padding:40px;color:var(--color-muted)">
+                        <span class="material-icons" style="display:block;font-size:2rem;margin-bottom:8px;opacity:.4">inbox</span>
+                        Inga poster hittades.
+                    </td>
+                </tr>
+            }
+
+            @* ── Lists / Notes ──────────────────────────────────────────── *@
+            @if (ShowLists)
+            {
+                @foreach (var list in Lists)
+                {
+                    var ul = list;
+                    <tr style="background:var(--color-bg)">
+                        <td></td>
+                        <td style="font-size:.8rem;color:var(--color-muted)">@ul.UpdatedAt.ToString("yyyy-MM-dd")</td>
+                        <td><span class="badge badge-muted" style="font-size:.7rem">@(ul.IsNote ? "Anteckning" : ListTypeLabel(ul.ListType))</span></td>
+                        <td>
+                            <span style="font-size:.875rem;font-weight:500;cursor:pointer;color:var(--color-primary)"
+                                  @onclick="() => OnOpenList.InvokeAsync(ul)"
+                                  title="Klicka för att öppna / redigera">@ul.Name</span>
+                            @if (ul.IsNote && ul.Content != null)
+                            {
+                                <div style="font-size:.75rem;color:var(--color-muted);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">@ul.Content</div>
+                            }
+                            else if (!ul.IsNote)
+                            {
+
+                                <span style="font-size:.75rem;color:var(--color-muted);margin-left:6px">@ul.CheckedItems/@ul.TotalItems klara</span>
+                            }
+                        </td>
+                        <td style="font-size:.78rem;color:var(--color-primary)">@(ul.Tags ?? "–")</td>
+                        <td colspan="2"></td>
+                        <td style="text-align:right">
+                            @if (!ul.IsNote && ul.TotalItems > 0)
+                            {
+                                var pct = (int)(100.0 * ul.CheckedItems / ul.TotalItems);
+                                <div style="width:60px;height:6px;background:var(--color-border);border-radius:3px;display:inline-block;vertical-align:middle;overflow:hidden">
+                                    <div style="height:100%;width:@pct%;background:var(--color-income);border-radius:3px"></div>
+                                </div>
+                            }
+                        </td>
+                        <td @onclick:stopPropagation style="display:flex;gap:2px;align-items:center">
+                            <button class="btn btn-ghost btn-icon btn-sm" title="Öppna"
+                                    @onclick="() => OnOpenList.InvokeAsync(ul)">
+                                <span class="material-icons" style="font-size:.9rem">open_in_new</span>
+                            </button>
+                            @if (CanEdit)
+                            {
+                                <button class="btn btn-ghost btn-icon btn-sm" title="Ta bort"
+                                        @onclick="() => OnDeleteList.InvokeAsync(ul)">
+                                    <span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span>
+                                </button>
+                            }
+                        </td>
+                    </tr>
+                }
+            }
+
+            @* ── Journal entries ────────────────────────────────────────── *@
+            @foreach (var entry in Entries)
+            {
+                var e = entry;
+                var isSel = SelectedIds.Contains(e.SourceId);
+                var expandKey = $"{e.EntryType}-{e.SourceId}";
+                var isExpanded = Expanded.Contains(expandKey);
+
+                <tr class="@(isSel ? "selected" : "")">
+                    <td @onclick:stopPropagation>
+                        @if (CanEdit && e.EntryType == JournalEntryType.Transaction)
+                        {
+                            <input type="checkbox" checked="@isSel" @onchange="() => OnToggleRow.InvokeAsync(e.SourceId)" />
+                        }
+                    </td>
+                    <td style="font-size:.8rem;color:var(--color-muted)">@e.Date.ToString("yyyy-MM-dd")</td>
+                    <td><span class="badge @TypeBadge(e.EntryType)" style="font-size:.7rem">@e.TypeLabel</span></td>
+                    <td>
+                        <span style="font-size:.875rem">@e.Description</span>
+                        @if (e.HasDetail && e.EntryType == JournalEntryType.Transaction)
+                        {
+                            <span class="badge badge-muted" style="margin-left:4px;font-size:.67rem" title="Har kontering">K</span>
+                        }
+                        @if (e.ReceiptLineCount > 0)
+                        {
+                            <span class="badge badge-muted" style="margin-left:4px;font-size:.67rem">@e.ReceiptLineCount kv.</span>
+                        }
+                        @if (e.MetaLine != null)
+                        {
+                            <div style="font-size:.75rem;color:var(--color-muted)">@e.MetaLine</div>
+                        }
+                    </td>
+                    <td style="font-size:.8rem;color:var(--color-muted)">@(e.CategoryName ?? "–")</td>
+                    <td style="font-size:.8rem;color:var(--color-muted)">@(e.ProjectName ?? "–")</td>
+                    <td>@if (e.Status != null) {
+                        <span class="badge @StatusBadge(e.Status)" style="font-size:.7rem">@e.Status</span>
+                    }
+                </td>
+                <td style="text-align:right">
+                    <span class="@(e.Amount >= 0 ? "amount-income" : "amount-expense")" style="font-size:.875rem;font-weight:600">
+                        @AmountStr(e)
+                    </span>
+                </td>
+                <td @onclick:stopPropagation style="display:flex;gap:2px;align-items:center">
+                    @if (e.EntryType == JournalEntryType.Transaction && e.HasDetail)
+                    {
+                        <button class="btn btn-ghost btn-icon btn-sm" title="Visa kontering"
+                                @onclick="() => OnToggleExpand.InvokeAsync((expandKey, e))">
+                            <span class="material-icons" style="font-size:.9rem">@(isExpanded ? "expand_less" : "expand_more")</span>
+                        </button>
+                    }
+                    @if (e.EntryType == JournalEntryType.ReceiptBatch)
+                    {
+                        <button class="btn btn-ghost btn-icon btn-sm" title="Visa kvittolinjer"
+                                @onclick="() => OnToggleExpand.InvokeAsync((expandKey, e))">
+                            <span class="material-icons" style="font-size:.9rem">@(isExpanded ? "expand_less" : "expand_more")</span>
+                        </button>
+                        <button class="btn btn-ghost btn-icon btn-sm" title="Öppna underlag"
+                                @onclick="() => OnNavigateToReceipt.InvokeAsync(e.SourceId)">
+                            <span class="material-icons" style="font-size:.9rem">open_in_new</span>
+                        </button>
+                    }
+                    @if (CanEdit && e.EntryType == JournalEntryType.Transaction)
+                    {
+                        @if (EditingId == e.SourceId)
+                        {
+                            <span class="spinner" style="width:14px;height:14px;border-width:2px;margin:7px 4px"></span>
+                        }
+                        else
+                        {
+                            <button class="btn btn-ghost btn-icon btn-sm" title="Redigera"
+                                    @onclick="() => OnEdit.InvokeAsync(e)">
+                                <span class="material-icons" style="font-size:.9rem">edit</span>
+                            </button>
+                        }
+                    }
+                    @if (CanEdit && e.EntryType == JournalEntryType.Milersattning)
+                    {
+                        <button class="btn btn-ghost btn-icon btn-sm" title="Ta bort"
+                                @onclick="() => OnDeleteMi.InvokeAsync(e.SourceId)">
+                            <span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span>
+                        </button>
+                    }
+                    @if (CanEdit && e.EntryType == JournalEntryType.Vab)
+                    {
+                        <button class="btn btn-ghost btn-icon btn-sm" title="Ta bort"
+                                @onclick="() => OnDeleteVab.InvokeAsync(e.SourceId)">
+                            <span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span>
+                        </button>
+                    }
+                </td>
+            </tr>
+
+            @* Expand: kontering rows *@
+            @if (isExpanded && e.EntryType == JournalEntryType.Transaction && e.KonteringRows.Any())
+            {
+                @foreach (var k in e.KonteringRows)
+                {
+                    <tr style="background:var(--color-bg)">
+                        <td></td>
+                        <td></td>
+                        <td style="font-size:.75rem;color:var(--color-muted)">↳ @k.KontoNr</td>
+                        <td style="font-size:.75rem;color:var(--color-muted)">@(k.Description ?? "")</td>
+                        <td style="font-size:.75rem;color:var(--color-muted)">@(k.CostCenter ?? "")</td>
+                        <td colspan="2"></td>
+                        <td style="text-align:right;font-size:.8rem;color:var(--color-muted)">@k.Amount.ToString("N2") kr</td>
+                        <td></td>
+                    </tr>
+                }
+            }
+
+            @* Expand: receipt lines *@
+            @if (isExpanded && e.EntryType == JournalEntryType.ReceiptBatch)
+            {
+                @if (ReceiptCache.TryGetValue(e.SourceId, out var cachedBatch))
+                {
+                    @if (!cachedBatch.Lines.Any())
+                    {
+                        <tr style="background:var(--color-bg)">
+                            <td colspan="9" style="text-align:center;font-size:.8rem;color:var(--color-muted);padding:8px">Inga kvittolinjer.</td>
+                        </tr>
+                    }
+                    @foreach (var line in cachedBatch.Lines.OrderBy(l => l.SequenceNumber))
+                    {
+                        <tr style="background:var(--color-bg)">
+                            <td></td>
+                            <td style="font-size:.78rem;color:var(--color-muted)">@line.Date.ToString("yyyy-MM-dd")</td>
+                            <td><span style="font-family:monospace;font-size:.73rem;color:var(--color-primary)">@line.ReferenceCode</span></td>
+                            <td style="font-size:.82rem">
+                                @(line.Vendor ?? "–")
+                                @if (line.Description != null)
+                                {
+                                    <span style="color:var(--color-muted)"> · @line.Description</span>
+                                }
+                            </td>
+                            <td colspan="3"></td>
+                            <td style="text-align:right;font-size:.82rem;font-weight:600">@line.Amount.ToString("N2") kr</td>
+                            <td></td>
+                        </tr>
+                    }
+                    <tr style="background:var(--color-bg);border-top:.5px solid var(--color-border)">
+                        <td colspan="7"></td>
+                        <td style="text-align:right;font-size:.82rem;font-weight:600;color:var(--color-expense)">
+                            Σ @cachedBatch.Lines.Sum(l => l.Amount).ToString("N2") kr
+                        </td>
+                        <td></td>
+                    </tr>
+                }
+                else
+                {
+                    <tr style="background:var(--color-bg)">
+                        <td colspan="9" style="text-align:center;font-size:.8rem;padding:8px">
+                            <div class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block"></div>
+                        </td>
+                    </tr>
+                }
+            }
+        }
+    </tbody>
+</table>
+}
+
+@code {
+    [Parameter] public List<JournalEntryDto> Entries { get; set; } = new();
+    [Parameter] public List<UserListDto> Lists { get; set; } = new();
+    [Parameter] public bool Loading { get; set; }
+    [Parameter] public string? LoadError { get; set; }
+    [Parameter] public bool CanEdit { get; set; }
+    [Parameter] public bool ShowLists { get; set; }
+    [Parameter] public bool SelectAll { get; set; }
+    [Parameter] public HashSet<int> SelectedIds { get; set; } = new();
+    [Parameter] public HashSet<string> Expanded { get; set; } = new();
+    [Parameter] public Dictionary<int, ReceiptBatchDto> ReceiptCache { get; set; } = new();
+    [Parameter] public int EditingId { get; set; } = -1;
+    [Parameter] public string? SortBy { get; set; }
+    [Parameter] public string? SortDir { get; set; }
+
+    [Parameter] public EventCallback<ChangeEventArgs> OnToggleAll { get; set; }
+    [Parameter] public EventCallback<int> OnToggleRow { get; set; }
+    [Parameter] public EventCallback<(string Key, JournalEntryDto? E)> OnToggleExpand { get; set; }
+    [Parameter] public EventCallback<JournalEntryDto> OnEdit { get; set; }
+    [Parameter] public EventCallback<int> OnDeleteMi { get; set; }
+    [Parameter] public EventCallback<int> OnDeleteVab { get; set; }
+    [Parameter] public EventCallback<int> OnNavigateToReceipt { get; set; }
+    [Parameter] public EventCallback<UserListDto> OnOpenList { get; set; }
+    [Parameter] public EventCallback<UserListDto> OnDeleteList { get; set; }
+    [Parameter] public EventCallback<string> OnSort { get; set; }
+    [Parameter] public EventCallback OnRetry { get; set; }
+
+    private string SortIndicator(string col) =>
+        SortBy != col ? "" : SortDir == "asc" ? " ▲" : " ▼";
+
+    private static string TypeBadge(JournalEntryType t) => t switch
+    {
+        JournalEntryType.Transaction => "badge-primary",
+        JournalEntryType.Milersattning => "badge-income",
+        JournalEntryType.Vab => "badge-income",
+        JournalEntryType.ReceiptBatch => "badge",
+        _ => "badge-muted"
+    };
+
+    private static string StatusBadge(string s) => s switch
+    {
+        "Godkänd" => "badge-income",
+        "Avslagen" => "badge-expense",
+        "Utbetald" => "badge-primary",
+        _ => "badge-muted"
+    };
+
+    private static string AmountStr(JournalEntryDto e) =>
+        e.EntryType == JournalEntryType.ReceiptBatch
+            ? $"{e.Amount:N0} kr"
+            : (e.Amount >= 0 ? "+" : "") + $"{e.Amount:N0} kr";
+
+    private static string ListTypeLabel(ListType t) => t switch
+    {
+        ListType.CheckList => "Checklista",
+        ListType.Shopping => "Inköpslista",
+        ListType.Custom => "Progresslista",
+        ListType.ToDo => "Att-göra",
+        ListType.Note => "Anteckning",
+        _ => "Lista"
+    };
+}

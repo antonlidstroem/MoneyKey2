@@ -90,4 +90,7 @@ public class VabService
     /// </summary>
     public static decimal CalculateDailyBenefit(decimal annualSgi)
         => Math.Round(annualSgi / 365m * 0.8m, 2);
+
+    // inline i EntryFormModal.razor
+    private static decimal CalcVabDaily(decimal sgi) => Math.Round(sgi / 365m * 0.97m, 2);
 }

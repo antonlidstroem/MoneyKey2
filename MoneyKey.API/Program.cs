@@ -39,6 +39,7 @@ svcs.AddMemoryCache();
 svcs.AddScoped<ICurrentUserAccessor, HttpCurrentUserAccessor>();
 svcs.AddScoped<AuditInterceptor>();
 
+
 svcs.AddDbContext<BudgetDbContext>((sp, opt) =>
     opt.UseSqlServer(connStr, sql => sql.MigrationsAssembly("MoneyKey.DAL"))
        .AddInterceptors(sp.GetRequiredService<AuditInterceptor>()));
@@ -166,11 +167,11 @@ svcs.AddSwaggerGen(c =>
 var app = builder.Build();
 
 // ── Migrate + seed ─────────────────────────────────────────────────────────────
-if (app.Environment.IsDevelopment())
-{
-    using var scope = app.Services.CreateScope();
-    scope.ServiceProvider.GetRequiredService<BudgetDbContext>().Database.Migrate();
-}
+//if (app.Environment.IsDevelopment())
+//{
+//    using var scope = app.Services.CreateScope();
+//    scope.ServiceProvider.GetRequiredService<BudgetDbContext>().Database.Migrate();
+////}
 
 await DbInitializer.InitializeAsync(app.Services);
 
