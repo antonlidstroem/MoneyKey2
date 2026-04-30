@@ -175,10 +175,29 @@ var app = builder.Build();
 
 
 
+// ... efter app.Build()
+
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<BudgetDbContext>();
-    await db.Database.MigrateAsync();
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<BudgetDbContext>();
+
+        // 1. Applicera alla väntande migrationer (skapar db om den saknas)
+        await context.Database.MigrateAsync();
+
+        // 2. Kör din seeding (skicka in context eller services)
+        // Se till att InitializeAsync internt kollar om data redan finns!
+        await DbInitializer.InitializeAsync(services);
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "Ett fel uppstod vid migrering eller seeding av databasen.");
+        // Vid kritiska fel i molnet vill vi ofta att appen stannar
+        throw;
+    }
 }
 await DbInitializer.InitializeAsync(app.Services);
 

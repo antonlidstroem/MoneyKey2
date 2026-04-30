@@ -19,321 +19,40 @@ public static class DbInitializer
         var cfg = sp.GetRequiredService<IConfiguration>();
         var log = sp.GetRequiredService<ILogger<BudgetDbContext>>();
 
-        // ── Always-run DDL guards ─────────────────────────────────────────────
-        await db.Database.ExecuteSqlRawAsync("""
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'SystemSettings')
-BEGIN
-    CREATE TABLE [SystemSettings] (
-        [Id]    INT            NOT NULL IDENTITY(1,1),
-        [Key]   NVARCHAR(200)  NOT NULL,
-        [Value] NVARCHAR(MAX)  NOT NULL,
-        CONSTRAINT [PK_SystemSettings] PRIMARY KEY ([Id])
-    );
-    CREATE UNIQUE INDEX [IX_SystemSettings_Key] ON [SystemSettings] ([Key]);
-END
-""");
-
-        await db.Database.ExecuteSqlRawAsync("""
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'UserSubscriptions')
-BEGIN
-    CREATE TABLE [UserSubscriptions] (
-        [UserId]      NVARCHAR(450)  NOT NULL,
-        [Tier]        INT            NOT NULL DEFAULT 0,
-        [PaidUntil]   DATETIME2      NULL,
-        [PaymentRef]  NVARCHAR(200)  NULL,
-        [IsAdmin]     BIT            NOT NULL DEFAULT 0,
-        [AdminNotes]  NVARCHAR(1000) NULL,
-        [CreatedAt]   DATETIME2      NOT NULL DEFAULT GETUTCDATE(),
-        [UpdatedAt]   DATETIME2      NOT NULL DEFAULT GETUTCDATE(),
-        CONSTRAINT [PK_UserSubscriptions] PRIMARY KEY ([UserId])
-    );
-END
-""");
-
-        await db.Database.ExecuteSqlRawAsync("""
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'BudgetInvitations')
-BEGIN
-    CREATE TABLE [BudgetInvitations] (
-        [Id]              INT           NOT NULL IDENTITY(1,1),
-        [BudgetId]        INT           NOT NULL,
-        [InvitedByUserId] NVARCHAR(450) NOT NULL,
-        [InvitedUserId]   NVARCHAR(450) NOT NULL,
-        [Role]            INT           NOT NULL DEFAULT 0,
-        [Status]          INT           NOT NULL DEFAULT 0,
-        [CreatedAt]       DATETIME2     NOT NULL DEFAULT GETUTCDATE(),
-        [ExpiresAt]       DATETIME2     NOT NULL,
-        CONSTRAINT [PK_BudgetInvitations] PRIMARY KEY ([Id]),
-        CONSTRAINT [FK_BudgetInvitations_Budgets] FOREIGN KEY ([BudgetId])
-            REFERENCES [Budgets]([Id]) ON DELETE CASCADE
-    );
-END
-""");
-
-        await db.Database.ExecuteSqlRawAsync("""
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_NAME='AspNetUsers' AND COLUMN_NAME='DisplayName')
-BEGIN
-    ALTER TABLE [AspNetUsers] ADD [DisplayName] NVARCHAR(50) NOT NULL DEFAULT '';
-END
-""");
-
-        await db.Database.ExecuteSqlRawAsync("""
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'UserLists')
-BEGIN
-    CREATE TABLE [UserLists] (
-        [Id]              INT            NOT NULL IDENTITY(1,1),
-        [BudgetId]        INT            NULL,
-        [Name]            NVARCHAR(200)  NOT NULL,
-        [ListType]        INT            NOT NULL DEFAULT 1,
-        [Description]     NVARCHAR(MAX)  NULL,
-        [Content]         NVARCHAR(MAX)  NULL,
-        [Tags]            NVARCHAR(500)  NULL,
-        [Scope]           INT            NOT NULL DEFAULT 0,
-        [Visibility]      INT            NOT NULL DEFAULT 1,
-        [CreatedAt]       DATETIME2      NOT NULL DEFAULT GETUTCDATE(),
-        [UpdatedAt]       DATETIME2      NOT NULL DEFAULT GETUTCDATE(),
-        [CreatedByUserId] NVARCHAR(MAX)  NULL,
-        [IsArchived]      BIT            NOT NULL DEFAULT 0,
-        CONSTRAINT [PK_UserLists] PRIMARY KEY ([Id]),
-        CONSTRAINT [FK_UserLists_Budgets] FOREIGN KEY ([BudgetId]) REFERENCES [Budgets]([Id]) ON DELETE CASCADE
-    );
-END
-""");
-
-        await db.Database.ExecuteSqlRawAsync("""
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'ListItems')
-BEGIN
-    CREATE TABLE [ListItems] (
-        [Id]          INT            NOT NULL IDENTITY(1,1),
-        [ListId]      INT            NOT NULL,
-        [Text]        NVARCHAR(500)  NOT NULL,
-        [IsChecked]   BIT            NOT NULL DEFAULT 0,
-        [SortOrder]   INT            NOT NULL DEFAULT 0,
-        [CreatedAt]   DATETIME2      NOT NULL DEFAULT GETUTCDATE(),
-        [CompletedAt] DATETIME2      NULL,
-        CONSTRAINT [PK_ListItems] PRIMARY KEY ([Id]),
-        CONSTRAINT [FK_ListItems_UserLists] FOREIGN KEY ([ListId]) REFERENCES [UserLists]([Id]) ON DELETE CASCADE
-    );
-END
-""");
-
-        await db.Database.ExecuteSqlRawAsync("""
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Jobs')
-BEGIN
-    CREATE TABLE [Jobs] (
-        [Id]              INT              NOT NULL IDENTITY(1,1),
-        [BudgetId]        INT              NOT NULL,
-        [UserId]          NVARCHAR(450)    NOT NULL,
-        [Name]            NVARCHAR(200)    NOT NULL,
-        [EmployerName]    NVARCHAR(200)    NULL,
-        [PayType]         INT              NOT NULL DEFAULT 0,
-        [TransactionMode] INT              NOT NULL DEFAULT 0,
-        [GrossAmount]     DECIMAL(18,2)    NULL,
-        [HourlyRate]      DECIMAL(10,2)    NULL,
-        [ProjectId]       INT              NULL,
-        [IsActive]        BIT              NOT NULL DEFAULT 1,
-        [Notes]           NVARCHAR(MAX)    NULL,
-        [CreatedAt]       DATETIME2        NOT NULL DEFAULT GETUTCDATE(),
-        CONSTRAINT [PK_Jobs] PRIMARY KEY ([Id]),
-        CONSTRAINT [FK_Jobs_Budgets] FOREIGN KEY ([BudgetId]) REFERENCES [Budgets]([Id]) ON DELETE CASCADE
-    );
-END
-""");
-
-        await db.Database.ExecuteSqlRawAsync("""
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'TimeEntries')
-BEGIN
-    CREATE TABLE [TimeEntries] (
-        [Id]                  INT              NOT NULL IDENTITY(1,1),
-        [BudgetId]            INT              NOT NULL,
-        [UserId]              NVARCHAR(450)    NOT NULL,
-        [JobId]               INT             NOT NULL,
-        [Date]                DATE            NOT NULL,
-        [StartTime]           TIME             NULL,
-        [EndTime]             TIME             NULL,
-        [DurationMinutes]     INT              NOT NULL DEFAULT 0,
-        [Description]         NVARCHAR(500)    NULL,
-        [IsBreak]             BIT              NOT NULL DEFAULT 0,
-        [HourlyRateOverride]  DECIMAL(10,2)    NULL,
-        [LinkedTransactionId] INT              NULL,
-        [PayrollPeriodKey]    NVARCHAR(20)     NULL,
-        [CreatedAt]           DATETIME2        NOT NULL DEFAULT GETUTCDATE(),
-        CONSTRAINT [PK_TimeEntries] PRIMARY KEY ([Id]),
-        CONSTRAINT [FK_TimeEntries_Budgets] FOREIGN KEY ([BudgetId]) REFERENCES [Budgets]([Id]) ON DELETE CASCADE,
-        CONSTRAINT [FK_TimeEntries_Jobs] FOREIGN KEY ([JobId]) REFERENCES [Jobs]([Id])
-    );
-END
-""");
-
-        await db.Database.ExecuteSqlRawAsync("""
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Loans')
-BEGIN
-    CREATE TABLE [Loans] (
-        [Id]             INT           NOT NULL IDENTITY(1,1),
-        [BudgetId]       INT          NOT NULL,
-        [UserId]         NVARCHAR(450) NOT NULL,
-        [LoanType]       INT           NOT NULL DEFAULT 0,
-        [Name]           NVARCHAR(200) NOT NULL,
-        [LenderName]     NVARCHAR(200) NULL,
-        [OriginalAmount] DECIMAL(18,2) NOT NULL DEFAULT 0,
-        [CurrentBalance] DECIMAL(18,2) NOT NULL DEFAULT 0,
-        [InterestRate]   DECIMAL(6,4)  NOT NULL DEFAULT 0,
-        [MonthlyPayment] DECIMAL(18,2) NOT NULL DEFAULT 0,
-        [PayoffDate]     DATE          NULL,
-        [StartDate]      DATE          NOT NULL,
-        [IsActive]       BIT           NOT NULL DEFAULT 1,
-        [Notes]          NVARCHAR(MAX) NULL,
-        [CreatedAt]      DATETIME2     NOT NULL DEFAULT GETUTCDATE(),
-        CONSTRAINT [PK_Loans] PRIMARY KEY ([Id]),
-        CONSTRAINT [FK_Loans_Budgets] FOREIGN KEY ([BudgetId]) REFERENCES [Budgets]([Id]) ON DELETE CASCADE
-    );
-END
-""");
-
-        await db.Database.ExecuteSqlRawAsync("""
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Insurances')
-BEGIN
-    CREATE TABLE [Insurances] (
-        [Id]            INT           NOT NULL IDENTITY(1,1),
-        [BudgetId]      INT           NOT NULL,
-        [UserId]        NVARCHAR(450) NOT NULL,
-        [InsuranceType] INT           NOT NULL DEFAULT 0,
-        [Name]          NVARCHAR(200) NOT NULL,
-        [Provider]      NVARCHAR(200) NULL,
-        [PremiumAmount] DECIMAL(18,2) NOT NULL DEFAULT 0,
-        [PayPeriod]     INT           NOT NULL DEFAULT 0,
-        [StartDate]     DATE          NOT NULL,
-        [RenewalDate]   DATE          NULL,
-        [PolicyNumber]  NVARCHAR(100) NULL,
-        [IsActive]      BIT           NOT NULL DEFAULT 1,
-        [Notes]         NVARCHAR(MAX) NULL,
-        [CreatedAt]     DATETIME2     NOT NULL DEFAULT GETUTCDATE(),
-        CONSTRAINT [PK_Insurances] PRIMARY KEY ([Id]),
-        CONSTRAINT [FK_Insurances_Budgets] FOREIGN KEY ([BudgetId]) REFERENCES [Budgets]([Id]) ON DELETE CASCADE
-    );
-END
-""");
-
-        await db.Database.ExecuteSqlRawAsync("""
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'SickLeaveEntries')
-BEGIN
-    CREATE TABLE [SickLeaveEntries] (
-        [Id]                  INT           NOT NULL IDENTITY(1,1),
-        [BudgetId]            INT           NOT NULL,
-        [UserId]              NVARCHAR(450) NOT NULL,
-        [StartDate]           DATE          NOT NULL,
-        [EndDate]             DATE          NOT NULL,
-        [SickLeaveType]       INT           NOT NULL DEFAULT 0,
-        [AnnualSgi]           DECIMAL(18,2) NOT NULL DEFAULT 0,
-        [GrossMonthlySalary]  DECIMAL(18,2) NOT NULL DEFAULT 0,
-        [Notes]               NVARCHAR(MAX) NULL,
-        [LinkedTransactionId] INT           NULL,
-        [CreatedAt]           DATETIME2     NOT NULL DEFAULT GETUTCDATE(),
-        CONSTRAINT [PK_SickLeaveEntries] PRIMARY KEY ([Id]),
-        CONSTRAINT [FK_SickLeave_Budgets] FOREIGN KEY ([BudgetId]) REFERENCES [Budgets]([Id]) ON DELETE CASCADE
-    );
-END
-""");
-
-        await db.Database.ExecuteSqlRawAsync("""
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'BudgetTargets')
-BEGIN
-    CREATE TABLE [BudgetTargets] (
-        [Id]           INT           NOT NULL IDENTITY(1,1),
-        [BudgetId]     INT           NOT NULL,
-        [CategoryId]   INT           NOT NULL,
-        [Year]         INT           NOT NULL,
-        [Month]        INT           NOT NULL,
-        [TargetAmount] DECIMAL(18,2) NOT NULL DEFAULT 0,
-        [Notes]        NVARCHAR(500) NULL,
-        [CreatedAt]    DATETIME2     NOT NULL DEFAULT GETUTCDATE(),
-        CONSTRAINT [PK_BudgetTargets] PRIMARY KEY ([Id]),
-        CONSTRAINT [UQ_BudgetTargets] UNIQUE ([BudgetId],[CategoryId],[Year],[Month]),
-        CONSTRAINT [FK_BudgetTargets_Budgets] FOREIGN KEY ([BudgetId]) REFERENCES [Budgets]([Id]) ON DELETE CASCADE
-    );
-END
-""");
-
-        await db.Database.ExecuteSqlRawAsync("""
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'CategoryAccountMappings')
-BEGIN
-    CREATE TABLE [CategoryAccountMappings] (
-        [Id]          INT           NOT NULL IDENTITY(1,1),
-        [BudgetId]    INT           NOT NULL,
-        [CategoryId]  INT           NOT NULL,
-        [BasAccount]  NVARCHAR(20)  NOT NULL,
-        [AccountName] NVARCHAR(200) NOT NULL,
-        CONSTRAINT [PK_CategoryAccountMappings] PRIMARY KEY ([Id]),
-        CONSTRAINT [UQ_CategoryAccountMappings] UNIQUE ([BudgetId],[CategoryId]),
-        CONSTRAINT [FK_CatAccMap_Budgets] FOREIGN KEY ([BudgetId]) REFERENCES [Budgets]([Id]) ON DELETE CASCADE
-    );
-END
-""");
-
-        // Column guards
-        await db.Database.ExecuteSqlRawAsync("""
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='MilersattningEntries' AND COLUMN_NAME='IsRoundTrip')
-    ALTER TABLE [MilersattningEntries] ADD [IsRoundTrip]  BIT           NOT NULL DEFAULT 0;
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='MilersattningEntries' AND COLUMN_NAME='PayerName')
-    ALTER TABLE [MilersattningEntries] ADD [PayerName]    NVARCHAR(200) NULL;
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='MilersattningEntries' AND COLUMN_NAME='Status')
-    ALTER TABLE [MilersattningEntries] ADD [Status]       INT           NOT NULL DEFAULT 0;
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='MilersattningEntries' AND COLUMN_NAME='SubmittedAt')
-    ALTER TABLE [MilersattningEntries] ADD [SubmittedAt]  DATETIME2     NULL;
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='MilersattningEntries' AND COLUMN_NAME='ApprovedAt')
-    ALTER TABLE [MilersattningEntries] ADD [ApprovedAt]   DATETIME2     NULL;
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='MilersattningEntries' AND COLUMN_NAME='PaidAt')
-    ALTER TABLE [MilersattningEntries] ADD [PaidAt]       DATETIME2     NULL;
-""");
-
-        await db.Database.ExecuteSqlRawAsync("""
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Transactions' AND COLUMN_NAME='ReceiptStatus')
-    ALTER TABLE [Transactions] ADD [ReceiptStatus] INT NOT NULL DEFAULT 0;
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Transactions' AND COLUMN_NAME='WaivedReason')
-    ALTER TABLE [Transactions] ADD [WaivedReason] NVARCHAR(500) NULL;
-IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Categories' AND COLUMN_NAME='IsReceiptRequired')
-    ALTER TABLE [Categories] ADD [IsReceiptRequired] BIT NOT NULL DEFAULT 0;
-""");
-
-        // ── Skip if users already exist ───────────────────────────────────────
+        // ── 1. Säkerställ att vi inte seedar om det redan finns användare ────────
         if (await users.Users.AnyAsync())
         {
-            log.LogDebug("DbInitializer: users already exist, skipping seed.");
             return;
         }
 
+        // ── 2. Hämta config ──────────────────────────────────────────────────────
         var email = cfg["AdminSetup:Email"];
         var password = cfg["AdminSetup:Password"];
-        var firstName = cfg["AdminSetup:FirstName"] ?? "Admin";
-        var lastName = cfg["AdminSetup:LastName"] ?? "Budgetsson";
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password)) return;
 
-        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
-        {
-            log.LogWarning("DbInitializer: AdminSetup:Email / AdminSetup:Password not configured.");
-            return;
-        }
-
+        // ── 3. Skapa Admin ───────────────────────────────────────────────────────
         var admin = new ApplicationUser
         {
             UserName = email,
             Email = email,
             EmailConfirmed = true,
-            FirstName = firstName,
-            LastName = lastName,
+            FirstName = cfg["AdminSetup:FirstName"] ?? "Admin",
+            LastName = cfg["AdminSetup:LastName"] ?? "Budgetsson",
             DisplayName = "admin"
         };
 
         var result = await users.CreateAsync(admin, password);
         if (!result.Succeeded)
         {
-            log.LogError("DbInitializer: failed to create admin — {Errors}",
-                string.Join(", ", result.Errors.Select(e => e.Description)));
+            log.LogError("Seed failed: {Errors}", string.Join(", ", result.Errors.Select(e => e.Description)));
             return;
         }
 
-        // Create initial budget + owner membership
-        var budget = new Budget { Name = $"{firstName}s budget", OwnerId = admin.Id };
+        // ── 4. Skapa Budget & Membership via EF (inte SQL) ───────────────────────
+        var budget = new Budget { Name = $"{admin.FirstName}s budget", OwnerId = admin.Id };
         db.Budgets.Add(budget);
+
+        // Vi måste spara här för att få ett BudgetId
         await db.SaveChangesAsync();
 
         db.BudgetMemberships.Add(new BudgetMembership
@@ -343,16 +62,15 @@ IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Catego
             Role = BudgetMemberRole.Owner,
             AcceptedAt = DateTime.UtcNow
         });
+
+        // ── 5. Skapa Subscription via EF (Antar att du har en Model för denna) ──
+        // Om du har en modell för UserSubscription, använd den. 
+        // Annars kan du köra din SQL, men bara för INSERT, inte för CREATE TABLE.
+        await db.Database.ExecuteSqlRawAsync(
+            "INSERT INTO [UserSubscriptions] ([UserId],[Tier],[IsAdmin],[CreatedAt],[UpdatedAt]) VALUES ({0}, 0, 1, GETUTCDATE(), GETUTCDATE())",
+            admin.Id);
+
         await db.SaveChangesAsync();
-
-        // ── FIX: Create admin subscription with IsAdmin=true ──────────────────
-        await db.Database.ExecuteSqlRawAsync("""
-INSERT INTO [UserSubscriptions]
-    ([UserId],[Tier],[IsAdmin],[CreatedAt],[UpdatedAt])
-VALUES
-    ({0}, 0, 1, GETUTCDATE(), GETUTCDATE())
-""", admin.Id);
-
-        log.LogInformation("DbInitializer: initial admin created — {Email} (IsAdmin=true)", email);
+        log.LogInformation("Database seeded successfully with admin: {Email}", email);
     }
 }
