@@ -189,7 +189,7 @@ using (var scope = app.Services.CreateScope())
 
         // 2. Kör din seeding (skicka in context eller services)
         // Se till att InitializeAsync internt kollar om data redan finns!
-        await DbInitializer.InitializeAsync(services);
+       
     }
     catch (Exception ex)
     {
