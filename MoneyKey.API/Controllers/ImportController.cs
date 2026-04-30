@@ -22,19 +22,38 @@ public class ImportController : BaseApiController
     { _svc = svc; _auth = auth; _hub = hub; _signalRFeature = signalRFeature; }
 
     /// <summary>
-    /// Parses an uploaded CSV file, auto-detects columns, and returns a preview
-    /// of the rows found along with a session ID for confirming the import.
-    /// No bank profiles — column detection is automatic.
+    /// Parses an uploaded CSV file and returns a preview.
+    /// Optional query params: dateColIndex, amountColIndex, descColIndex
+    /// allow the client to specify column positions when auto-detection fails.
     /// </summary>
     [HttpPost("preview")]
     [RequestSizeLimit(10 * 1024 * 1024)]
-    public async Task<IActionResult> Preview(int budgetId, IFormFile file)
+    public async Task<IActionResult> Preview(
+        int budgetId,
+        IFormFile file,
+        [FromQuery] int? dateColIndex = null,
+        [FromQuery] int? amountColIndex = null,
+        [FromQuery] int? descColIndex = null)
     {
         if (!await _auth.HasRoleAsync(budgetId, UserId, BudgetMemberRole.Editor)) return Forbid();
         if (file == null || file.Length == 0) return BadRequest("Ingen fil uppladdad.");
 
         await using var stream = file.OpenReadStream();
-        var session = await _svc.PreviewAsync(stream, budgetId, UserId);
+
+        ImportSessionDto session;
+        if (dateColIndex.HasValue && amountColIndex.HasValue)
+        {
+            // Manual column mapping requested
+            session = await _svc.PreviewWithMappingAsync(
+                stream, budgetId, UserId,
+                dateColIndex.Value, amountColIndex.Value, descColIndex ?? -1);
+        }
+        else
+        {
+            // Auto-detect
+            session = await _svc.PreviewAsync(stream, budgetId, UserId);
+        }
+
         return Ok(session);
     }
 
