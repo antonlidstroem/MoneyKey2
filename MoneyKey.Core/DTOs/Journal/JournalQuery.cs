@@ -24,5 +24,7 @@ public class JournalQuery
     public decimal? AmountMax          { get; set; }
     public bool     FilterByCreatedBy  { get; set; }
     public string?  CreatedByUserId    { get; set; }
+    public string? QuickSearch { get; set; }
     public List<ReceiptBatchStatus> ReceiptStatuses { get; set; } = new();
+
 }

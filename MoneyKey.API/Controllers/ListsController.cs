@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MoneyKey.API.Filters;
 using MoneyKey.API.Services;
 using MoneyKey.Core.DTOs.Lists;
 using MoneyKey.DAL.Repositories.Interfaces;
@@ -8,6 +9,7 @@ using MoneyKey.Domain.Models;
 
 namespace MoneyKey.API.Controllers;
 
+[RequireFeature("Lists")]
 [Authorize, Route("api/budgets/{budgetId:int}/lists")]
 public class ListsController : BaseApiController
 {

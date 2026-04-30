@@ -1,0 +1,954 @@
+﻿@inject TransactionService TxSvc
+@inject MilersattningApiService MiSvc
+@inject VabApiService VabSvc
+@inject ListApiService ListSvc
+@inject InsuranceApiService InsSvc
+@inject JobApiService JobSvc
+@inject LoanApiService LoanSvc
+@inject SickLeaveApiService SickSvc
+@inject TimeEntryApiService TimeSvc
+@inject ToastService Toast
+@inject BudgetState BudgetState
+@inject HttpClient Http
+
+@if (IsVisible)
+{
+    <div class="modal-overlay" @onclick="Cancel" @onkeydown='k => { if (k.Key == "Escape") Cancel(); }'>
+        <div class="modal" style="max-width:660px;max-height:92vh;overflow-y:auto" @onclick:stopPropagation>
+            <div class="modal-header">
+                <span class="modal-title">@(EditTx != null ? "Redigera transaktion" : "Ny post")</span>
+                <button class="btn btn-ghost btn-icon btn-sm" @onclick="Cancel">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                @* ── Kind selector (new entries only) ─────────────────────── *@
+                @if (EditTx == null)
+                {
+                    <div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--color-border)">
+                        <div style="font-size:.75rem;font-weight:600;color:var(--color-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Typ av post</div>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap">
+                            @foreach (var kind in AvailableKinds)
+                            {
+                                var k = kind;
+                                <button class="btn btn-sm @(_kind == k ? "btn-primary" : "btn-secondary")"
+                                        title="@KindTooltip(k)" @onclick="() => SetKind(k)">
+                                    <span class="material-icons" style="font-size:.85rem">@KindIcon(k)</span> @KindLabel(k)
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <div style="background:var(--color-expense-bg);color:var(--color-expense);padding:8px 12px;border-radius:8px;font-size:.85rem;margin-bottom:12px">@_error</div>
+                }
+
+                @* ══════════════════════════════════════════════════════════
+                    TRANSAKTION
+                ══════════════════════════════════════════════════════════ *@
+                @if (_kind == EntryKind.Transaction)
+                {
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Datum *</label>
+                            <input type="date" class="form-control" value="@_txDate.ToString("yyyy-MM-dd")"
+                                   @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _txDate = d; }' />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Typ *</label>
+                            <select class="form-control" @bind="_txType">
+                                <option value="@TransactionType.Expense">Utgift</option>
+                                <option value="@TransactionType.Income">Inkomst</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Beskrivning</label>
+                        <input class="form-control" @bind="_txDescription" placeholder="T.ex. ICA Maxi, Hyra..." />
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Nettobelopp (kr) *</label>
+                            <input type="number" step="0.01" class="form-control" @bind="_txAmount" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Kategori *</label>
+                            <select class="form-control" @bind="_txCategoryId">
+                                <option value="0">-- Välj --</option>
+                                @foreach (var cat in Categories) { <option value="@cat.Id">@cat.Name</option> }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Återkommande</label>
+                            <select class="form-control" @bind="_txRecurrence">
+                                <option value="@Recurrence.OneTime">Engång</option>
+                                <option value="@Recurrence.Monthly">Månadsvis</option>
+                                <option value="@Recurrence.Yearly">Årsvis</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Projekt</label>
+                            <select class="form-control" @bind="_txProjectId">
+                                <option value="0">Inget projekt</option>
+                                @foreach (var proj in Projects) { <option value="@proj.Id">@proj.Name</option> }
+                            </select>
+                        </div>
+                    </div>
+                    @if (_txRecurrence != Recurrence.OneTime)
+                    {
+                        <div class="form-group">
+                            <label class="form-label">Slutdatum (valfritt)</label>
+                            <input type="date" class="form-control" value="@(_txEndDate?.ToString("yyyy-MM-dd") ?? "")"
+                                   @onchange='e => { var s = e.Value?.ToString(); _txEndDate = string.IsNullOrEmpty(s) ? null : DateTime.TryParse(s, out var d) ? d : _txEndDate; }' />
+                        </div>
+                    }
+                    <div style="margin-top:14px">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                            <span style="font-weight:500;font-size:.875rem">Kontering (valfritt)</span>
+                            <button class="btn btn-ghost btn-sm" @onclick="() => _txKontering.Add(new KonteringRowDto())">
+                                <span class="material-icons" style="font-size:.85rem">add</span> Rad
+                            </button>
+                        </div>
+                        @foreach (var (row, idx) in _txKontering.Select((r, i) => (r, i)))
+                        {
+                            var i2 = idx;
+                            <div style="display:grid;grid-template-columns:100px 90px 1fr auto;gap:6px;margin-bottom:6px;align-items:center">
+                                <input class="form-control" placeholder="Kontonr" @bind="row.KontoNr" />
+                                <input type="number" step="0.01" class="form-control" placeholder="Belopp" @bind="row.Amount" />
+                                <input class="form-control" placeholder="Beskrivning" @bind="row.Description" />
+                                <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => _txKontering.RemoveAt(i2)">
+                                    <span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span>
+                                </button>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @* ══════════════════════════════════════════════════════════
+                    MILERSÄTTNING
+                ══════════════════════════════════════════════════════════ *@
+                @if (_kind == EntryKind.Milersattning)
+                {
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Datum *</label>
+                            <input type="date" class="form-control" value="@_miDate.ToString("yyyy-MM-dd")"
+                                   @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _miDate = d; }' />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Distans km (enkel väg) *</label>
+                            <input type="number" step="0.1" class="form-control" @bind="_miKm" />
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom:8px">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.875rem">
+                            <input type="checkbox" @bind="_miRoundTrip" />
+                            Tur-retur · Effektiv sträcka: <strong>@((_miKm * (_miRoundTrip ? 2 : 1)).ToString("N0")) km</strong>
+                        </label>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Från *</label>
+                            <input class="form-control" @bind="_miFrom" placeholder="T.ex. Hemma" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Till *</label>
+                            <input class="form-control" @bind="_miTo" placeholder="T.ex. Kund AB" />
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Taxa (kr/km) *</label>
+                            <input type="number" step="0.01" class="form-control" @bind="_miRate" />
+                            @if (_miRate != 2.5m) { <div style="font-size:.74rem;color:var(--color-warning);margin-top:3px">Standard är 2,50 kr/km (Skatteverket 2024)</div> }
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Betalas av</label>
+                            <input class="form-control" @bind="_miPayer" placeholder="Arbetsgivare, Kund..." />
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Syfte</label>
+                        <input class="form-control" @bind="_miPurpose" placeholder="T.ex. Kundbesök" />
+                    </div>
+                    <div style="background:var(--color-income-bg);border-radius:8px;padding:10px 14px;font-size:.875rem">
+                        Ersättning: <strong style="color:var(--color-income)">+@((_miKm * (_miRoundTrip ? 2 : 1) * _miRate).ToString("N2")) kr</strong>
+                    </div>
+                }
+
+@* ══════════════════════════════════════════════════════════
+    VAB
+══════════════════════════════════════════════════════════ *@
+@if (_kind == EntryKind.Vab)
+{
+    <div class="form-group">
+        <label class="form-label">Barnets namn (valfritt)</label>
+        <input class="form-control" @bind="_vabChild" placeholder="T.ex. Emma" />
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label class="form-label">Startdatum *</label>
+            <input type="date" class="form-control" value="@_vabStart.ToString("yyyy-MM-dd")"
+                   @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _vabStart = d; }' />
+        </div>
+        <div class="form-group">
+            <label class="form-label">Slutdatum *</label>
+            <input type="date" class="form-control" value="@_vabEnd.ToString("yyyy-MM-dd")"
+                   @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _vabEnd = d; }' />
+        </div>
+    </div>
+    @if (Jobs.Any(j => j.PayType == JobPayType.Monthly && j.GrossAmount > 0))
+    {
+        <div class="form-group">
+            <label class="form-label">Hämta SGI från inkomstkälla (valfritt)</label>
+            <select class="form-control" @bind="_vabJobId" @bind:after="OnVabJobChanged">
+                <option value="0">-- Välj jobb --</option>
+                @foreach (var j in Jobs.Where(j => j.PayType == JobPayType.Monthly && j.GrossAmount > 0))
+                { <option value="@j.Id">@j.Name (@j.GrossAmount?.ToString("N0") kr/mån)</option> }
+            </select>
+        </div>
+    }
+    <div class="form-row">
+        <div class="form-group">
+            <label class="form-label">SGI (årsbelopp, kr)</label>
+            <input type="number" step="1000" class="form-control" @bind="_vabSgi" @bind:after="OnVabSgiChanged" />
+        </div>
+        <div class="form-group">
+            <label class="form-label">Dagersättning (kr)</label>
+            <input type="number" step="0.01" class="form-control" value="@(_vabDailyBenefit.ToString("N2"))"
+                   @onchange='e => { if (decimal.TryParse(e.Value?.ToString(), out var v)) _vabDailyBenefit = v; }' />
+        </div>
+    </div>
+    
+        // Beräkning sker i @{ } så att variablerna är tillgängliga i efterföljande markup
+        var vDays  = Math.Max(1, (int)(_vabEnd - _vabStart).TotalDays + 1);
+        var vTotal = vDays * _vabDailyBenefit * 0.8m;
+    
+    <div style="background:var(--color-bg);border-radius:8px;padding:10px 14px;font-size:.85rem;line-height:1.6">
+        <div>Dagar: <strong>@vDays</strong></div>
+        <div>Utebliven inkomst: <strong style="color:var(--color-warning)">-@vTotal.ToString("N2") kr</strong></div>
+    </div>
+}
+
+                @* ══════════════════════════════════════════════════════════
+                    LISTA
+                ══════════════════════════════════════════════════════════ *@
+                @if (_kind == EntryKind.Lista)
+                {
+                    <div class="form-group">
+                        <label class="form-label">Namn *</label>
+                        <input class="form-control" @bind="_listName" placeholder="T.ex. Inköpslista..." />
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Typ</label>
+                            <select class="form-control" @bind="_listType">
+                                <option value="@ListType.CheckList">✅ Checklista</option>
+                                <option value="@ListType.Shopping">🛒 Inköpslista</option>
+                                <option value="@ListType.Custom">📊 Progresslista</option>
+                                <option value="@ListType.ToDo">📝 Att-göra</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Synlighet</label>
+                            <select class="form-control" @bind="_listVisibility">
+                                <option value="@EntryVisibility.BudgetShared">Delad med budget</option>
+                                <option value="@EntryVisibility.Private">Privat</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Taggar (valfritt)</label>
+                        <input class="form-control" @bind="_listTags" placeholder="arbete, privat (komma-separerade)" />
+                    </div>
+                }
+
+                @* ══════════════════════════════════════════════════════════
+                    ANTECKNING
+                ══════════════════════════════════════════════════════════ *@
+                @if (_kind == EntryKind.Anteckning)
+                {
+                    <div class="form-group">
+                        <label class="form-label">Titel *</label>
+                        <input class="form-control" @bind="_listName" placeholder="T.ex. Mötesanteckningar..." />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Innehåll</label>
+                        <textarea class="form-control" rows="6" @bind="_listContent" placeholder="Skriv din anteckning..."></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Taggar</label>
+                            <input class="form-control" @bind="_listTags" placeholder="möte, projekt-x..." />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Synlighet</label>
+                            <select class="form-control" @bind="_listVisibility">
+                                <option value="@EntryVisibility.BudgetShared">Delad</option>
+                                <option value="@EntryVisibility.Private">Privat</option>
+                            </select>
+                        </div>
+                    </div>
+                }
+
+                @* ══════════════════════════════════════════════════════════
+                    INKOMSTKÄLLA
+                ══════════════════════════════════════════════════════════ *@
+                @if (_kind == EntryKind.Inkomstkalla)
+                {
+                    <div class="form-group">
+                        <label class="form-label">Namn *</label>
+                        <input class="form-control" @bind="_jobName" placeholder="T.ex. Konsultuppdrag Kund AB" />
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Arbetsgivare / Kund</label>
+                            <input class="form-control" @bind="_jobEmployer" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Anställningstyp *</label>
+                            <select class="form-control" @bind="_jobPayType">
+                                <option value="@JobPayType.Monthly">Månadsanställd</option>
+                                <option value="@JobPayType.Hourly">Timbaserad</option>
+                                <option value="@JobPayType.Yearly">Årsanställd</option>
+                                <option value="@JobPayType.ProjectFixed">Projektbaserad</option>
+                            </select>
+                        </div>
+                    </div>
+                    @if (_jobPayType == JobPayType.Hourly)
+                    {
+                        <div class="form-group">
+                            <label class="form-label">Timtaxa (kr/tim)</label>
+                            <input class="form-control" type="number" step="50" @bind="_jobHourlyRate" />
+                        </div>
+                    }
+                    else if (_jobPayType is JobPayType.Monthly or JobPayType.Yearly)
+                    {
+                        <div class="form-group">
+                            <label class="form-label">@(_jobPayType == JobPayType.Monthly ? "Månadslön brutto (kr)" : "Årsbrutto (kr)")</label>
+                            <input class="form-control" type="number" step="1000" @bind="_jobGrossAmount" />
+                        </div>
+                    }
+                    <div class="form-group">
+                        <label class="form-label">Transaktionsläge</label>
+                        <select class="form-control" @bind="_jobTxMode">
+                            <option value="@JobTransactionMode.AutoCreate">Automatiska transaktioner</option>
+                            <option value="@JobTransactionMode.ManualOnly">Manuella transaktioner</option>
+                        </select>
+                    </div>
+                }
+
+                @* ══════════════════════════════════════════════════════════
+                    FÖRSÄKRING
+                ══════════════════════════════════════════════════════════ *@
+                @if (_kind == EntryKind.Forsäkring)
+                {
+                    <div class="form-group">
+                        <label class="form-label">Namn *</label>
+                        <input class="form-control" @bind="_insName" placeholder="T.ex. Hemförsäkring Folksam" />
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Försäkringstyp</label>
+                            <select class="form-control" @bind="_insType">
+                                <option value="@InsuranceType.Home">🏠 Hemförsäkring</option>
+                                <option value="@InsuranceType.Car">🚗 Bilförsäkring</option>
+                                <option value="@InsuranceType.Life">❤️ Livförsäkring</option>
+                                <option value="@InsuranceType.Accident">🩹 Olycksfallsförsäkring</option>
+                                <option value="@InsuranceType.IncomeLoss">💼 Inkomstförsäkring</option>
+                                <option value="@InsuranceType.Pension">🏦 Pensionsförsäkring</option>
+                                <option value="@InsuranceType.Health">🏥 Sjukvårdsförsäkring</option>
+                                <option value="@InsuranceType.Other">Övrigt</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Bolag</label>
+                            <input class="form-control" @bind="_insProvider" />
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Premie (kr) *</label>
+                            <input class="form-control" type="number" @bind="_insPremium" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Betalperiod</label>
+                            <select class="form-control" @bind="_insPayPeriod">
+                                <option value="@InsurancePayPeriod.Monthly">Månadsvis</option>
+                                <option value="@InsurancePayPeriod.Quarterly">Kvartalsvis</option>
+                                <option value="@InsurancePayPeriod.Yearly">Årsvis</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Startdatum</label>
+                            <input class="form-control" type="date" value="@_insStartDate.ToString("yyyy-MM-dd")"
+                                   @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _insStartDate = d; }' />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Förnyelsedatum</label>
+                            <input class="form-control" type="date" value="@(_insRenewalDate?.ToString("yyyy-MM-dd") ?? "")"
+                                   @onchange='e => { var s = e.Value?.ToString(); _insRenewalDate = string.IsNullOrEmpty(s) ? null : DateTime.TryParse(s, out var d) ? d : _insRenewalDate; }' />
+                        </div>
+                    </div>
+                }
+
+                @* ══════════════════════════════════════════════════════════
+                    LÅN
+                ══════════════════════════════════════════════════════════ *@
+                @if (_kind == EntryKind.Lan)
+                {
+                    <div class="form-group">
+                        <label class="form-label">Namn *</label>
+                        <input class="form-control" @bind="_loanName" placeholder="T.ex. Bolån Nordea" />
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Typ</label>
+                            <select class="form-control" @bind="_loanType">
+                                <option value="@LoanType.Mortgage">🏠 Bolån</option>
+                                <option value="@LoanType.CarLoan">🚗 Billån</option>
+                                <option value="@LoanType.StudentLoan">🎓 Studielån</option>
+                                <option value="@LoanType.PersonalLoan">💳 Privatlån</option>
+                                <option value="@LoanType.CreditCard">💳 Kreditkort</option>
+                                <option value="@LoanType.Other">Övrigt</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Långivare</label>
+                            <input class="form-control" @bind="_loanLender" />
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Ursprungsbelopp (kr) *</label>
+                            <input class="form-control" type="number" @bind="_loanOriginal" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Nuvarande saldo (kr) *</label>
+                            <input class="form-control" type="number" @bind="_loanBalance" />
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Årsränta (%)</label>
+                            <input class="form-control" type="number" step="0.01" @bind="_loanRate" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Månadsbetalning (kr)</label>
+                            <input class="form-control" type="number" @bind="_loanMonthly" />
+                        </div>
+                    </div>
+                }
+
+                @* ══════════════════════════════════════════════════════════
+                    SJUKFRÅNVARO
+                ══════════════════════════════════════════════════════════ *@
+                @if (_kind == EntryKind.Sjukfranvaro)
+                {
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Startdatum *</label>
+                            <input class="form-control" type="date" value="@_sickStart.ToString("yyyy-MM-dd")"
+                                   @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _sickStart = d; }' />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Slutdatum *</label>
+                            <input class="form-control" type="date" value="@_sickEnd.ToString("yyyy-MM-dd")"
+                                   @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _sickEnd = d; }' />
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Månadslön brutto (kr) *</label>
+                            <input class="form-control" type="number" step="1000" @bind="_sickGrossSalary" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">SGI (årsbelopp, kr)</label>
+                            <input class="form-control" type="number" step="1000" @bind="_sickSgi" />
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Typ</label>
+                        <select class="form-control" @bind="_sickType">
+                            <option value="@SickLeaveType.SelfCertificate">Egenanmälan (dag 1–7)</option>
+                            <option value="@SickLeaveType.DoctorCertificate">Läkarintyg (dag 8+)</option>
+                        </select>
+                    </div>
+                    @if (_sickStart <= _sickEnd && _sickGrossSalary > 0)
+                    {
+                        var sDays   = (int)(_sickEnd - _sickStart).TotalDays + 1;
+                        var sDaily  = _sickGrossSalary * 12m / 365m;
+                        var sEmpD   = Math.Max(0, Math.Min(sDays - 1, 13));
+                        var sFkD    = Math.Max(0, sDays - 14);
+                        var sEmpPay = sEmpD * sDaily * 0.8m;
+                        var sFkPay  = sFkD * (_sickSgi / 365m) * 0.8m;
+                        var sLost   = sDays * sDaily - sEmpPay - sFkPay;
+                        <div style="background:var(--color-bg);border-radius:8px;padding:10px 14px;font-size:.82rem;line-height:1.9">
+                            <div>Dagar: <strong>@sDays</strong> (1 karensdag)</div>
+                            <div>Sjuklön: <strong style="color:var(--color-income)">@sEmpPay.ToString("N0") kr</strong></div>
+                            @if (sFkD > 0) { <div>FK: <strong style="color:var(--color-income)">@sFkPay.ToString("N0") kr</strong></div> }
+                            <div>Utebliven: <strong style="color:var(--color-expense)">-@sLost.ToString("N0") kr</strong></div>
+                        </div>
+                    }
+                }
+
+                @* ══════════════════════════════════════════════════════════
+                    TIDPOST
+                ══════════════════════════════════════════════════════════ *@
+                @if (_kind == EntryKind.Tidpost)
+                {
+                    <div class="form-group">
+                        <label class="form-label">Jobb *</label>
+                        <select class="form-control" @bind="_timeJobId">
+                            <option value="0">-- Välj jobb --</option>
+                            @foreach (var j in Jobs) { <option value="@j.Id">@j.Name (@j.PayTypeLabel)</option> }
+                        </select>
+                        @if (!Jobs.Any()) { <div style="font-size:.75rem;color:var(--color-muted);margin-top:3px">Inga inkomstkällor. Skapa en under Inkomstkällor.</div> }
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Datum *</label>
+                            <input class="form-control" type="date" value="@_timeDate.ToString("yyyy-MM-dd")"
+                                   @onchange='e => { if (DateTime.TryParse(e.Value?.ToString(), out var d)) _timeDate = d; }' />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Inmatningstyp</label>
+                            <select class="form-control" @bind="_timeManual">
+                                <option value="true">Manuell tid</option>
+                                <option value="false">Klockslag</option>
+                            </select>
+                        </div>
+                    </div>
+                    @if (_timeManual)
+                    {
+                        <div class="form-group">
+                            <label class="form-label">Tid</label>
+                            <div style="display:flex;gap:8px;align-items:center">
+                                <input class="form-control" type="number" min="0" max="24" @bind="_timeHours" style="width:80px" /> h
+                                <input class="form-control" type="number" min="0" max="59" @bind="_timeMinutes" style="width:80px" /> min
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Starttid</label>
+                                <input class="form-control" type="time" @bind="_timeStart" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Sluttid</label>
+                                <input class="form-control" type="time" @bind="_timeEnd" />
+                            </div>
+                        </div>
+                    }
+                    <div class="form-group">
+                        <label class="form-label">Beskrivning</label>
+                        <input class="form-control" @bind="_timeDesc" placeholder="Vad jobbade du med?" />
+                    </div>
+                }
+
+            </div>
+            <div class="modal-footer">
+                @if (EditTx != null)
+                {
+                    <button class="btn btn-ghost btn-sm" style="color:var(--color-expense);margin-right:auto"
+                            @onclick="DeleteTxAsync">Ta bort</button>
+                }
+                <button class="btn btn-secondary" @onclick="Cancel">Avbryt</button>
+                <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                    @if (_saving) { <span class="spinner" style="width:14px;height:14px;border-width:2px"></span> }
+                    @(EditTx != null ? "Uppdatera" : "Spara")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    // ── Parameters ────────────────────────────────────────────────────────────
+    [Parameter] public bool              IsVisible  { get; set; }
+    [Parameter] public TransactionDto?   EditTx     { get; set; }
+    [Parameter] public List<Category>    Categories { get; set; } = new();
+    [Parameter] public List<ProjectDto>  Projects   { get; set; } = new();
+    [Parameter] public List<JobDto>      Jobs       { get; set; } = new();
+    [Parameter] public EventCallback     OnSaved    { get; set; }
+    [Parameter] public EventCallback     OnCancelled { get; set; }
+
+    // ── Entry kind ────────────────────────────────────────────────────────────
+    enum EntryKind
+    {
+        Transaction, Milersattning, Vab, Lista, Anteckning,
+        Inkomstkalla, Forsäkring, Lan, Sjukfranvaro, Tidpost
+    }
+
+    private EntryKind _kind  = EntryKind.Transaction;
+    private bool      _saving;
+    private string    _error = "";
+
+    private IEnumerable<EntryKind> AvailableKinds =>
+        Enum.GetValues<EntryKind>().Where(k => IsKindEnabled(k));
+
+    private bool IsKindEnabled(EntryKind k) => k switch
+    {
+        EntryKind.Milersattning => BudgetState.IsFeatureEnabled("Milersattning"),
+        EntryKind.Vab           => BudgetState.IsFeatureEnabled("Vab"),
+        EntryKind.Sjukfranvaro  => BudgetState.IsFeatureEnabled("SickLeave"),
+        EntryKind.Forsäkring    => BudgetState.IsFeatureEnabled("Insurance"),
+        EntryKind.Lan           => BudgetState.IsFeatureEnabled("Loans"),
+        EntryKind.Tidpost       => BudgetState.IsFeatureEnabled("TimeTracking"),
+        EntryKind.Inkomstkalla  => BudgetState.IsFeatureEnabled("TimeTracking"),
+        _ => true
+    };
+
+    // ── Transaction form state ────────────────────────────────────────────────
+    private DateTime              _txDate        = DateTime.Today;
+    private DateTime?             _txEndDate;
+    private decimal               _txAmount;
+    private string?               _txDescription;
+    private int                   _txCategoryId, _txProjectId;
+    private TransactionType       _txType        = TransactionType.Expense;
+    private Recurrence            _txRecurrence  = Recurrence.OneTime;
+    private List<KonteringRowDto> _txKontering   = new();
+
+    // ── Milersättning form state ──────────────────────────────────────────────
+    private DateTime _miDate     = DateTime.Today;
+    private decimal  _miKm, _miRate = 2.5m;
+    private bool     _miRoundTrip;
+    private string   _miFrom = "", _miTo = "", _miPurpose = "", _miPayer = "";
+
+    // ── VAB form state ────────────────────────────────────────────────────────
+    private DateTime _vabStart = DateTime.Today, _vabEnd = DateTime.Today;
+    private string?  _vabChild;
+    private decimal  _vabSgi, _vabDailyBenefit;
+    private int      _vabJobId;
+
+    // ── List/Note form state ──────────────────────────────────────────────────
+    private string          _listName        = "";
+    private string?         _listContent, _listTags;
+    private ListType        _listType        = ListType.CheckList;
+    private EntryVisibility _listVisibility  = EntryVisibility.BudgetShared;
+
+    // ── Insurance form state ──────────────────────────────────────────────────
+    private InsuranceType      _insType       = InsuranceType.Home;
+    private string             _insName       = "";
+    private string?            _insProvider;
+    private decimal            _insPremium;
+    private InsurancePayPeriod _insPayPeriod  = InsurancePayPeriod.Monthly;
+    private DateTime           _insStartDate  = DateTime.Today;
+    private DateTime?          _insRenewalDate;
+
+    // ── Job form state ────────────────────────────────────────────────────────
+    private string             _jobName      = "";
+    private string?            _jobEmployer;
+    private JobPayType         _jobPayType   = JobPayType.Monthly;
+    private JobTransactionMode _jobTxMode    = JobTransactionMode.AutoCreate;
+    private decimal?           _jobGrossAmount, _jobHourlyRate;
+
+    // ── Loan form state ───────────────────────────────────────────────────────
+    private string   _loanName      = "";
+    private LoanType _loanType      = LoanType.Mortgage;
+    private string?  _loanLender;
+    private decimal  _loanOriginal, _loanBalance, _loanRate, _loanMonthly;
+
+    // ── Sick leave form state ─────────────────────────────────────────────────
+    private DateTime      _sickStart      = DateTime.Today;
+    private DateTime      _sickEnd        = DateTime.Today;
+    private SickLeaveType _sickType       = SickLeaveType.SelfCertificate;
+    private decimal       _sickGrossSalary, _sickSgi;
+
+    // ── Time entry form state ─────────────────────────────────────────────────
+    private int      _timeJobId;
+    private DateTime _timeDate    = DateTime.Today;
+    private bool     _timeManual  = true;
+    private int      _timeHours, _timeMinutes;
+    private TimeOnly _timeStart, _timeEnd;
+    private string?  _timeDesc;
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    protected override void OnParametersSet()
+    {
+        // When a transaction is passed for editing, populate the form
+        if (EditTx != null && IsVisible)
+        {
+            _kind          = EntryKind.Transaction;
+            _txDate        = EditTx.StartDate;
+            _txEndDate     = EditTx.EndDate;
+            _txAmount      = Math.Abs(EditTx.NetAmount);
+            _txDescription = EditTx.Description;
+            _txCategoryId  = EditTx.CategoryId;
+            _txType        = EditTx.Type;
+            _txRecurrence  = EditTx.Recurrence;
+            _txProjectId   = EditTx.ProjectId ?? 0;
+            _txKontering   = EditTx.KonteringRows.ToList();
+        }
+    }
+
+    private void SetKind(EntryKind k)
+    {
+        _kind  = k;
+        _error = "";
+        if (k == EntryKind.Tidpost && Jobs.Any())
+            _timeJobId = Jobs.First().Id;
+    }
+
+    private void Cancel() => OnCancelled.InvokeAsync();
+
+    // ── Save ──────────────────────────────────────────────────────────────────
+
+    private async Task SaveAsync()
+    {
+        _saving = true; _error = "";
+        try
+        {
+            switch (_kind)
+            {
+                case EntryKind.Transaction:
+                    await SaveTransactionAsync(); break;
+                case EntryKind.Milersattning:
+                    await SaveMilersattningAsync(); break;
+                case EntryKind.Vab:
+                    await SaveVabAsync(); break;
+                case EntryKind.Lista:
+                    await SaveListaAsync(); break;
+                case EntryKind.Anteckning:
+                    await SaveAnteckningAsync(); break;
+                case EntryKind.Inkomstkalla:
+                    await SaveInkomstkallAsync(); break;
+                case EntryKind.Forsäkring:
+                    await SaveForsäkringAsync(); break;
+                case EntryKind.Lan:
+                    await SaveLanAsync(); break;
+                case EntryKind.Sjukfranvaro:
+                    await SaveSjukfranvaroAsync(); break;
+                case EntryKind.Tidpost:
+                    await SaveTidpostAsync(); break;
+            }
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task SaveTransactionAsync()
+    {
+        if (_txCategoryId == 0) { _error = "Välj en kategori."; return; }
+        var dto = new CreateTransactionDto
+        {
+            StartDate    = _txDate, EndDate = _txEndDate,
+            NetAmount    = _txAmount, Description = _txDescription,
+            CategoryId   = _txCategoryId, Type = _txType,
+            Recurrence   = _txRecurrence, IsActive = true,
+            ProjectId    = _txProjectId > 0 ? _txProjectId : null,
+            KonteringRows = _txKontering
+        };
+        if (EditTx == null)
+        {
+            await TxSvc.CreateAsync(BudgetState.ActiveBudgetId, dto);
+            Toast.Success("Transaktion sparad.");
+        }
+        else
+        {
+            var upd = new UpdateTransactionDto { Id = EditTx.Id };
+            // Copy all fields from dto
+            upd.StartDate = dto.StartDate; upd.EndDate = dto.EndDate;
+            upd.NetAmount = dto.NetAmount; upd.Description = dto.Description;
+            upd.CategoryId = dto.CategoryId; upd.Type = dto.Type;
+            upd.Recurrence = dto.Recurrence; upd.IsActive = dto.IsActive;
+            upd.ProjectId = dto.ProjectId; upd.KonteringRows = dto.KonteringRows;
+            await TxSvc.UpdateAsync(BudgetState.ActiveBudgetId, upd);
+            Toast.Success("Uppdaterad.");
+        }
+        await OnSaved.InvokeAsync();
+    }
+
+    private async Task SaveMilersattningAsync()
+    {
+        if (_miKm <= 0 || string.IsNullOrWhiteSpace(_miFrom) || string.IsNullOrWhiteSpace(_miTo))
+        { _error = "Fyll i från, till och distans."; return; }
+        await MiSvc.CreateAsync(BudgetState.ActiveBudgetId,
+            new CreateMilersattningDto(_miDate, _miFrom, _miTo, _miKm, _miRoundTrip, _miRate, _miPurpose, _miPayer));
+        Toast.Success("Milersättning sparad.");
+        await OnSaved.InvokeAsync();
+    }
+
+    private async Task SaveVabAsync()
+    {
+        if (_vabDailyBenefit <= 0 && _vabSgi <= 0) { _error = "Ange dagersättning eller SGI."; return; }
+        var daily = _vabDailyBenefit > 0 ? _vabDailyBenefit : VabService.CalculateDailyBenefit(_vabSgi);
+        await VabSvc.CreateAsync(BudgetState.ActiveBudgetId,
+            new CreateVabDto(_vabChild, _vabStart, _vabEnd, daily, 0.8m));
+        Toast.Success("VAB registrerat.");
+        await OnSaved.InvokeAsync();
+    }
+
+    private async Task SaveListaAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_listName)) { _error = "Ange ett namn."; return; }
+        await ListSvc.CreateAsync(BudgetState.ActiveBudgetId,
+            new CreateListDto(_listName.Trim(), _listType, null, null, _listTags, EntryScope.BudgetSpecific, _listVisibility));
+        Toast.Success("Lista skapad.");
+        await OnSaved.InvokeAsync();
+    }
+
+    private async Task SaveAnteckningAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_listName)) { _error = "Ange en titel."; return; }
+        await ListSvc.CreateAsync(BudgetState.ActiveBudgetId,
+            new CreateListDto(_listName.Trim(), ListType.Note, null, _listContent, _listTags, EntryScope.BudgetSpecific, _listVisibility));
+        Toast.Success("Anteckning sparad.");
+        await OnSaved.InvokeAsync();
+    }
+
+    private async Task SaveInkomstkallAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_jobName)) { _error = "Ange ett namn."; return; }
+        await JobSvc.CreateAsync(BudgetState.ActiveBudgetId, new CreateJobDto
+        {
+            Name = _jobName.Trim(), EmployerName = _jobEmployer,
+            PayType = _jobPayType, TransactionMode = _jobTxMode,
+            GrossAmount = _jobGrossAmount, HourlyRate = _jobHourlyRate, IsActive = true
+        });
+        Toast.Success("Inkomstkälla skapad.");
+        await OnSaved.InvokeAsync();
+    }
+
+    private async Task SaveForsäkringAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_insName) || _insPremium <= 0) { _error = "Ange namn och premiebelopp."; return; }
+        await InsSvc.CreateAsync(BudgetState.ActiveBudgetId, new CreateInsuranceDto
+        {
+            InsuranceType = _insType, Name = _insName.Trim(), Provider = _insProvider,
+            PremiumAmount = _insPremium, PayPeriod = _insPayPeriod,
+            StartDate = _insStartDate, RenewalDate = _insRenewalDate
+        });
+        Toast.Success("Försäkring sparad.");
+        await OnSaved.InvokeAsync();
+    }
+
+    private async Task SaveLanAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_loanName) || _loanOriginal <= 0) { _error = "Ange namn och ursprungsbelopp."; return; }
+        await LoanSvc.CreateAsync(BudgetState.ActiveBudgetId, new CreateLoanDto
+        {
+            LoanType = _loanType, Name = _loanName.Trim(), LenderName = _loanLender,
+            OriginalAmount = _loanOriginal, CurrentBalance = _loanBalance > 0 ? _loanBalance : _loanOriginal,
+            InterestRate = _loanRate, MonthlyPayment = _loanMonthly, StartDate = DateTime.Today
+        });
+        Toast.Success("Lån sparat.");
+        await OnSaved.InvokeAsync();
+    }
+
+    private async Task SaveSjukfranvaroAsync()
+    {
+        if (_sickEnd < _sickStart) { _error = "Slutdatum måste vara efter startdatum."; return; }
+        if (_sickGrossSalary <= 0) { _error = "Ange månadslön."; return; }
+        await SickSvc.CreateAsync(BudgetState.ActiveBudgetId, new CreateSickLeaveDto
+        {
+            StartDate = _sickStart, EndDate = _sickEnd, SickLeaveType = _sickType,
+            GrossMonthlySalary = _sickGrossSalary, AnnualSgi = _sickSgi
+        });
+        Toast.Success("Sjukfrånvaro sparad.");
+        await OnSaved.InvokeAsync();
+    }
+
+    private async Task SaveTidpostAsync()
+    {
+        if (_timeJobId == 0) { _error = "Välj ett jobb."; return; }
+        int duration; TimeSpan? startTs = null, endTs = null;
+        if (_timeManual)
+        {
+            duration = _timeHours * 60 + _timeMinutes;
+            if (duration <= 0) { _error = "Ange tid."; return; }
+        }
+        else
+        {
+            startTs = _timeStart.ToTimeSpan(); endTs = _timeEnd.ToTimeSpan();
+            duration = (int)(endTs.Value - startTs.Value).TotalMinutes;
+            if (duration <= 0) { _error = "Sluttid måste vara efter starttid."; return; }
+        }
+        await TimeSvc.CreateAsync(BudgetState.ActiveBudgetId, new CreateTimeEntryDto
+        {
+            JobId = _timeJobId, Date = _timeDate, StartTime = startTs, EndTime = endTs,
+            DurationMinutes = duration, Description = _timeDesc
+        });
+        Toast.Success("Tidpost sparad.");
+        await OnSaved.InvokeAsync();
+    }
+
+    private async Task DeleteTxAsync()
+    {
+        if (EditTx == null) return;
+        await TxSvc.DeleteAsync(BudgetState.ActiveBudgetId, EditTx.Id);
+        Toast.Success("Borttagen.");
+        await OnSaved.InvokeAsync();
+    }
+
+    // ── VAB helpers ───────────────────────────────────────────────────────────
+    private void OnVabJobChanged()
+    {
+        if (_vabJobId <= 0) return;
+        var job = Jobs.FirstOrDefault(j => j.Id == _vabJobId);
+        if (job?.GrossAmount > 0)
+        {
+            _vabSgi          = job.GrossAmount.Value * 12;
+            _vabDailyBenefit = VabService.CalculateDailyBenefit(_vabSgi);
+        }
+    }
+
+    private void OnVabSgiChanged()
+    { if (_vabSgi > 0) _vabDailyBenefit = VabService.CalculateDailyBenefit(_vabSgi); }
+
+    // ── Label helpers ─────────────────────────────────────────────────────────
+    private static string KindLabel(EntryKind k) => k switch
+    {
+        EntryKind.Transaction   => "Transaktion",
+        EntryKind.Milersattning => "Milersättning",
+        EntryKind.Vab           => "VAB",
+        EntryKind.Lista         => "Lista",
+        EntryKind.Anteckning    => "Anteckning",
+        EntryKind.Inkomstkalla  => "Inkomstkälla",
+        EntryKind.Forsäkring    => "Försäkring",
+        EntryKind.Lan           => "Lån",
+        EntryKind.Sjukfranvaro  => "Sjukfrånvaro",
+        EntryKind.Tidpost       => "Tidpost",
+        _ => k.ToString()
+    };
+
+    private static string KindIcon(EntryKind k) => k switch
+    {
+        EntryKind.Transaction   => "receipt",
+        EntryKind.Milersattning => "directions_car",
+        EntryKind.Vab           => "child_care",
+        EntryKind.Lista         => "checklist",
+        EntryKind.Anteckning    => "sticky_note_2",
+        EntryKind.Inkomstkalla  => "work",
+        EntryKind.Forsäkring    => "security",
+        EntryKind.Lan           => "account_balance",
+        EntryKind.Sjukfranvaro  => "sick",
+        EntryKind.Tidpost       => "schedule",
+        _ => "add"
+    };
+
+    private static string KindTooltip(EntryKind k) => k switch
+    {
+        EntryKind.Transaction   => "Registrera en utgift eller inkomst",
+        EntryKind.Milersattning => "Logga en körning",
+        EntryKind.Vab           => "Vård av barn — utebliven inkomst",
+        EntryKind.Lista         => "Skapa en checklista",
+        EntryKind.Anteckning    => "Skriv en anteckning",
+        EntryKind.Inkomstkalla  => "Lägg till anställning eller uppdrag",
+        EntryKind.Forsäkring    => "Registrera en försäkring",
+        EntryKind.Lan           => "Lägg till ett lån",
+        EntryKind.Sjukfranvaro  => "Registrera sjukfrånvaro",
+        EntryKind.Tidpost       => "Logga arbetstid",
+        _ => ""
+    };
+}

@@ -194,6 +194,23 @@ public class AuthController : BaseApiController
             new UserDto(user.Id, user.Email!, user.FirstName, user.LastName, memberships)));
     }
 
+    [HttpPut("display-name")]
+    [Authorize]
+    public async Task<IActionResult> UpdateDisplayName([FromBody] UpdateDisplayNameDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.DisplayName))
+            return BadRequest(new { Message = "Visningsnamnet får inte vara tomt." });
+
+        var user = await _users.FindByIdAsync(UserId);
+        if (user == null) return NotFound();
+        user.DisplayName = dto.DisplayName.Trim();
+        await _users.UpdateAsync(user);
+        return Ok(new { Message = "Visningsnamn uppdaterat." });
+    }
+
+    // Minimal record (kan läggas i MoneyKey.Core/DTOs/Auth/):
+    public record UpdateDisplayNameDto(string DisplayName);
+
     private async Task<List<BudgetMembershipDto>> GetMembershipsAsync(string userId) =>
         await _db.BudgetMemberships
             .Where(m => m.UserId == userId && m.AcceptedAt != null)

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MoneyKey.API.Filters;
 using MoneyKey.API.Services;
 using MoneyKey.Core.DTOs.TimeEntry;
 using MoneyKey.Core.Services;
@@ -8,6 +9,7 @@ using MoneyKey.Domain.Enums;
 
 namespace MoneyKey.API.Controllers;
 
+[RequireFeature("TimeTracking")]
 [Authorize, Route("api/budgets/{budgetId:int}/timeentries")]
 public class TimeEntriesController : BaseApiController
 {

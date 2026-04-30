@@ -39,6 +39,7 @@ svcs.AddMemoryCache();
 svcs.AddScoped<ICurrentUserAccessor, HttpCurrentUserAccessor>();
 svcs.AddScoped<AuditInterceptor>();
 
+
 svcs.AddDbContext<BudgetDbContext>((sp, opt) =>
     opt.UseSqlServer(connStr, sql => sql.MigrationsAssembly("MoneyKey.DAL"))
        .AddInterceptors(sp.GetRequiredService<AuditInterceptor>()));
@@ -166,13 +167,39 @@ svcs.AddSwaggerGen(c =>
 var app = builder.Build();
 
 // ── Migrate + seed ─────────────────────────────────────────────────────────────
-if (app.Environment.IsDevelopment())
+//if (app.Environment.IsDevelopment())
+//{
+//    using var scope = //app.Services.CreateScope();
+//    //scope.ServiceProvider.GetRequiredService<//BudgetDbContext>().Database.Migrate();
+////}
+
+
+
+// ... efter app.Build()
+
+using (var scope = app.Services.CreateScope())
 {
-    using var scope = app.Services.CreateScope();
-    scope.ServiceProvider.GetRequiredService<BudgetDbContext>().Database.Migrate();
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<BudgetDbContext>();
+
+        // 1. Kör alla migrationer (skapar schema i Azure om det saknas)
+        await context.Database.MigrateAsync();
+
+        // 2. Kör seeding (Här ska anropet ligga!)
+        await DbInitializer.InitializeAsync(services);
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "Ett fel uppstod vid migrering eller seeding.");
+        if (!app.Environment.IsDevelopment()) throw;
+    }
 }
 
-await DbInitializer.InitializeAsync(app.Services);
+
+
 
 app.UseSwagger();
 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "MoneyKey API v1"));

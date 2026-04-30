@@ -25,4 +25,7 @@ public class TransactionService : ApiServiceBase
         var r = await Http.PostAsJsonAsync($"api/budgets/{budgetId}/transactions/batch-delete", new BatchDeleteDto(ids));
         r.EnsureSuccessStatusCode();
     }
+
+    public Task<TransactionDto?> GetByIdAsync(int budgetId, int id) =>
+    GetAsync<TransactionDto>($"api/budgets/{budgetId}/transactions/{id}");
 }

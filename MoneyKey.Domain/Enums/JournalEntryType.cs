@@ -1,3 +1,3 @@
 namespace MoneyKey.Domain.Enums;
 
-public enum JournalEntryType { Transaction, Milersattning, Vab, ReceiptBatch, List }
+public enum JournalEntryType { Transaction, Milersattning, Vab, ReceiptBatch, List, TimeEntry }

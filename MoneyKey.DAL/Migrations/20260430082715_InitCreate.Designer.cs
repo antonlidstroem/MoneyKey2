@@ -12,8 +12,8 @@ using MoneyKey.DAL.Data;
 namespace MoneyKey.DAL.Migrations
 {
     [DbContext(typeof(BudgetDbContext))]
-    [Migration("20260423193524_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20260430082715_InitCreate")]
+    partial class InitCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -685,6 +685,65 @@ namespace MoneyKey.DAL.Migrations
                         .IsUnique();
 
                     b.ToTable("CategoryAccountMappings");
+                });
+
+            modelBuilder.Entity("MoneyKey.Domain.Models.CsnEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("AnnualIncomeLimit")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("AnnualRepayment")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("BudgetId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("CurrentBalance")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("EstimatedAnnualIncome")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("IsCurrentlyStudying")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal?>("MonthlyStudyGrant")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("MonthlyStudyLoan")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("TotalOriginalDebt")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BudgetId", "UserId", "Year")
+                        .IsUnique();
+
+                    b.ToTable("CsnEntries");
                 });
 
             modelBuilder.Entity("MoneyKey.Domain.Models.Insurance", b =>
@@ -1779,6 +1838,17 @@ namespace MoneyKey.DAL.Migrations
                     b.Navigation("Budget");
 
                     b.Navigation("Category");
+                });
+
+            modelBuilder.Entity("MoneyKey.Domain.Models.CsnEntry", b =>
+                {
+                    b.HasOne("MoneyKey.Domain.Models.Budget", "Budget")
+                        .WithMany()
+                        .HasForeignKey("BudgetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Budget");
                 });
 
             modelBuilder.Entity("MoneyKey.Domain.Models.Insurance", b =>
