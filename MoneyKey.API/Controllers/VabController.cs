@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
+using MoneyKey.API.Filters;
 using MoneyKey.API.Hubs;
 using MoneyKey.API.Services;
 using MoneyKey.Core.DTOs.Vab;
@@ -10,6 +11,7 @@ using MoneyKey.Domain.Enums;
 
 namespace MoneyKey.API.Controllers;
 
+[RequireFeature("Vab")]
 [Authorize, Route("api/budgets/{budgetId:int}/vab")]
 public class VabController : BaseApiController
 {

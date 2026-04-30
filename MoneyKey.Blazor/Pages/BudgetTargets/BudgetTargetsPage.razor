@@ -1,0 +1,342 @@
+﻿@page "/targets"
+@attribute [Authorize]
+@implements IDisposable
+@inject BudgetTargetApiService TargetSvc
+@inject BudgetService BudgetSvc
+@inject ToastService Toast
+@inject BudgetState BudgetState
+@using MoneyKey.Core.DTOs.BudgetTarget
+
+<div class="desktop-page-wrapper">
+    <div class="page-header">
+        <span class="page-title">Budgetmål</span>
+        <div class="header-actions">
+            <select class="form-control" style="width:auto" @bind="_month" @bind:after="ReloadAsync">
+                @for (var m = 1; m <= 12; m++)
+                {
+                    var mm = m;
+                    <option value="@mm">@(new DateTime(2000, mm, 1).ToString("MMMM"))</option>
+                }
+            </select>
+            <select class="form-control" style="width:auto" @bind="_year" @bind:after="ReloadAsync">
+                @for (var y = DateTime.Today.Year - 2; y <= DateTime.Today.Year + 1; y++)
+                { var yy = y; <option value="@yy">@yy</option> }
+            </select>
+        </div>
+    </div>
+
+    <div class="page-content" style="display:flex;flex-direction:column;gap:14px">
+
+        @* ── Summary KPIs ────────────────────────────────────────────────── *@
+        @if (_targets.Any())
+        {
+            var totalTarget = _targets.Sum(t => t.TargetAmount);
+            var totalActual = _targets.Sum(t => t.ActualAmount ?? 0);
+            var totalPct    = totalTarget > 0 ? (int)(totalActual / totalTarget * 100) : 0;
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">
+                <div class="kpi-card">
+                    <div class="kpi-label">Totalt budgeterat</div>
+                    <div class="kpi-value">@totalTarget.ToString("N0") kr</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Faktiska utgifter</div>
+                    <div class="kpi-value" style="color:@(totalActual > totalTarget ? "var(--color-expense)" : "var(--color-dark)")">
+                        @totalActual.ToString("N0") kr
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Utnyttjat</div>
+                    <div class="kpi-value" style="color:@(totalPct > 100 ? "var(--color-expense)" : totalPct > 80 ? "var(--color-warning)" : "var(--color-income)")">
+                        @totalPct%
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Kvar</div>
+                    <div class="kpi-value" style="color:@((totalTarget - totalActual) < 0 ? "var(--color-expense)" : "var(--color-income)")">
+                        @((totalTarget - totalActual).ToString("N0")) kr
+                    </div>
+                </div>
+            </div>
+        }
+
+        @* ── Targets table ───────────────────────────────────────────────── *@
+        @if (_loading)
+        {
+            <div style="text-align:center;padding:40px"><div class="spinner"></div></div>
+        }
+        else
+        {
+            <div class="card" style="padding:0;overflow:hidden">
+                <div style="padding:12px 16px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;justify-content:space-between">
+                    <span style="font-weight:600;font-size:.9rem">
+                        Mål per kategori — @(new DateTime(_year, _month, 1).ToString("MMMM yyyy"))
+                    </span>
+                    @if (BudgetState.CanEdit)
+                    {
+                        <button class="btn btn-primary btn-sm" @onclick="OpenAddCategory">
+                            <span class="material-icons" style="font-size:.85rem">add</span> Lägg till kategori
+                        </button>
+                    }
+                </div>
+
+                @if (!_targets.Any() && !_showAddRow)
+                {
+                    <div style="text-align:center;padding:40px;color:var(--color-muted)">
+                        <span class="material-icons" style="display:block;font-size:2.5rem;opacity:.3;margin-bottom:8px">track_changes</span>
+                        Inga budgetmål satta för denna månad.
+                        @if (BudgetState.CanEdit)
+                        { <div style="margin-top:8px"><button class="btn btn-primary btn-sm" @onclick="OpenAddCategory">Sätt mål</button></div> }
+                    </div>
+                }
+                else
+                {
+                    <table style="width:100%;border-collapse:collapse" class="quickgrid">
+                        <thead>
+                            <tr>
+                                <th>Kategori</th>
+                                <th style="text-align:right;width:130px">Budgetmål (kr)</th>
+                                <th style="text-align:right;width:130px">Utfall (kr)</th>
+                                <th style="width:140px">Förbrukat</th>
+                                <th style="text-align:right;width:100px">+/- (kr)</th>
+                                @if (BudgetState.CanEdit) { <th style="width:60px"></th> }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var t in _targets.OrderByDescending(x => x.TargetAmount))
+                            {
+                                var target = t;
+                                <tr>
+                                    <td style="font-size:.875rem;font-weight:500">@target.CategoryName</td>
+                                    <td style="text-align:right">
+                                        @if (_editingId == target.Id)
+                                        {
+                                            <input type="number" step="100" class="form-control"
+                                                   style="width:110px;text-align:right;padding:4px 6px"
+                                                   value="@_editAmount"
+                                                   @onchange="e => { if (decimal.TryParse(e.Value?.ToString(), out var v)) _editAmount = v; }"
+                                                   @onblur="() => SaveEditAsync(target)"
+                                                   @onkeydown='async e => { if (e.Key == "Enter") await SaveEditAsync(target); if (e.Key == "Escape") _editingId = -1; }' />
+                                        }
+                                        else
+                                        {
+                                            <span style="cursor:@(BudgetState.CanEdit ? "pointer" : "default")"
+                                                  @onclick="() => StartEdit(target)">
+                                                @target.TargetAmount.ToString("N0")
+                                            </span>
+                                        }
+                                    </td>
+                                    <td style="text-align:right;font-size:.875rem;color:@(target.ActualAmount > target.TargetAmount ? "var(--color-expense)" : "var(--color-dark)")">
+                                        @((target.ActualAmount ?? 0).ToString("N0"))
+                                    </td>
+                                    <td style="padding:0 12px">
+                                        @{
+                                            var pct = target.UsedPct;
+                                            var barColor = pct > 100 ? "var(--color-expense)"
+                                                         : pct > 80  ? "var(--color-warning)"
+                                                                      : "var(--color-income)";
+                                        }
+                                        <div style="display:flex;align-items:center;gap:6px">
+                                            <div style="flex:1;height:8px;background:var(--color-border);border-radius:4px;overflow:hidden">
+                                                <div style="height:100%;width:@(Math.Min(pct, 100))%;background:@barColor;border-radius:4px;transition:width .3s"></div>
+                                            </div>
+                                            <span style="font-size:.75rem;color:@barColor;min-width:32px;text-align:right">@pct%</span>
+                                        </div>
+                                    </td>
+                                    <td style="text-align:right;font-size:.875rem;font-weight:600;color:@(target.Variance >= 0 ? "var(--color-income)" : "var(--color-expense)")">
+                                        @(target.Variance >= 0 ? "+" : "")@target.Variance.ToString("N0")
+                                    </td>
+                                    @if (BudgetState.CanEdit)
+                                    {
+                                        <td>
+                                            <button class="btn btn-ghost btn-icon btn-sm"
+                                                    @onclick="() => DeleteTargetAsync(target)">
+                                                <span class="material-icons" style="font-size:.82rem;color:var(--color-expense)">delete</span>
+                                            </button>
+                                        </td>
+                                    }
+                                </tr>
+                            }
+
+                            @* ── Add new row ──────────────────────────────── *@
+                            @if (_showAddRow && BudgetState.CanEdit)
+                            {
+                                <tr style="background:var(--color-surface)">
+                                    <td>
+                                        <select class="form-control" style="padding:5px 8px" @bind="_newCategoryId">
+                                            <option value="0">-- Välj kategori --</option>
+                                            @foreach (var cat in _availableCategories)
+                                            { <option value="@cat.Id">@cat.Name</option> }
+                                        </select>
+                                    </td>
+                                    <td colspan="3">
+                                        <input type="number" step="100" class="form-control"
+                                               style="padding:5px 8px" @bind="_newAmount"
+                                               placeholder="Belopp (kr)" />
+                                    </td>
+                                    <td colspan="@(BudgetState.CanEdit ? 2 : 1)">
+                                        <div style="display:flex;gap:4px">
+                                            <button class="btn btn-primary btn-sm" @onclick="AddTargetAsync"
+                                                    disabled="@(_newCategoryId == 0 || _newAmount <= 0)">
+                                                Lägg till
+                                            </button>
+                                            <button class="btn btn-ghost btn-sm" @onclick="() => _showAddRow = false">
+                                                Avbryt
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+
+            @* Tip: inline editing *@
+            @if (_targets.Any() && BudgetState.CanEdit)
+            {
+                <div style="font-size:.75rem;color:var(--color-muted);text-align:right;padding-right:4px">
+                    💡 Klicka på ett belopp för att redigera direkt
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<!-- ═══ Mobile ═══════════════════════════════════════════════════════════════ -->
+<div class="mobile-page-shell">
+    <div class="mobile-topbar">
+        <span class="mobile-title">Budgetmål</span>
+        <div style="display:flex;gap:4px">
+            <select class="form-control" style="padding:4px 6px;font-size:.78rem;width:80px" @bind="_month" @bind:after="ReloadAsync">
+                @for (var m = 1; m <= 12; m++)
+                {
+                    var mm = m;
+                    <option value="@mm">@(new DateTime(2000, mm, 1).ToString("MMM"))</option>
+                }
+            </select>
+            <select class="form-control" style="padding:4px 6px;font-size:.78rem;width:70px" @bind="_year" @bind:after="ReloadAsync">
+                @for (var y = DateTime.Today.Year - 1; y <= DateTime.Today.Year + 1; y++)
+                { var yy = y; <option value="@yy">@yy</option> }
+            </select>
+        </div>
+    </div>
+    <div class="mobile-page-scroll">
+        @foreach (var t in _targets.OrderByDescending(x => x.TargetAmount))
+        {
+            var pct = t.UsedPct;
+            var barColor = pct > 100 ? "var(--color-expense)" : pct > 80 ? "var(--color-warning)" : "var(--color-income)";
+            <div class="mobile-entry-card">
+                <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+                    <span style="font-weight:500">@t.CategoryName</span>
+                    <span style="font-size:.85rem;color:@(t.IsOverBudget ? "var(--color-expense)" : "var(--color-dark)")">
+                        @((t.ActualAmount ?? 0).ToString("N0")) / @t.TargetAmount.ToString("N0") kr
+                    </span>
+                </div>
+                <div style="height:8px;background:var(--color-border);border-radius:4px;overflow:hidden;margin-bottom:4px">
+                    <div style="height:100%;width:@(Math.Min(pct, 100))%;background:@barColor;border-radius:4px"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:.75rem;color:var(--color-muted)">
+                    <span>@pct% utnyttjat</span>
+                    <span style="color:@(t.Variance >= 0 ? "var(--color-income)" : "var(--color-expense)")">
+                        @(t.Variance >= 0 ? "+" : "")@t.Variance.ToString("N0") kr
+                    </span>
+                </div>
+            </div>
+        }
+    </div>
+    @if (BudgetState.CanEdit) { <button class="mobile-fab" @onclick="OpenAddCategory"><span class="material-icons">add</span></button> }
+</div>
+
+<ConfirmDialog @ref="_confirm" Title="Ta bort mål" Message="Ta bort detta budgetmål?" />
+
+@code {
+    private List<BudgetTargetDto> _targets            = new();
+    private List<Category>         _availableCategories = new();
+    private bool                   _loading            = true;
+    private bool                   _showAddRow;
+    private int                    _year    = DateTime.Today.Year;
+    private int                    _month   = DateTime.Today.Month;
+    private int                    _editingId  = -1;
+    private decimal                _editAmount;
+    private int                    _newCategoryId;
+    private decimal                _newAmount;
+    private ConfirmDialog?         _confirm;
+
+    protected override async Task OnInitializedAsync()
+    {
+        BudgetState.StateChanged += Refresh;
+        await Task.WhenAll(LoadCategoriesAsync(), ReloadAsync());
+    }
+
+    public void Dispose() => BudgetState.StateChanged -= Refresh;
+
+    private void Refresh() => InvokeAsync(async () =>
+    {
+        await ReloadAsync(); StateHasChanged();
+    });
+
+    private async Task ReloadAsync()
+    {
+        if (BudgetState.ActiveBudgetId <= 0) { _loading = false; return; }
+        _loading = true;
+        _targets = await TargetSvc.GetForMonthAsync(
+                       BudgetState.ActiveBudgetId, _year, _month, includeActuals: true) ?? new();
+        _loading = false;
+    }
+
+    private async Task LoadCategoriesAsync()
+    {
+        if (BudgetState.ActiveBudgetId <= 0) return;
+        _availableCategories = await BudgetSvc.GetCategoriesAsync(BudgetState.ActiveBudgetId) ?? new();
+    }
+
+    private void OpenAddCategory()
+    {
+        _newCategoryId = 0; _newAmount = 0; _showAddRow = true;
+    }
+
+    private async Task AddTargetAsync()
+    {
+        if (_newCategoryId == 0 || _newAmount <= 0) return;
+        try
+        {
+            var dto = new UpsertBudgetTargetDto
+            {
+                CategoryId = _newCategoryId, TargetAmount = _newAmount,
+                Year = _year, Month = _month
+            };
+            await TargetSvc.UpsertAsync(BudgetState.ActiveBudgetId, dto);
+            Toast.Success("Budgetmål sparat.");
+            _showAddRow = false; _newCategoryId = 0; _newAmount = 0;
+            await ReloadAsync();
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private void StartEdit(BudgetTargetDto t) { _editingId = t.Id; _editAmount = t.TargetAmount; }
+
+    private async Task SaveEditAsync(BudgetTargetDto t)
+    {
+        if (_editingId != t.Id) return;
+        _editingId = -1;
+        if (_editAmount == t.TargetAmount) return;
+        try
+        {
+            await TargetSvc.UpsertAsync(BudgetState.ActiveBudgetId, new UpsertBudgetTargetDto
+            {
+                CategoryId = t.CategoryId, TargetAmount = _editAmount,
+                Year = _year, Month = _month
+            });
+            Toast.Success("Uppdaterat.");
+            await ReloadAsync();
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    private async Task DeleteTargetAsync(BudgetTargetDto t)
+    {
+        if (_confirm is null || !await _confirm.ShowAsync()) return;
+        try { await TargetSvc.DeleteAsync(BudgetState.ActiveBudgetId, t.Id); Toast.Success("Borttaget."); await ReloadAsync(); }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+}2

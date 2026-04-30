@@ -1,0 +1,125 @@
+﻿@inject JournalFilterState Filter
+
+@if (IsOpen)
+{
+    <div class="sheet-overlay" @onclick="Close">
+        <div class="sheet-container" @onclick:stopPropagation style="max-height:85%;overflow-y:auto">
+            <div class="sheet-handle-bar"></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px 12px;border-bottom:.5px solid var(--color-border)">
+                <span style="font-weight:600;font-size:.95rem">
+                    Filter @(Filter.HasActiveFilters ? "●" : "")
+                </span>
+                <div style="display:flex;gap:6px">
+                    <button class="btn btn-ghost btn-sm" @onclick="Reset">Rensa</button>
+                    <button class="btn btn-ghost btn-icon btn-sm" @onclick="Close">
+                        <span class="material-icons" style="font-size:.9rem">close</span>
+                    </button>
+                </div>
+            </div>
+
+            <div style="padding:14px 16px;display:flex;flex-direction:column;gap:12px">
+
+                <!-- Date range -->
+                <div>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:600;margin-bottom:6px">
+                        <input type="checkbox" @bind="Filter.Query.FilterByStartDate" @bind:after="Notify" />
+                        Från datum
+                    </label>
+                    <input type="date" class="form-control" disabled="@(!Filter.Query.FilterByStartDate)"
+                           value="@Filter.Query.StartDate?.ToString("yyyy-MM-dd")"
+                           @onchange="e => SetDate(e, d => Filter.Query.StartDate = d)" />
+                </div>
+
+                <div>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:600;margin-bottom:6px">
+                        <input type="checkbox" @bind="Filter.Query.FilterByEndDate" @bind:after="Notify" />
+                        Till datum
+                    </label>
+                    <input type="date" class="form-control" disabled="@(!Filter.Query.FilterByEndDate)"
+                           value="@Filter.Query.EndDate?.ToString("yyyy-MM-dd")"
+                           @onchange="e => SetDate(e, d => Filter.Query.EndDate = d)" />
+                </div>
+
+                <!-- Description search -->
+                <div>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:600;margin-bottom:6px">
+                        <input type="checkbox" @bind="Filter.Query.FilterByDescription" @bind:after="Notify" />
+                        Fritext
+                    </label>
+                    <input class="form-control" @bind="Filter.Query.Description" @bind:after="Notify"
+                           placeholder="Sök beskrivning..." disabled="@(!Filter.Query.FilterByDescription)" />
+                </div>
+
+                <!-- Category -->
+                @if (Categories.Any())
+                {
+                    <div>
+                        <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:600;margin-bottom:6px">
+                            <input type="checkbox" @bind="Filter.Query.FilterByCategory" @bind:after="Notify" />
+                            Kategori
+                        </label>
+                        <select class="form-control" disabled="@(!Filter.Query.FilterByCategory)"
+                                value="@(Filter.Query.CategoryId ?? 0)"
+                                @onchange="e => { Filter.Query.CategoryId = int.TryParse(e.Value?.ToString(), out var v) ? v : 0; Notify(); }">
+                            <option value="0">-- Välj --</option>
+                            @foreach (var cat in Categories)
+                            {
+                                <option value="@cat.Id">@cat.Name</option>
+                            }
+                        </select>
+                    </div>
+                }
+
+                <!-- Project -->
+                @if (Projects.Any())
+                {
+                    <div>
+                        <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:600;margin-bottom:6px">
+                            <input type="checkbox" @bind="Filter.Query.FilterByProject" @bind:after="Notify" />
+                            Projekt
+                        </label>
+                        <select class="form-control" disabled="@(!Filter.Query.FilterByProject)"
+                                value="@(Filter.Query.ProjectId ?? 0)"
+                                @onchange="e => { Filter.Query.ProjectId = int.TryParse(e.Value?.ToString(), out var v) ? v : 0; Notify(); }">
+                            <option value="0">-- Välj --</option>
+                            @foreach (var p in Projects)
+                            {
+                                <option value="@p.Id">@p.Name</option>
+                            }
+                        </select>
+                    </div>
+                }
+
+                <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:4px"
+                        @onclick="ApplyAndClose">
+                    Tillämpa filter
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public List<Category> Categories { get; set; } = new();
+    [Parameter] public List<ProjectDto> Projects { get; set; } = new();
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private void Notify() => OnChanged.InvokeAsync();
+    private void Close() => OnClose.InvokeAsync();
+
+    private void ApplyAndClose() { Notify(); Close(); }
+
+    private void Reset()
+    {
+        Filter.ResetFilters();
+        OnChanged.InvokeAsync();
+    }
+
+    private void SetDate(ChangeEventArgs e, Action<DateTime?> setter)
+    {
+        setter(DateTime.TryParse(e.Value?.ToString(), out var d) ? d : null);
+        Notify();
+    }
+}

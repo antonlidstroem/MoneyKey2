@@ -1,0 +1,375 @@
+﻿@page "/csn"
+@attribute [Authorize]
+@implements IDisposable
+@inject CsnApiService CsnSvc
+@inject ToastService Toast
+@inject BudgetState BudgetState
+@using MoneyKey.Core.DTOs.Csn
+
+<div class="desktop-page-wrapper">
+    <div class="page-header">
+        <span class="page-title">CSN-hantering</span>
+        @if (BudgetState.CanEdit)
+        {
+            <div class="header-actions">
+                <button class="btn btn-primary btn-sm" @onclick="OpenCreate">
+                    <span class="material-icons" style="font-size:.9rem">add</span> Lägg till år
+                </button>
+            </div>
+        }
+    </div>
+    <div class="page-content" style="display:flex;flex-direction:column;gap:16px">
+        @if (_loading)
+        {
+            <div style="text-align:center;padding:48px"><div class="spinner"></div></div>
+        }
+        else if (!_items.Any())
+        {
+            <div style="text-align:center;padding:64px;color:var(--color-muted)">
+                <span class="material-icons" style="font-size:3rem;display:block;margin-bottom:12px;opacity:.35">school</span>
+                Inga CSN-poster registrerade.
+                @if (BudgetState.CanEdit)
+                {
+                    <div style="margin-top:12px"><button class="btn btn-primary btn-sm" @onclick="OpenCreate">Lägg till</button></div>
+                }
+            </div>
+        }
+        else
+        {
+            @foreach (var item in _items)
+            {
+                var entry = item;
+                <div class="card">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+                        <div>
+                            <div style="font-weight:700;font-size:1.05rem">@entry.Year</div>
+                            @if (entry.IsCurrentlyStudying)
+                            {
+                                <span class="badge badge-income" style="font-size:.72rem;margin-top:4px">Studerar</span>
+                            }
+                        </div>
+                        @if (BudgetState.CanEdit)
+                        {
+                            <div style="display:flex;gap:4px">
+                                <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => OpenEdit(entry)">
+                                    <span class="material-icons" style="font-size:.9rem">edit</span>
+                                </button>
+                                <button class="btn btn-ghost btn-icon btn-sm" @onclick="() => ConfirmDeleteAsync(entry)">
+                                    <span class="material-icons" style="font-size:.85rem;color:var(--color-expense)">delete</span>
+                                </button>
+                            </div>
+                        }
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:16px">
+                        <div class="kpi-card">
+                            <div class="kpi-label">Nuvarande skuld</div>
+                            <div class="kpi-value" style="color:var(--color-expense)">@entry.CurrentBalance.ToString("N0") kr</div>
+                            @if (entry.TotalOriginalDebt > 0)
+                            {
+                                var pct = (int)(entry.CurrentBalance / entry.TotalOriginalDebt * 100);
+                                <div style="height:4px;background:var(--color-border);border-radius:2px;margin-top:6px;overflow:hidden">
+                                    <div style="height:100%;width:@pct%;background:var(--color-expense);border-radius:2px"></div>
+                                </div>
+                                <div style="font-size:.72rem;color:var(--color-muted);margin-top:2px">@pct% kvar av @entry.TotalOriginalDebt.ToString("N0") kr</div>
+                            }
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-label">Månadsamortering</div>
+                            <div class="kpi-value">@entry.MonthlyRepayment.ToString("N0") kr</div>
+                            <div style="font-size:.72rem;color:var(--color-muted)">@entry.AnnualRepayment.ToString("N0") kr/år</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-label">Återstår ca</div>
+                            <div class="kpi-value">@entry.YearsRemaining år</div>
+                        </div>
+                        <div class="kpi-card" style="@(entry.IsOverIncomeLimit ? "border-left:3px solid var(--color-expense)" : "")">
+                            <div class="kpi-label">Fribeloppsgräns</div>
+                            <div class="kpi-value" style="@(entry.IsOverIncomeLimit ? "color:var(--color-expense)" : "")">
+                                @entry.AnnualIncomeLimit.ToString("N0") kr
+                            </div>
+                            @if (entry.EstimatedAnnualIncome > 0)
+                            {
+                                <div style="font-size:.72rem;color:@(entry.IsOverIncomeLimit ? "var(--color-expense)" : "var(--color-muted)")">
+                                    Uppskattad: @entry.EstimatedAnnualIncome.ToString("N0") kr
+                                    (@(entry.IsOverIncomeLimit ? "⚠️ Över gräns!" : $"+{entry.IncomeMargin.ToString("N0")} kr marginal"))
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    @if (entry.IsCurrentlyStudying && (entry.MonthlyStudyGrant > 0 || entry.MonthlyStudyLoan > 0))
+                    {
+                        <div style="background:var(--color-income-bg);border-radius:8px;padding:10px 14px;font-size:.85rem;display:flex;gap:24px">
+                            @if (entry.MonthlyStudyGrant > 0)
+                            {
+                                <div>Studiebidrag: <strong style="color:var(--color-income)">@entry.MonthlyStudyGrant?.ToString("N0") kr/mån</strong></div>
+                            }
+                            @if (entry.MonthlyStudyLoan > 0)
+                            {
+                                <div>Studielånsuttag: <strong>@entry.MonthlyStudyLoan?.ToString("N0") kr/mån</strong></div>
+                            }
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(entry.Notes))
+                    {
+                        <div style="font-size:.82rem;color:var(--color-muted);margin-top:10px;font-style:italic">@entry.Notes</div>
+                    }
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<!-- ═══ Mobile ═══════════════════════════════════════════════════════════════ -->
+<div class="mobile-page-shell">
+    <div class="mobile-topbar">
+        <span class="mobile-title">CSN</span>
+        @if (BudgetState.CanEdit)
+        {
+            <button class="mobile-icon-btn" @onclick="OpenCreate"><span class="material-icons">add</span></button>
+        }
+    </div>
+    <div class="mobile-page-scroll">
+        @foreach (var entry in _items)
+        {
+            var e = entry;
+            <div class="mobile-entry-card">
+                <div style="display:flex;justify-content:space-between">
+                    <div style="font-weight:600">@e.Year</div>
+                    <div style="font-size:.85rem;color:var(--color-expense);font-weight:600">@e.CurrentBalance.ToString("N0") kr skuld</div>
+                </div>
+                <div class="mobile-entry-card-meta" style="margin-top:4px">
+                    @e.MonthlyRepayment.ToString("N0") kr/mån · @e.YearsRemaining år kvar
+                    @if (e.IsOverIncomeLimit)
+                    {
+                        <span style="color:var(--color-expense)"> · ⚠️ Fribeloppsgräns</span>
+                    }
+                </div>
+                @if (BudgetState.CanEdit)
+                {
+                    <div style="display:flex;gap:6px;margin-top:8px">
+                        <button class="btn btn-secondary btn-sm" @onclick="() => OpenEdit(e)">
+                            <span class="material-icons" style="font-size:.8rem">edit</span> Redigera
+                        </button>
+                        <button class="btn btn-ghost btn-sm" style="color:var(--color-expense)"
+                                @onclick="() => ConfirmDeleteAsync(e)">
+                            <span class="material-icons" style="font-size:.8rem">delete</span>
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+    @if (BudgetState.CanEdit)
+    {
+        <button class="mobile-fab" @onclick="OpenCreate"><span class="material-icons">add</span></button>
+    }
+</div>
+
+<!-- ═══ Modal ════════════════════════════════════════════════════════════════ -->
+@if (_showModal)
+{
+    <div class="modal-overlay" @onclick="@(() => _showModal = false)">
+        <div class="modal" style="max-width:520px;max-height:92vh;overflow-y:auto" @onclick:stopPropagation>
+            <div class="modal-header">
+                <span class="modal-title">@(_editItem == null ? "Lägg till CSN-år" : $"Redigera {_editItem.Year}")</span>
+                <button class="btn btn-ghost btn-icon btn-sm" @onclick="@(() => _showModal = false)">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(_err))
+                {
+                    <div style="background:var(--color-expense-bg);color:var(--color-expense);padding:8px 12px;border-radius:8px;font-size:.85rem;margin-bottom:10px">@_err</div>
+                }
+
+                <div class="form-group">
+                    <label class="form-label">År *</label>
+                    <input class="form-control" type="number" @bind="_year" min="2000" max="2050" />
+                </div>
+
+                <div style="font-weight:600;font-size:.82rem;color:var(--color-muted);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px">Skuld</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Ursprunglig skuld (kr)</label>
+                        <input class="form-control" type="number" step="1000" @bind="_originalDebt" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Nuvarande skuld (kr) *</label>
+                        <input class="form-control" type="number" step="1000" @bind="_currentBalance" />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Årsbelopp att betala (kr) *</label>
+                    <input class="form-control" type="number" step="100" @bind="_annualRepayment" />
+                    @if (_annualRepayment > 0)
+                    {
+                        <div style="font-size:.75rem;color:var(--color-muted);margin-top:3px">= @(_annualRepayment / 12m).ToString("N0") kr/mån</div>
+                    }
+                </div>
+
+                <div style="font-weight:600;font-size:.82rem;color:var(--color-muted);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px">Fribeloppsgräns</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" title="Hittas på csn.se eller via Mina sidor">Gräns (kr/år)</label>
+                        <input class="form-control" type="number" step="1000" @bind="_incomeLimit" placeholder="T.ex. 135000" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Uppskattad inkomst (kr/år)</label>
+                        <input class="form-control" type="number" step="1000" @bind="_estimatedIncome" />
+                    </div>
+                </div>
+                @if (_incomeLimit > 0 && _estimatedIncome > 0)
+                {
+                    var margin = _incomeLimit - _estimatedIncome;
+                    <div style="background:@(margin < 0 ? "var(--color-expense-bg)" : "var(--color-income-bg)");border-radius:8px;padding:8px 12px;font-size:.82rem;margin-bottom:10px">
+                        Marginal: <strong style="color:@(margin < 0 ? "var(--color-expense)" : "var(--color-income)")">@margin.ToString("N0") kr</strong>
+                        @if (margin < 0)
+                        {
+                            <span> — Du riskerar återbetalningskrav!</span>
+                        }
+                    </div>
+                }
+
+                <div style="font-weight:600;font-size:.82rem;color:var(--color-muted);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px">Studiegång (valfritt)</div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.875rem">
+                        <input type="checkbox" @bind="_studying" /> Studerar detta år
+                    </label>
+                </div>
+                @if (_studying)
+                {
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Studiebidrag (kr/mån)</label>
+                            <input class="form-control" type="number" step="100" @bind="_studyGrant" placeholder="T.ex. 1572" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Studielånsuttag (kr/mån)</label>
+                            <input class="form-control" type="number" step="100" @bind="_studyLoan" placeholder="T.ex. 7694" />
+                        </div>
+                    </div>
+                }
+                <div class="form-group">
+                    <label class="form-label">Anteckningar</label>
+                    <textarea class="form-control" rows="2" @bind="_notes" placeholder="Valfritt..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="@(() => _showModal = false)">Avbryt</button>
+                <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                    @if (_saving)
+                    {
+                        <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>
+                    }
+                    @(_editItem == null ? "Lägg till" : "Spara")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<ConfirmDialog @ref="_confirm" Title="Ta bort CSN-post" Message="Ta bort denna CSN-post?" />
+
+@code {
+    private List<CsnDto> _items = new();
+    private bool _loading = true, _showModal, _saving;
+    private string _err = "";
+    private CsnDto? _editItem;
+    private ConfirmDialog? _confirm;
+
+    // Form state
+    private int _year = DateTime.Today.Year;
+    private decimal _originalDebt, _currentBalance, _annualRepayment;
+    private decimal _incomeLimit, _estimatedIncome;
+    private bool _studying;
+    private decimal? _studyGrant, _studyLoan;
+    private string? _notes;
+
+    protected override async Task OnInitializedAsync()
+    {
+        BudgetState.StateChanged += Refresh;
+        await ReloadAsync();
+    }
+
+    public void Dispose() => BudgetState.StateChanged -= Refresh;
+
+    private void Refresh() => InvokeAsync(async () =>
+    {
+        if (_showModal) return;
+        await ReloadAsync(); StateHasChanged();
+    });
+
+    private async Task ReloadAsync()
+    {
+        if (BudgetState.ActiveBudgetId <= 0) { _loading = false; return; }
+        _loading = true;
+        _items = await CsnSvc.GetAllAsync(BudgetState.ActiveBudgetId) ?? new();
+        _loading = false;
+    }
+
+    private void OpenCreate()
+    {
+        _editItem = null; _err = ""; _year = DateTime.Today.Year;
+        _originalDebt = 0; _currentBalance = 0; _annualRepayment = 0;
+        _incomeLimit = 0; _estimatedIncome = 0; _studying = false;
+        _studyGrant = null; _studyLoan = null; _notes = null;
+        _showModal = true;
+    }
+
+    private void OpenEdit(CsnDto e)
+    {
+        _editItem = e; _err = ""; _year = e.Year;
+        _originalDebt = e.TotalOriginalDebt; _currentBalance = e.CurrentBalance;
+        _annualRepayment = e.AnnualRepayment; _incomeLimit = e.AnnualIncomeLimit;
+        _estimatedIncome = e.EstimatedAnnualIncome; _studying = e.IsCurrentlyStudying;
+        _studyGrant = e.MonthlyStudyGrant; _studyLoan = e.MonthlyStudyLoan;
+        _notes = e.Notes; _showModal = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_currentBalance <= 0) { _err = "Ange nuvarande skuld."; return; }
+        if (_annualRepayment <= 0) { _err = "Ange årsbelopp."; return; }
+        _saving = true; _err = "";
+        try
+        {
+            var dto = new CreateCsnDto
+            {
+                Year = _year,
+                TotalOriginalDebt = _originalDebt,
+                CurrentBalance = _currentBalance,
+                AnnualRepayment = _annualRepayment,
+                AnnualIncomeLimit = _incomeLimit,
+                EstimatedAnnualIncome = _estimatedIncome,
+                IsCurrentlyStudying = _studying,
+                MonthlyStudyGrant = _studying ? _studyGrant : null,
+                MonthlyStudyLoan = _studying ? _studyLoan : null,
+                Notes = _notes
+            };
+            if (_editItem == null)
+                await CsnSvc.CreateAsync(BudgetState.ActiveBudgetId, dto);
+            else
+                await CsnSvc.UpdateAsync(BudgetState.ActiveBudgetId, _editItem.Id, dto);
+            Toast.Success(_editItem == null ? "CSN-post tillagd." : "CSN-post uppdaterad.");
+            _showModal = false;
+            await ReloadAsync();
+        }
+        catch (Exception ex) { _err = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task ConfirmDeleteAsync(CsnDto e)
+    {
+        if (_confirm is null || !await _confirm.ShowAsync()) return;
+        try
+        {
+            await CsnSvc.DeleteAsync(BudgetState.ActiveBudgetId, e.Id);
+            Toast.Success("Borttagen.");
+            await ReloadAsync();
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+}

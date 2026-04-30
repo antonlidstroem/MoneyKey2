@@ -66,6 +66,7 @@ builder.Services.AddScoped<InsuranceApiService>();
 builder.Services.AddScoped<SickLeaveApiService>();
 builder.Services.AddScoped<BudgetTargetApiService>();
 builder.Services.AddSingleton<ToastService>();
+builder.Services.AddScoped<CsnApiService>();
 
 // ── State ─────────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<BudgetState>();
