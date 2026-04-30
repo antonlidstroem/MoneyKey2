@@ -184,22 +184,19 @@ using (var scope = app.Services.CreateScope())
     {
         var context = services.GetRequiredService<BudgetDbContext>();
 
-        // 1. Applicera alla väntande migrationer (skapar db om den saknas)
+        // 1. Kör alla migrationer (skapar schema i Azure om det saknas)
         await context.Database.MigrateAsync();
 
-        // 2. Kör din seeding (skicka in context eller services)
-        // Se till att InitializeAsync internt kollar om data redan finns!
-       
+        // 2. Kör seeding (Här ska anropet ligga!)
+        await DbInitializer.InitializeAsync(services);
     }
     catch (Exception ex)
     {
         var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "Ett fel uppstod vid migrering eller seeding av databasen.");
-        // Vid kritiska fel i molnet vill vi ofta att appen stannar
-        throw;
+        logger.LogError(ex, "Ett fel uppstod vid migrering eller seeding.");
+        if (!app.Environment.IsDevelopment()) throw;
     }
 }
-await DbInitializer.InitializeAsync(app.Services);
 
 
 
