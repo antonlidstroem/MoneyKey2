@@ -200,6 +200,7 @@ using (var scope = app.Services.CreateScope())
 
 
 
+
 app.UseSwagger();
 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "MoneyKey API v1"));
 app.UseHttpsRedirection();
