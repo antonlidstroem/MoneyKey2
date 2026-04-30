@@ -9,141 +9,264 @@
 @inject HttpClient Http
 @inject IJSRuntime JS
 
-<div class="page-header"><span class="page-title">Export &amp; Import</span></div>
+<div class="desktop-page-wrapper">
+    <div class="page-header"><span class="page-title">Export &amp; Import</span></div>
+    <div class="page-content" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
 
-<div class="page-content" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
-
-    <!-- Export PDF/Excel -->
-    <div class="card">
-        <div class="card-title"><span class="material-icons">download</span> Exportera</div>
-        <p style="font-size:.875rem;color:var(--color-muted);margin-bottom:14px">
-            Exporterar aktuellt journal-filter som PDF eller Excel.
-        </p>
-        <div style="display:flex;gap:10px">
-            <button class="btn btn-secondary" @onclick="ExportPdfAsync" disabled="@_exporting">
-                @if (_exporting)
-                {
-                    <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>
-                }
-                else
-                {
-
-                    <span class="material-icons" style="font-size:.9rem">picture_as_pdf</span>
-                }
-                PDF
-            </button>
-            <button class="btn btn-secondary" @onclick="ExportExcelAsync" disabled="@_exporting">
-                @if (_exporting)
-                {
-                    <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>
-                }
-                else
-                {
-
-                    <span class="material-icons" style="font-size:.9rem">table_view</span>
-                }
-                Excel (4 flikar)
-            </button>
-        </div>
-    </div>
-
-    <!-- SIE4 Export -->
-    <div class="card">
-        <div class="card-title"><span class="material-icons">account_tree</span> SIE4 Bokföringsexport</div>
-        <p style="font-size:.875rem;color:var(--color-muted);margin-bottom:14px">
-            Exporterar transaktioner i SIE4-format för Bokio, Fortnox, Visma m.fl.
-        </p>
-        <div class="form-row">
-            <div class="form-group">
-                <label class="form-label">Företagsnamn</label>
-                <input class="form-control" @bind="_sieCompany" placeholder="T.ex. Mitt AB" />
-            </div>
-            <div class="form-group">
-                <label class="form-label">Org.nummer</label>
-                <input class="form-control" @bind="_sieOrgNr" placeholder="556123-4567" />
-            </div>
-            <div class="form-group">
-                <label class="form-label">År</label>
-                <select class="form-control" @bind="_sieYear">
-                    @for (var y = DateTime.Today.Year; y >= DateTime.Today.Year - 3; y--)
-                    {
-                        var yr = y;
-                        <option value="@yr">@yr</option>
-                    }
-                </select>
-            </div>
-        </div>
-        <button class="btn btn-secondary" @onclick="ExportSieAsync" disabled="@_exporting">
-            @if (_exporting)
-            {
-                <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>
-            }
-            else
-            {
-
-                <span class="material-icons" style="font-size:.9rem">download</span>
-            }
-            Ladda ned SIE4-fil (.se)
-        </button>
-    </div>
-
-    <!-- CSV Import -->
-    @if (BudgetState.CanEdit)
-    {
+        <!-- Export PDF/Excel -->
         <div class="card">
-            <div class="card-title"><span class="material-icons">upload</span> Importera CSV</div>
+            <div class="card-title"><span class="material-icons">download</span> Exportera</div>
             <p style="font-size:.875rem;color:var(--color-muted);margin-bottom:14px">
-                Ladda upp en CSV-exportfil från din bank. Kolumner identifieras automatiskt.
-                Datum, belopp och beskrivning plockas upp från vanliga kolumnnamn (svenska och engelska).
+                Exporterar aktuellt journal-filter som PDF eller Excel.
             </p>
-            <div class="form-group">
-                <label class="form-label">CSV-fil</label>
-                <InputFile OnChange="OnFile" accept=".csv,.txt" class="form-control" />
+            <div style="display:flex;gap:10px">
+                <button class="btn btn-secondary" @onclick="ExportPdfAsync" disabled="@_exporting">
+                    @if (_exporting)
+                    {
+                        <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>
+                    }
+                    else
+                    {
+
+                        <span class="material-icons" style="font-size:.9rem">picture_as_pdf</span>
+                    }
+                    PDF
+                </button>
+                <button class="btn btn-secondary" @onclick="ExportExcelAsync" disabled="@_exporting">
+                    @if (_exporting)
+                    {
+                        <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>
+                    }
+                    else
+                    {
+
+                        <span class="material-icons" style="font-size:.9rem">table_view</span>
+                    }
+                    Excel
+                </button>
             </div>
+        </div>
 
-            @if (!string.IsNullOrEmpty(_importError))
-            {
-                <div style="background:var(--color-expense-bg);color:var(--color-expense);padding:8px 12px;
-                                    border-radius:8px;font-size:.85rem;margin-bottom:10px">
-                    @_importError
+        <!-- SIE4 Export -->
+        <div class="card">
+            <div class="card-title"><span class="material-icons">account_tree</span> SIE4 Bokföringsexport</div>
+            <p style="font-size:.875rem;color:var(--color-muted);margin-bottom:14px">
+                Exporterar transaktioner i SIE4-format för Bokio, Fortnox, Visma m.fl.
+            </p>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Företagsnamn</label>
+                    <input class="form-control" @bind="_sieCompany" placeholder="T.ex. Mitt AB" />
                 </div>
-            }
+                <div class="form-group">
+                    <label class="form-label">Org.nummer</label>
+                    <input class="form-control" @bind="_sieOrgNr" placeholder="556123-4567" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">År</label>
+                    <select class="form-control" @bind="_sieYear">
+                        @for (var y = DateTime.Today.Year; y >= DateTime.Today.Year - 3; y--)
+                        {
+                            var yr = y;
+                            <option value="@yr">@yr</option>
+                        }
+                    </select>
+                </div>
+            </div>
+            <button class="btn btn-secondary" @onclick="ExportSieAsync" disabled="@_exporting">
+                @if (_exporting)
+                {
+                    <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>
+                }
+                else
+                {
 
-            @if (_preview != null)
-            {
-                <div style="margin-top:12px">
-                    <p style="font-size:.85rem;color:var(--color-muted);margin-bottom:8px">
-                        @_preview.TotalRows rader hittades ·
-                        @_preview.DuplicateCount eventuella dubletter (avmarkerade automatiskt)
-                    </p>
-                    <div style="max-height:240px;overflow-y:auto;border:1px solid var(--color-border);border-radius:8px">
+                    <span class="material-icons" style="font-size:.9rem">download</span>
+                }
+                Ladda ned SIE4-fil (.se)
+            </button>
+        </div>
+
+        <!-- CSV Import (full width) -->
+        @if (BudgetState.CanEdit)
+        {
+            <div class="card" style="grid-column:1/-1">
+                <div class="card-title"><span class="material-icons">upload</span> Importera CSV</div>
+                <p style="font-size:.875rem;color:var(--color-muted);margin-bottom:14px">
+                    Ladda upp en CSV-exportfil från din bank. Systemet försöker identifiera kolumner automatiskt.
+                    Om det inte lyckas kan du mappa kolumnerna manuellt.
+                </p>
+
+                @if (!string.IsNullOrEmpty(_importError))
+                {
+                    <div style="background:var(--color-expense-bg);color:var(--color-expense);padding:8px 12px;border-radius:8px;font-size:.85rem;margin-bottom:12px">
+                        <span class="material-icons" style="font-size:.9rem;vertical-align:middle;margin-right:4px">error_outline</span>
+                        @_importError
+                    </div>
+                }
+
+                @if (_preview == null && !_showManualMapping)
+                {
+                    <!-- Step 1: Upload -->
+                    <div class="form-group">
+                        <label class="form-label">Välj CSV-fil</label>
+                        <InputFile OnChange="OnFileSelected" accept=".csv,.txt" class="form-control" disabled="@_uploading" />
+                    </div>
+                    @if (_uploading)
+                    {
+                        <div style="display:flex;align-items:center;gap:8px;margin-top:8px;color:var(--color-muted);font-size:.85rem">
+                            <div class="spinner" style="width:16px;height:16px;border-width:2px"></div>
+                            Analyserar fil...
+                        </div>
+                    }
+                }
+
+                @if (_showManualMapping && _rawHeaders.Any())
+                {
+                    <!-- Step 2: Manual column mapping -->
+                    <div style="background:var(--color-warning-bg);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:.85rem">
+                        <span class="material-icons" style="font-size:.9rem;vertical-align:middle;margin-right:4px;color:var(--color-warning)">warning</span>
+                        Automatisk kolumnidentifiering misslyckades. Välj vilka kolumner som innehåller datum, belopp och beskrivning.
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px">
+                        <div class="form-group" style="margin:0">
+                            <label class="form-label">📅 Datumkolumn *</label>
+                            <select class="form-control" @bind="_manualDateCol">
+                                <option value="-1">-- Välj --</option>
+                                @for (var i = 0; i < _rawHeaders.Count; i++)
+                                {
+                                    var idx = i;
+                                    <option value="@idx">@_rawHeaders[idx] @(i < _sampleRow.Count ? $"(ex: {_sampleRow[idx]})" : "")</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin:0">
+                            <label class="form-label">💰 Beloppskolumn *</label>
+                            <select class="form-control" @bind="_manualAmountCol">
+                                <option value="-1">-- Välj --</option>
+                                @for (var i = 0; i < _rawHeaders.Count; i++)
+                                {
+                                    var idx = i;
+                                    <option value="@idx">@_rawHeaders[idx] @(i < _sampleRow.Count ? $"(ex: {_sampleRow[idx]})" : "")</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin:0">
+                            <label class="form-label">📝 Beskrivningskolumn</label>
+                            <select class="form-control" @bind="_manualDescCol">
+                                <option value="-1">-- Ingen --</option>
+                                @for (var i = 0; i < _rawHeaders.Count; i++)
+                                {
+                                    var idx = i;
+                                    <option value="@idx">@_rawHeaders[idx] @(i < _sampleRow.Count ? $"(ex: {_sampleRow[idx]})" : "")</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Sample data preview -->
+                    @if (_rawSampleRows.Any())
+                    {
+                        <div style="overflow-x:auto;margin-bottom:14px;border:1px solid var(--color-border);border-radius:8px">
+                            <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+                                <thead style="background:var(--color-bg)">
+                                    <tr>
+                                        @foreach (var h in _rawHeaders)
+                                        {
+                                            <th style="padding:6px 10px;text-align:left;border-bottom:1px solid var(--color-border);white-space:nowrap">
+                                                @h
+                                            </th>
+                                        }
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var row in _rawSampleRows.Take(3))
+                                    {
+                                        <tr>
+                                            @foreach (var cell in row)
+                                            {
+                                                <td style="padding:5px 10px;border-bottom:.5px solid var(--color-border);white-space:nowrap">@cell</td>
+                                            }
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+
+                    <div style="display:flex;gap:8px">
+                        <button class="btn btn-primary btn-sm" @onclick="ApplyManualMappingAsync"
+                                disabled="@(_manualDateCol < 0 || _manualAmountCol < 0 || _applying)">
+                            @if (_applying)
+                            {
+                                <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>
+                            }
+                            Tillämpa mappning &amp; förhandsgranska
+                        </button>
+                        <button class="btn btn-ghost btn-sm" @onclick="ResetImport">Avbryt</button>
+                    </div>
+                }
+
+                @if (_preview != null)
+                {
+                    <!-- Step 3: Preview & confirm -->
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                        <div style="font-size:.875rem;color:var(--color-muted)">
+                            <strong>@_preview.TotalRows</strong> rader hittades ·
+                            <strong style="color:var(--color-warning)">@_preview.DuplicateCount</strong> möjliga dubletter
+                        </div>
+                        <div style="display:flex;gap:6px">
+                            <button class="btn btn-ghost btn-sm" @onclick="SelectAll">Välj alla</button>
+                            <button class="btn btn-ghost btn-sm" @onclick="DeselectAll">Avmarkera alla</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Standardkategori för importerade transaktioner</label>
+                        <select class="form-control" style="max-width:300px" @bind="_defaultCategoryId">
+                            @foreach (var cat in _categories)
+                            {
+                                <option value="@cat.Id">@cat.Name</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div style="max-height:340px;overflow-y:auto;border:1px solid var(--color-border);border-radius:8px;margin-bottom:12px">
                         <table style="width:100%;border-collapse:collapse;font-size:.8rem">
-                            <thead style="background:var(--color-bg)">
+                            <thead style="background:var(--color-bg);position:sticky;top:0">
                                 <tr>
-                                    <th style="padding:6px 10px">✓</th>
-                                    <th>Datum</th>
-                                    <th style="text-align:right">Belopp</th>
-                                    <th>Beskrivning</th>
+                                    <th style="padding:6px 10px;text-align:center;width:36px">✓</th>
+                                    <th style="padding:6px 10px;text-align:left">Datum</th>
+                                    <th style="padding:6px 10px;text-align:right">Belopp</th>
+                                    <th style="padding:6px 10px;text-align:left">Beskrivning</th>
+                                    <th style="padding:6px 10px;text-align:center;width:80px">Status</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach (var r in _preview.Rows)
                                 {
                                     var row = r;
-                                    <tr style="@(row.IsDuplicate ? "opacity:.5" : "")">
-                                        <td style="padding:4px 10px">
+                                    <tr style="@(row.IsDuplicate ? "opacity:.55" : "")">
+                                        <td style="padding:4px 10px;text-align:center">
                                             <input type="checkbox" @bind="row.Selected" />
                                         </td>
                                         <td style="padding:4px 10px">@row.Date.ToString("yyyy-MM-dd")</td>
                                         <td style="text-align:right;padding:4px 10px;
-                                                               color:@(row.Amount >= 0 ? "var(--color-income)" : "var(--color-expense)")">
+                                            color:@(row.Amount >= 0 ? "var(--color-income)" : "var(--color-expense)")">
                                             @row.Amount.ToString("N2")
                                         </td>
-                                        <td style="padding:4px 10px">
-                                            @row.Description
+                                        <td style="padding:4px 10px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                                            @(row.Description ?? "–")
+                                        </td>
+                                        <td style="padding:4px 10px;text-align:center">
                                             @if (row.IsDuplicate)
                                             {
-                                                <span style="color:var(--color-muted)"> (möjlig dublett)</span>
+                                                <span class="badge badge-muted" style="font-size:.65rem" title="Möjlig dublett">Dublett?</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge badge-income" style="font-size:.65rem">Ny</span>
                                             }
                                         </td>
                                     </tr>
@@ -151,33 +274,247 @@
                             </tbody>
                         </table>
                     </div>
-                    <div style="margin-top:10px;display:flex;gap:8px">
-                        <button class="btn btn-primary btn-sm" @onclick="ConfirmImport" disabled="@_importing">
+
+                    <div style="display:flex;align-items:center;gap:10px">
+                        <button class="btn btn-primary btn-sm" @onclick="ConfirmImport"
+                                disabled="@(_importing || !_preview.Rows.Any(r => r.Selected))">
                             @if (_importing)
                             {
                                 <span class="spinner" style="width:14px;height:14px;border-width:2px"></span>
                             }
+                            <span class="material-icons" style="font-size:.85rem">check</span>
                             Importera valda (@_preview.Rows.Count(r => r.Selected) st)
                         </button>
-                        <button class="btn btn-ghost btn-sm" @onclick='() => { _preview = null; _importError = ""; }'>
-                            Avbryt
-                        </button>
+                        <button class="btn btn-ghost btn-sm" @onclick="ResetImport">Avbryt</button>
+                        <span style="font-size:.78rem;color:var(--color-muted)">
+                            @_preview.Rows.Count(r => r.Selected) av @_preview.TotalRows valda
+                        </span>
                     </div>
-                </div>
-            }
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Mobile version -->
+<div class="mobile-page-shell">
+    <div class="mobile-topbar"><span class="mobile-title">Export &amp; Import</span></div>
+    <div class="mobile-page-scroll">
+        <div class="mobile-entry-card">
+            <div style="font-weight:600;margin-bottom:8px">Export</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-secondary btn-sm" @onclick="ExportPdfAsync">PDF</button>
+                <button class="btn btn-secondary btn-sm" @onclick="ExportExcelAsync">Excel</button>
+            </div>
         </div>
-    }
+        @if (BudgetState.CanEdit)
+        {
+            <div class="mobile-entry-card">
+                <div style="font-weight:600;margin-bottom:8px">Importera CSV</div>
+                <InputFile OnChange="OnFileSelected" accept=".csv,.txt" class="form-control" disabled="@_uploading" />
+                @if (_uploading)
+                {
+                    <div style="margin-top:8px;font-size:.82rem;color:var(--color-muted)">Analyserar...</div>
+                }
+                @if (!string.IsNullOrEmpty(_importError))
+                {
+                    <div style="margin-top:8px;font-size:.82rem;color:var(--color-expense)">@_importError</div>
+                }
+                @if (_preview != null)
+                {
+                    <div style="margin-top:10px;font-size:.85rem">@_preview.TotalRows rader hittades</div>
+                    <button class="btn btn-primary btn-sm" style="margin-top:8px;width:100%"
+                            @onclick="ConfirmImport" disabled="@_importing">
+                        Importera (@_preview.Rows.Count(r => r.Selected) st)
+                    </button>
+                }
+            </div>
+        }
+    </div>
 </div>
 
 @code {
-    private ImportPreviewDto? _preview;
-    private string? _sessionId;
-    private string _importError = "";
-    private bool _importing, _exporting;
-
+    // ── Export state ──────────────────────────────────────────────────────────
     private string _sieCompany = "Budget";
     private string? _sieOrgNr;
     private int _sieYear = DateTime.Today.Year;
+    private bool _exporting;
+
+    // ── Import state ──────────────────────────────────────────────────────────
+    private ImportPreviewDto? _preview;
+    private string? _sessionId;
+    private string _importError = "";
+    private bool _uploading, _importing, _applying;
+    private int _defaultCategoryId = 1;
+    private List<Category> _categories = new();
+
+    // Manual mapping state
+    private bool _showManualMapping;
+    private List<string> _rawHeaders = new();
+    private List<string> _sampleRow = new();
+    private List<List<string>> _rawSampleRows = new();
+    private int _manualDateCol = -1;
+    private int _manualAmountCol = -1;
+    private int _manualDescCol = -1;
+
+    // Raw file content for re-parsing after manual mapping
+    private byte[]? _rawFileBytes;
+    private string _rawFileName = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _categories = await BudgetSvc.GetCategoriesAsync(BudgetState.ActiveBudgetId) ?? new();
+            if (_categories.Any()) _defaultCategoryId = _categories.First().Id;
+        }
+        catch { }
+    }
+
+    [Inject] private BudgetService BudgetSvc { get; set; } = null!;
+
+    // ── File upload ───────────────────────────────────────────────────────────
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        ResetImport();
+        _importError = "";
+        var file = e.File;
+        if (file == null) return;
+
+        _uploading = true; StateHasChanged();
+        try
+        {
+            // Read raw bytes for potential re-use with manual mapping
+            using var ms = new System.IO.MemoryStream();
+            await using var stream = file.OpenReadStream(10 * 1024 * 1024);
+            await stream.CopyToAsync(ms);
+            _rawFileBytes = ms.ToArray();
+            _rawFileName = file.Name;
+
+            // Try automatic preview
+            using var previewStream = new System.IO.MemoryStream(_rawFileBytes);
+            var session = await ImportSvc.PreviewAsync(BudgetState.ActiveBudgetId, previewStream, file.Name);
+
+            if (session != null && session.Preview.TotalRows > 0)
+            {
+                _preview = session.Preview;
+                _sessionId = session.SessionId;
+            }
+            else
+            {
+                // Auto-detection failed — show manual mapping UI
+                await ParseRawHeadersAsync();
+                _showManualMapping = true;
+                _importError = session?.Preview.TotalRows == 0
+                    ? "Inga rader kunde tolkas automatiskt. Välj kolumner manuellt nedan."
+                    : "Kunde inte tolka filen automatiskt. Välj kolumner manuellt nedan.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _importError = $"Kunde inte läsa filen: {ex.Message}";
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    /// <summary>Parse just headers + sample rows so user can pick columns.</summary>
+    private async Task ParseRawHeadersAsync()
+    {
+        if (_rawFileBytes == null) return;
+        try
+        {
+            var content = System.Text.Encoding.UTF8.GetString(_rawFileBytes);
+            var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            if (!lines.Any()) return;
+
+            var delimiter = DetectDelimiter(lines[0]);
+
+            _rawHeaders = SplitLine(lines[0], delimiter);
+            _rawSampleRows = new();
+            _sampleRow = lines.Length > 1 ? SplitLine(lines[1], delimiter) : new();
+
+            for (var i = 1; i < Math.Min(lines.Length, 5); i++)
+                _rawSampleRows.Add(SplitLine(lines[i], delimiter));
+        }
+        catch (Exception ex)
+        {
+            _importError = $"Kunde inte läsa kolumner: {ex.Message}";
+        }
+        await Task.CompletedTask;
+    }
+
+    private async Task ApplyManualMappingAsync()
+    {
+        if (_rawFileBytes == null || _manualDateCol < 0 || _manualAmountCol < 0) return;
+        _applying = true; _importError = ""; StateHasChanged();
+        try
+        {
+            using var stream = new System.IO.MemoryStream(_rawFileBytes);
+            var session = await ImportSvc.PreviewWithMappingAsync(
+                BudgetState.ActiveBudgetId, stream, _rawFileName,
+                _manualDateCol, _manualAmountCol, _manualDescCol);
+
+            if (session != null && session.Preview.TotalRows > 0)
+            {
+                _preview = session.Preview;
+                _sessionId = session.SessionId;
+                _showManualMapping = false;
+                _importError = "";
+            }
+            else
+            {
+                _importError = "Inga rader kunde tolkas med vald mappning. Kontrollera att du valt rätt kolumner.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _importError = $"Mappning misslyckades: {ex.Message}";
+        }
+        finally
+        {
+            _applying = false;
+        }
+    }
+
+    private async Task ConfirmImport()
+    {
+        if (_preview == null || _sessionId == null) return;
+        _importing = true;
+        var selected = _preview.Rows.Where(r => r.Selected).Select(r => r.RowIndex).ToList();
+        try
+        {
+            var count = await ImportSvc.ConfirmAsync(BudgetState.ActiveBudgetId,
+                new ConfirmImportDto(selected, _defaultCategoryId, _sessionId));
+            Toast.Success($"{count} transaktioner importerade.");
+            ResetImport();
+        }
+        catch (Exception ex) { _importError = $"Import misslyckades: {ex.Message}"; }
+        finally { _importing = false; }
+    }
+
+    private void ResetImport()
+    {
+        _preview = null;
+        _sessionId = null;
+        _importError = "";
+        _showManualMapping = false;
+        _rawHeaders = new();
+        _rawSampleRows = new();
+        _sampleRow = new();
+        _manualDateCol = -1;
+        _manualAmountCol = -1;
+        _manualDescCol = -1;
+        _rawFileBytes = null;
+    }
+
+    private void SelectAll() { if (_preview != null) foreach (var r in _preview.Rows) r.Selected = true; }
+    private void DeselectAll() { if (_preview != null) foreach (var r in _preview.Rows) r.Selected = false; }
+
+    // ── Export helpers ────────────────────────────────────────────────────────
 
     private async Task ExportPdfAsync()
     {
@@ -187,7 +524,7 @@
         {
             var url = JournalSvc.GetPdfUrl(BudgetState.ActiveBudgetId, Filter.Query);
             var response = await Http.GetAsync(url);
-            if (!response.IsSuccessStatusCode) { Toast.Error($"Export misslyckades ({(int)response.StatusCode})."); return; }
+            if (!response.IsSuccessStatusCode) { Toast.Error($"Export misslyckades."); return; }
             var base64 = Convert.ToBase64String(await response.Content.ReadAsByteArrayAsync());
             await JS.InvokeVoidAsync("downloadFile", $"transaktioner_{DateTime.Today:yyyyMMdd}.pdf", "application/pdf", base64);
         }
@@ -203,7 +540,7 @@
         {
             var url = JournalSvc.GetExcelUrl(BudgetState.ActiveBudgetId, Filter.Query);
             var response = await Http.GetAsync(url);
-            if (!response.IsSuccessStatusCode) { Toast.Error($"Export misslyckades ({(int)response.StatusCode})."); return; }
+            if (!response.IsSuccessStatusCode) { Toast.Error($"Export misslyckades."); return; }
             var base64 = Convert.ToBase64String(await response.Content.ReadAsByteArrayAsync());
             await JS.InvokeVoidAsync("downloadFile", $"transaktioner_{DateTime.Today:yyyyMMdd}.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", base64);
@@ -220,55 +557,40 @@
         {
             var company = Uri.EscapeDataString(_sieCompany);
             var url = $"api/budgets/{BudgetState.ActiveBudgetId}/reports/export-sie" +
-                           $"?year={_sieYear}&companyName={company}" +
-                           (_sieOrgNr != null ? $"&orgNumber={Uri.EscapeDataString(_sieOrgNr)}" : "");
+                      $"?year={_sieYear}&companyName={company}" +
+                      (_sieOrgNr != null ? $"&orgNumber={Uri.EscapeDataString(_sieOrgNr)}" : "");
             var response = await Http.GetAsync(url);
             if (!response.IsSuccessStatusCode) { Toast.Error("SIE-export misslyckades."); return; }
             var base64 = Convert.ToBase64String(await response.Content.ReadAsByteArrayAsync());
-            await JS.InvokeVoidAsync("downloadFile",
-                $"sie4_{_sieCompany}_{_sieYear}.se", "application/octet-stream", base64);
+            await JS.InvokeVoidAsync("downloadFile", $"sie4_{_sieCompany}_{_sieYear}.se", "application/octet-stream", base64);
         }
         catch (Exception ex) { Toast.Error($"SIE-export: {ex.Message}"); }
         finally { _exporting = false; }
     }
 
-    private async Task OnFile(InputFileChangeEventArgs e)
+    // ── CSV parsing helpers ───────────────────────────────────────────────────
+
+    private static char DetectDelimiter(string line)
     {
-        _importError = "";
-        _preview = null;
-        _sessionId = null;
-        var file = e.File;
-        try
-        {
-            await using var stream = file.OpenReadStream(10 * 1024 * 1024);
-            var session = await ImportSvc.PreviewAsync(BudgetState.ActiveBudgetId, stream, file.Name);
-            if (session != null)
-            {
-                _preview = session.Preview;
-                _sessionId = session.SessionId;
-                if (_preview.TotalRows == 0)
-                    _importError = "Inga rader kunde tolkas. Kontrollera att filen är en CSV med datum, belopp och beskrivning.";
-            }
-        }
-        catch (Exception ex)
-        {
-            _importError = $"Kunde inte läsa filen: {ex.Message}";
-        }
+        var semi = line.Count(c => c == ';');
+        var comma = line.Count(c => c == ',');
+        var tab = line.Count(c => c == '\t');
+        if (tab > semi && tab > comma) return '\t';
+        return semi >= comma ? ';' : ',';
     }
 
-    private async Task ConfirmImport()
+    private static List<string> SplitLine(string line, char delimiter)
     {
-        if (_preview == null || _sessionId == null) return;
-        _importing = true;
-        var selected = _preview.Rows.Where(r => r.Selected).Select(r => r.RowIndex).ToList();
-        try
+        var result = new List<string>();
+        var inQuote = false;
+        var current = new System.Text.StringBuilder();
+        foreach (var ch in line)
         {
-            var count = await ImportSvc.ConfirmAsync(BudgetState.ActiveBudgetId,
-                new ConfirmImportDto(selected, 3, _sessionId));
-            Toast.Success($"{count} transaktioner importerade.");
-            _preview = null; _sessionId = null; _importError = "";
+            if (ch == '"') { inQuote = !inQuote; }
+            else if (ch == delimiter && !inQuote) { result.Add(current.ToString().Trim()); current.Clear(); }
+            else { current.Append(ch); }
         }
-        catch (Exception ex) { Toast.Error($"Import misslyckades: {ex.Message}"); }
-        finally { _importing = false; }
+        result.Add(current.ToString().Trim());
+        return result;
     }
 }
